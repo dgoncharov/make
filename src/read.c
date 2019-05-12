@@ -3065,6 +3065,7 @@ parse_file_seq (char **stringp, unsigned int size, int stopmap,
   glob_t gl;
   char *tp;
   int findmap = stopmap|MAP_VMSCOMMA|MAP_BLANK|MAP_NUL;
+  gl.gl_offs = 0;
 
   /* Always stop on NUL.  */
   stopmap |= MAP_NUL;

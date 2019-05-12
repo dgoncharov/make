@@ -30,7 +30,7 @@ AC_CONFIG_LIBOBJ_DIR([src])
 
 # Automake setup
 # We have to enable "foreign" because ChangeLog is auto-generated
-AM_INIT_AUTOMAKE([1.15 foreign -Werror -Wall])
+AM_INIT_AUTOMAKE([1.15 foreign -Wall])
 
 # Checks for programs.
 AC_USE_SYSTEM_EXTENSIONS
@@ -410,7 +410,7 @@ AC_CACHE_CHECK([if system libc has GNU glob], [make_cv_sys_gnu_glob],
    gnu glob
 # endif
 #endif],
-        [make_cv_sys_gnu_glob=yes],
+        [make_cv_sys_gnu_glob=no],
         [make_cv_sys_gnu_glob=no])])
 AS_IF([test "$make_cv_sys_gnu_glob" = no],
 [ GLOBINC='-I$(srcdir)/glob'
@@ -505,8 +505,8 @@ AS_IF([test "x$make_cv_load" = xno && test "x$user_load" = xyes],
 ])
 
 # Specify what files are to be created.
-AC_CONFIG_FILES([Makefile glob/Makefile po/Makefile.in config/Makefile \
-                 doc/Makefile tests/config-flags.pm])
+AC_CONFIG_FILES([Makefile glob/Makefile config/Makefile \
+                 tests/config-flags.pm])
 # We don't need this, since the standard automake output will do.
 #mk/Posix.mk
 

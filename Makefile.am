@@ -21,7 +21,7 @@ ACLOCAL_AMFLAGS = -I config
 
 MAKE_HOST =	@MAKE_HOST@
 
-SUBDIRS =	glob config po doc
+SUBDIRS =	glob config doc
 
 bin_PROGRAMS =	make
 include_HEADERS = src/gnumake.h

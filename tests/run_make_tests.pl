@@ -47,7 +47,7 @@ $all_tests = 0;
 $sh_name = '/bin/sh';
 $is_posix_sh = 1;
 
-$CMD_rmfile = 'rm -f';
+$CMD_rmfile = 'rm -rf';
 
 # rmdir broken in some Perls on VMS.
 if ($^O eq 'VMS')

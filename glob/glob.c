@@ -57,6 +57,7 @@ USA.  */
 # endif
 #endif
 
+#undef ELIDE_CODE
 #ifndef ELIDE_CODE
 
 #if defined STDC_HEADERS || defined __GNU_LIBRARY__
@@ -208,7 +209,7 @@ my_realloc (p, n)
 #endif /* __GNU_LIBRARY__ || __DJGPP__ */
 
 
-#if !defined __alloca && !defined __GNU_LIBRARY__
+#if !defined __alloca
 
 # ifdef	__GNUC__
 #  undef alloca
@@ -253,6 +254,10 @@ extern char *alloca ();
 # ifndef __stat
 #  define __stat(fname, buf) __xstat (_STAT_VER, fname, buf)
 # endif
+#endif
+
+#ifndef __stat
+# define __stat stat
 #endif
 
 #if !(defined STDC_HEADERS || defined __GNU_LIBRARY__)
@@ -370,6 +375,7 @@ glob (pattern, flags, errfunc, pglob)
   size_t dirlen;
   int status;
   int oldcount;
+  int retval = 0;
 
   if (pattern == NULL || pglob == NULL || (flags & ~__GLOB_FLAGS) != 0)
     {
@@ -1028,24 +1034,43 @@ glob (pattern, flags, errfunc, pglob)
   if (flags & GLOB_MARK)
     {
       /* Append slashes to directory names.  */
-      int i;
+      int i, e;
       struct stat st;
-      for (i = oldcount; i < pglob->gl_pathc; ++i)
-	if (((flags & GLOB_ALTDIRFUNC)
-	     ? (*pglob->gl_stat) (pglob->gl_pathv[i], &st)
-	     : __stat (pglob->gl_pathv[i], &st)) == 0
-	    && S_ISDIR (st.st_mode))
-	  {
- 	    size_t len = strlen (pglob->gl_pathv[i]) + 2;
-	    char *new = realloc (pglob->gl_pathv[i], len);
- 	    if (new == NULL)
-	      {
-		globfree (pglob);
-		return GLOB_NOSPACE;
-	      }
-	    strcpy (&new[len - 2], "/");
-	    pglob->gl_pathv[i] = new;
-	  }
+      for (i = e = oldcount; i < pglob->gl_pathc + pglob->gl_offs; ++i)
+        {
+	  if (((flags & GLOB_ALTDIRFUNC)
+	       ? (*pglob->gl_stat) (pglob->gl_pathv[i], &st)
+	       : __stat (pglob->gl_pathv[i], &st)) == 0
+	      && S_ISDIR (st.st_mode))
+	    {
+	      size_t len = strlen (pglob->gl_pathv[i]) + 2;
+	      char *new = realloc (pglob->gl_pathv[i], len);
+	      if (new == NULL)
+		{
+		  globfree (pglob);
+		  return GLOB_NOSPACE;
+		}
+	      strcpy (&new[len - 2], "/");
+	      if (pglob->gl_pathv[e] == NULL)
+		{
+		  pglob->gl_pathv[e++] = new;
+		  pglob->gl_pathv[i] = NULL;
+		}
+	      else
+	        pglob->gl_pathv[i] = new;
+	    }
+	  else if (flags & GLOB_ONLYDIR)
+	    {
+	      free (pglob->gl_pathv[i]);
+	      pglob->gl_pathv[i] = NULL;
+	      if (pglob->gl_pathv[e] != NULL)
+		e = i;
+	    }
+	}
+	if (pglob->gl_pathv[e] == NULL)
+	  pglob->gl_pathc = e - pglob->gl_offs;
+	if (pglob->gl_pathc == 0)
+	  retval = GLOB_NOMATCH;
     }
 
   if (!(flags & GLOB_NOSORT))
@@ -1061,7 +1086,7 @@ glob (pattern, flags, errfunc, pglob)
 	     sizeof (char *), collated_compare);
     }
 
-  return 0;
+  return retval;
 }
 
 
