@@ -159,7 +159,7 @@ inc2:; echo > $@
 !,
               '', "echo > inc2\necho > inc1\nDONE\n");
 
-rmfiles('inc1', 'inc2');
+unlink('inc1', 'inc2');
 
 # No target gets correct error
 run_make_test('', '', '#MAKE#: *** No targets.  Stop.', 512);
@@ -199,6 +199,8 @@ baz: end
 '',
                   "#MAKEFILE#:2: bar: $ERR_no_such_file\n#MAKE#: *** No rule to make target 'end', needed by 'baz'.  Stop.\n",
                   512);
+unlink('inc1');
+unlink('inc2');
 
     # Test include of non-make-able file does show an error (Savannah #102)
     run_make_test(q!
@@ -246,18 +248,54 @@ if (defined $ERR_unreadable_file) {
 include inc1
 all:;@echo $(FOO)
 !,
-                  '', "#MAKEFILE#:2: inc1: $ERR_unreadable_file\n#MAKE#: *** No rule to make target 'inc1'.  Stop.", 512);
+                  '', "#MAKEFILE#:2: *** Cannot read inc1: Permission denied.  Stop.", 512);
 
-# Unreadable files that we know how to successfully recreate should work
+unlink('inc1');
+
+# -including files that can't be read should show an error
+    create_file('inc1', 'FOO := foo');
+    chmod 0000, 'inc1';
+
+    run_make_test(q!
+FOO := hello
+-include inc1
+all:;@echo $(FOO)
+!,
+                  '', "#MAKEFILE#:3: *** Cannot read inc1: Permission denied.  Stop.", 512);
+
+# including files that can't be read should show an error even when there is a
+# target to create them.
+
+    unlink('inc1');
+    create_file('inc1', 'FOO := foo');
+    chmod 0000, 'inc1';
 
     run_make_test(sprintf(q!
 all:;@echo $(FOO)
 include inc1
 inc1:; @%s $@ && echo FOO := bar > $@
 !, $CMD_rmfile),
-                  '', "bar");
+                  '', "#MAKEFILE#:3: *** Cannot read inc1: Permission denied.  Stop.", 512);
 
-    rmfiles('inc1');
+    unlink('inc1');
+
+# -including files that can't be read should show an error even when there is a
+# target to create them.
+
+
+    unlink('inc1');
+    create_file('inc1', 'FOO := foo');
+    chmod 0000, 'inc1';
+
+    run_make_test(sprintf(q!
+all:;@echo $(FOO)
+-include inc1
+inc1:; @%s $@ && echo FOO := bar > $@
+!, $CMD_rmfile),
+                  '', "#MAKEFILE#:3: *** Cannot read inc1: Permission denied.  Stop.", 512);
+
+    unlink('inc1');
 }
+
 
 1;

@@ -360,20 +360,11 @@ eval_makefile (const char *filename, unsigned short flags)
   ENULLLOOP (ebuf.fp, fopen (filename, "r"));
   deps->error = errno;
 
-  /* Check for unrecoverable errors: out of mem or FILE slots.  */
-  switch (deps->error)
+  /* Check for unrecoverable errors: anything other than enoent.  */
+  if (deps->error && deps->error != ENOENT)
     {
-#ifdef EMFILE
-    case EMFILE:
-#endif
-#ifdef ENFILE
-    case ENFILE:
-#endif
-    case ENOMEM:
-      {
-        const char *err = strerror (deps->error);
-        OS (fatal, reading_file, "%s", err);
-      }
+      const char *err = strerror (deps->error);
+      OSS (fatal, reading_file, "Cannot read %s: %s", filename, err);
     }
 
   /* If the makefile wasn't found and it's either a makefile from
