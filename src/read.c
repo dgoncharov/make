@@ -379,17 +379,26 @@ eval_makefile (const char *filename, unsigned short flags)
   /* If the makefile wasn't found and it's either a makefile from
      the 'MAKEFILES' variable or an included makefile,
      search the included makefile search path for this makefile.  */
-  if (ebuf.fp == 0 && (flags & RM_INCLUDED) && *filename != '/')
+  if (ebuf.fp == 0 && (flags & RM_INCLUDED) && *filename != '/' &&
+      deps->error == ENOENT)
     {
       unsigned int i;
       for (i = 0; include_directories[i] != 0; ++i)
         {
           const char *included = concat (3, include_directories[i],
                                          "/", filename);
-          ebuf.fp = fopen (included, "r");
+          ENULLLOOP (ebuf.fp, fopen (included, "r"));
           if (ebuf.fp)
             {
               filename = included;
+              break;
+            }
+          if (errno != ENOENT)
+            {
+              /* Found a file, but cannot open it.
+                 End lookup and remake the file.  */
+              filename = included;
+              deps->error = errno;
               break;
             }
         }
