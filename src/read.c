@@ -134,7 +134,7 @@ const floc *reading_file = 0;
 static struct goaldep *read_files = 0;
 
 static struct goaldep *eval_makefile (const char *filename, unsigned short flags);
-static void eval (struct ebuffer *buffer, int flags);
+static int eval (struct ebuffer *buffer, int flags, int stay_alive);
 
 static long readline (struct ebuffer *ebuf);
 static void do_undefine (char *name, enum variable_origin origin,
@@ -320,6 +320,7 @@ eval_makefile (const char *filename, unsigned short flags)
   struct goaldep *deps;
   struct ebuffer ebuf;
   const floc *curfile;
+  int rc;
   char *expanded = 0;
 
   /* Create a new goaldep entry.  */
@@ -442,7 +443,7 @@ eval_makefile (const char *filename, unsigned short flags)
   curfile = reading_file;
   reading_file = &ebuf.floc;
 
-  eval (&ebuf, !(flags & RM_NO_DEFAULT_GOAL));
+  rc = eval (&ebuf, !(flags & RM_NO_DEFAULT_GOAL), flags & RM_INCLUDED);
 
   reading_file = curfile;
 
@@ -451,7 +452,13 @@ eval_makefile (const char *filename, unsigned short flags)
   free (ebuf.bufstart);
   alloca (0);
 
-  errno = 0;
+  if (rc)
+    {
+      errno = deps->error;
+      deps->file->last_mtime = NONEXISTENT_MTIME;
+    }
+  else
+    errno = 0;
   return deps;
 }
 
@@ -485,7 +492,7 @@ eval_buffer (char *buffer, const floc *flocp)
 
   saved = install_conditionals (&new);
 
-  eval (&ebuf, 1);
+  eval (&ebuf, 1, 0);
 
   restore_conditionals (saved);
 
@@ -569,12 +576,13 @@ parse_var_assignment (const char *line, struct vmodifiers *vmod)
 }
 
 
+
 /* Read file FILENAME as a makefile and add its contents to the data base.
 
    SET_DEFAULT is true if we are allowed to set the default goal.  */
 
-static void
-eval (struct ebuffer *ebuf, int set_default)
+static int
+eval (struct ebuffer *ebuf, int set_default, int stay_alive)
 {
   char *collapsed = 0;
   size_t collapsed_length = 0;
@@ -793,7 +801,11 @@ eval (struct ebuffer *ebuf, int set_default)
         if (i != -2)
           {
             if (i == -1)
-              O (fatal, fstart, _("invalid syntax in conditional"));
+              {
+                if (stay_alive)
+                  goto CLEANUP;
+                O (fatal, fstart, _("invalid syntax in conditional"));
+              }
 
             ignoring = i;
             continue;
@@ -966,7 +978,10 @@ eval (struct ebuffer *ebuf, int set_default)
               /* Load the file.  0 means failure.  */
               r = load_file (&ebuf->floc, &name, noerror);
               if (! r && ! noerror)
-                OS (fatal, &ebuf->floc, _("%s: failed to load"), name);
+                if (stay_alive)
+                  goto CLEANUP;
+                else
+                  OS (fatal, &ebuf->floc, _("%s: failed to load"), name);
 
               free_ns (files);
               files = next;
@@ -992,7 +1007,10 @@ eval (struct ebuffer *ebuf, int set_default)
          was no preceding target, and the line might have been usable as a
          variable definition.  But now we know it is definitely lossage.  */
       if (line[0] == cmd_prefix)
-        O (fatal, fstart, _("recipe commences before first target"));
+        if (stay_alive)
+          goto CLEANUP;
+        else
+          O (fatal, fstart, _("recipe commences before first target"));
 
       /* This line describes some target files.  This is complicated by
          the existence of target-specific variables, because we can't
@@ -1041,7 +1059,10 @@ eval (struct ebuffer *ebuf, int set_default)
           {
           case w_eol:
             if (cmdleft != 0)
-              O (fatal, fstart, _("missing rule before recipe"));
+              if (stay_alive)
+                goto CLEANUP;
+              else
+                O (fatal, fstart, _("missing rule before recipe"));
             /* This line contained something but turned out to be nothing
                but whitespace (a comment?).  */
             continue;
@@ -1141,6 +1162,8 @@ eval (struct ebuffer *ebuf, int set_default)
 
             /* There's no need to be ivory-tower about this: check for
                one of the most common bugs found in makefiles...  */
+            if (stay_alive)
+              goto CLEANUP;
             if (cmd_prefix == '\t' && strneq (line, "        ", 8))
               O (fatal, fstart, _("missing separator (did you mean TAB instead of 8 spaces?)"));
             else
@@ -1289,13 +1312,23 @@ eval (struct ebuffer *ebuf, int set_default)
                                      PARSEFS_NOGLOB);
             ++p2;
             if (target == 0)
-              O (fatal, fstart, _("missing target pattern"));
+              {
+                if (stay_alive)
+                  goto CLEANUP;
+                O (fatal, fstart, _("missing target pattern"));
+              }
             else if (target->next != 0)
-              O (fatal, fstart, _("multiple target patterns"));
+              if (stay_alive)
+                goto CLEANUP;
+              else
+                O (fatal, fstart, _("multiple target patterns"));
             pattern_percent = find_percent_cached (&target->name);
             pattern = target->name;
             if (pattern_percent == 0)
-              O (fatal, fstart, _("target pattern contains no '%%'"));
+              if (stay_alive)
+                goto CLEANUP;
+              else
+                O (fatal, fstart, _("target pattern contains no '%%'"));
             free_ns (target);
           }
         else
@@ -1410,15 +1443,20 @@ eval (struct ebuffer *ebuf, int set_default)
 #undef word1eq
 
   if (conditionals->if_cmds)
-    O (fatal, fstart, _("missing 'endif'"));
+    if (stay_alive)
+      goto CLEANUP;
+    else
+      O (fatal, fstart, _("missing 'endif'"));
 
   /* At eof, record the last rule.  */
   record_waiting_files ();
 
+CLEANUP:
   free (collapsed);
   free (commands);
+  return 0;
 }
-
+
 
 /* Remove comments from LINE.
    This will also remove backslashes that escape things.
