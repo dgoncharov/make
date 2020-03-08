@@ -260,4 +260,19 @@ inc1:; @%s $@ && echo FOO := bar > $@
     rmfiles('inc1');
 }
 
+# Test 20.
+# When successfully read an included makefile, update its mtime, if needed.
+# https://savannah.gnu.org/bugs/?57676.
+
+unlink('hello.mk');
+run_make_test(q!
+-include hello.mk
+$(shell echo hello=world >hello.mk)
+include hello.mk
+default:; @echo $(hello)
+!,
+              '', "world\n");
+
+unlink('hello.mk');
+
 1;
