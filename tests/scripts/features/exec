@@ -60,4 +60,20 @@ SHELL = #PERL#
 all:; @printf "$(ANSWER)\n";
 !, "ANSWER='$answer'", "$answer\n");
 
+
+# test 16
+# Use sh as a shell, but create a directory called 'sh' in PATH.
+# https://savannah.gnu.org/bugs/?57962.
+mkdir("mybin", 0700);
+mkdir("mybin/sh", 0700);
+run_make_test(q!
+SHELL:=sh
+PATH:=mybin:$(PATH)
+all:; @printf "$(ANSWER)\n"
+!, "ANSWER='$answer'", "$answer\n");
+
+rmdir("mybin/sh");
+rmdir("mybin");
+
+
 1;
