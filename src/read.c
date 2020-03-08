@@ -417,6 +417,10 @@ eval_makefile (const char *filename, unsigned short flags)
 
   /* Success; clear errno.  */
   deps->error = 0;
+  /* Managed to read the file. Update mtime, if needed.
+     https://savannah.gnu.org/bugs/?57676.  */
+  if (deps->file->last_mtime == NONEXISTENT_MTIME)
+    deps->file->last_mtime = name_mtime(deps->file->name);
 
   /* Avoid leaking the makefile to children.  */
   fd_noinherit (fileno (ebuf.fp));

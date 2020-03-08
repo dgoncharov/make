@@ -566,6 +566,8 @@ void print_dir_data_base (void);
 void dir_setup_glob (glob_t *);
 void hash_init_directories (void);
 
+FILE_TIMESTAMP name_mtime (const char *name);
+
 void define_default_variables (void);
 void undefine_default_variables (void);
 void set_default_suffixes (void);

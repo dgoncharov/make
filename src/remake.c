@@ -67,7 +67,6 @@ static enum update_status check_dep (struct file *file, unsigned int depth,
                                      FILE_TIMESTAMP this_mtime, int *must_make);
 static enum update_status touch_file (struct file *file);
 static void remake_file (struct file *file);
-static FILE_TIMESTAMP name_mtime (const char *name);
 static const char *library_search (const char *lib, FILE_TIMESTAMP *mtime_ptr);
 
 
@@ -1462,7 +1461,7 @@ f_mtime (struct file *file, int search)
    This causes one duplicate stat() when -L is being used, but the code is
    much cleaner.  */
 
-static FILE_TIMESTAMP
+FILE_TIMESTAMP
 name_mtime (const char *name)
 {
   FILE_TIMESTAMP mtime;
