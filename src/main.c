@@ -2305,6 +2305,8 @@ main (int argc, char **argv, char **envp)
                         any_remade |= (mtime != NONEXISTENT_MTIME
                                        && mtime != makefile_mtimes[i]);
                         makefile_status = MAKE_FAILURE;
+                        if (!keep_going_flag)
+                          any_failed = 1;
                       }
                   }
                 else

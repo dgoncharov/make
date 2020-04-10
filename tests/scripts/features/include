@@ -260,4 +260,13 @@ inc1:; @%s $@ && echo FOO := bar > $@
     rmfiles('inc1');
 }
 
+# Stop when cannot include a makefile.
+# https://savannah.gnu.org/bugs/?56301.
+run_make_test(q!
+all:; @echo hello
+include inc_a.mk
+-include inc_b.mk
+%_a.mk %_b.mk:; @false
+!, '', "#MAKE#: Failed to remake makefile 'inc_a.mk'.", 512);
+
 1;
