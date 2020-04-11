@@ -175,24 +175,30 @@ update_goal_chain (struct goaldep *goaldeps)
                     }
                   else
                     {
-                      FILE_TIMESTAMP mtime = MTIME (file);
+                      struct file *oldfile = file;
                       check_renamed (file);
 
-                      if (file->updated && g->changed &&
-                           mtime != file->mtime_before_update)
+                      if (file->updated && g->changed)
                         {
-                          /* Updating was done.  If this is a makefile and
-                             just_print_flag or question_flag is set (meaning
-                             -n or -q was given and this file was specified
-                             as a command-line target), don't change STATUS.
-                             If STATUS is changed, we will get re-exec'd, and
-                             enter an infinite loop.  */
-                          if (!rebuilding_makefiles
-                              || (!just_print_flag && !question_flag))
-                            status = us_success;
-                          if (rebuilding_makefiles && file->dontcare)
-                            /* This is a default makefile; stop remaking.  */
-                            stop = 1;
+                          FILE_TIMESTAMP lm = oldfile->last_mtime;
+                          FILE_TIMESTAMP mtime =
+                            lm == UNKNOWN_MTIME || lm == NONEXISTENT_MTIME ?
+                            f_mtime (oldfile, 0) : lm;
+                          if (mtime != file->mtime_before_update)
+                            {
+                              /* Updating was done.  If this is a makefile and
+                                 just_print_flag or question_flag is set (meaning
+                                 -n or -q was given and this file was specified
+                                 as a command-line target), don't change STATUS.
+                                 If STATUS is changed, we will get re-exec'd, and
+                                 enter an infinite loop.  */
+                              if (!rebuilding_makefiles
+                                  || (!just_print_flag && !question_flag))
+                                status = us_success;
+                              if (rebuilding_makefiles && file->dontcare)
+                                /* This is a default makefile; stop remaking.  */
+                                stop = 1;
+                            }
                         }
                     }
                 }

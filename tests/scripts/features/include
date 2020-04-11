@@ -260,4 +260,16 @@ inc1:; @%s $@ && echo FOO := bar > $@
     rmfiles('inc1');
 }
 
+unlink('b');
+unlink('a.mk');
+run_make_test(q!
+all:; @echo hello=$(hello)
+include a.mk
+a.mk: b
+b:
+	@echo hello=world >a.mk
+!, '', 'hello=world');
+unlink('a.mk');
+unlink('b');
+
 1;
