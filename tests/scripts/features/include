@@ -262,6 +262,8 @@ inc1:; @%s $@ && echo FOO := bar > $@
 
 # Stop when cannot include a makefile.
 # https://savannah.gnu.org/bugs/?56301.
+unlink('inc_a.mk');
+unlink('inc_b.mk');
 run_make_test(q!
 all:; @echo hello
 include inc_a.mk
