@@ -977,11 +977,12 @@ eval (struct ebuffer *ebuf, int set_default, int stay_alive)
 
               /* Load the file.  0 means failure.  */
               r = load_file (&ebuf->floc, &name, noerror);
-              if (! r && ! noerror)
+              if (! r && ! noerror) {
                 if (stay_alive)
                   goto CLEANUP;
                 else
                   OS (fatal, &ebuf->floc, _("%s: failed to load"), name);
+              }
 
               free_ns (files);
               files = next;
@@ -1006,11 +1007,12 @@ eval (struct ebuffer *ebuf, int set_default, int stay_alive)
       /* This line starts with a tab but was not caught above because there
          was no preceding target, and the line might have been usable as a
          variable definition.  But now we know it is definitely lossage.  */
-      if (line[0] == cmd_prefix)
+      if (line[0] == cmd_prefix) {
         if (stay_alive)
           goto CLEANUP;
         else
           O (fatal, fstart, _("recipe commences before first target"));
+      }
 
       /* This line describes some target files.  This is complicated by
          the existence of target-specific variables, because we can't
@@ -1058,11 +1060,12 @@ eval (struct ebuffer *ebuf, int set_default, int stay_alive)
         switch (wtype)
           {
           case w_eol:
-            if (cmdleft != 0)
+            if (cmdleft != 0) {
               if (stay_alive)
                 goto CLEANUP;
               else
                 O (fatal, fstart, _("missing rule before recipe"));
+            }
             /* This line contained something but turned out to be nothing
                but whitespace (a comment?).  */
             continue;
@@ -1317,18 +1320,20 @@ eval (struct ebuffer *ebuf, int set_default, int stay_alive)
                   goto CLEANUP;
                 O (fatal, fstart, _("missing target pattern"));
               }
-            else if (target->next != 0)
+            else if (target->next != 0) {
               if (stay_alive)
                 goto CLEANUP;
               else
                 O (fatal, fstart, _("multiple target patterns"));
+            }
             pattern_percent = find_percent_cached (&target->name);
             pattern = target->name;
-            if (pattern_percent == 0)
+            if (pattern_percent == 0) {
               if (stay_alive)
                 goto CLEANUP;
               else
                 O (fatal, fstart, _("target pattern contains no '%%'"));
+            }
             free_ns (target);
           }
         else
@@ -1442,11 +1447,12 @@ eval (struct ebuffer *ebuf, int set_default, int stay_alive)
 
 #undef word1eq
 
-  if (conditionals->if_cmds)
+  if (conditionals->if_cmds) {
     if (stay_alive)
       goto CLEANUP;
     else
       O (fatal, fstart, _("missing 'endif'"));
+  }
 
   /* At eof, record the last rule.  */
   record_waiting_files ();
