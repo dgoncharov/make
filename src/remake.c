@@ -37,7 +37,6 @@ this program.  If not, see <http://www.gnu.org/licenses/>.  */
 #include <io.h>
 #endif
 
-
 /* The test for circular dependencies is based on the 'updating' bit in
    'struct file'.  However, double colon targets have separate 'struct
    file's; make sure we always use the base of the double colon chain. */
@@ -568,7 +567,7 @@ update_file_1 (struct file *file, unsigned int depth)
               dontcare = d->file->dontcare;
               d->file->dontcare = file->dontcare;
             }
-
+DBF (DB_IMPLICIT, _("Checking deps of '%s'.\n"));
           new = check_dep (d->file, depth, this_mtime, &maybe_make);
           if (new > dep_status)
             dep_status = new;
@@ -1010,6 +1009,7 @@ check_dep (struct file *file, unsigned int depth,
   enum update_status dep_status = us_success;
 
   ++depth;
+DBF (DB_IMPLICIT, _("Checking dep '%s'.\n"));
   start_updating (file);
 
   /* We might change file if we find a different one via vpath;
@@ -1029,10 +1029,13 @@ check_dep (struct file *file, unsigned int depth,
         *must_make_ptr = 1;
     }
   else
-    {
+    {       
       /* FILE is an intermediate file.  */
       FILE_TIMESTAMP mtime;
 
+//      if (file->looked_at)
+//        return file->update_status;
+ 
       if (!file->phony && file->cmds == 0 && !file->tried_implicit)
         {
           if (try_implicit_rule (file, depth))
@@ -1132,6 +1135,7 @@ check_dep (struct file *file, unsigned int depth,
 
   finish_updating (file);
   finish_updating (ofile);
+  file->looked_at = 1;
 
   return dep_status;
 }
