@@ -118,6 +118,97 @@ x:;@echo '$(X1)'; echo '$(A)'; echo '$(B)'
 
 unlink('file.out');
 
+# Read an empty file.
+touch("file.out");
+run_make_test(q!
+X1 := $(file <file.out)
+
+x:;@echo -n $(X1)
+!,
+              '', "");
+
+unlink('file.out');
+
+# Read a file whose full contents is a newline.
+open(F,"> file.out");
+print F "\n";
+close(F);
+run_make_test(q!
+X1 := $(file <file.out)
+
+x:;@echo -n $(X1)
+!,
+              '', "");
+
+unlink('file.out');
+
+# Read a file which does not end with a newline.
+open(F,"> file.out");
+print F "hello";
+close(F);
+# echo prints a trailig newline, because run_make_test appends a newline.
+run_make_test(q!
+X1 := $(file <file.out)
+
+x:;@echo $(X1)
+!,
+              '', "hello");
+
+unlink('file.out');
+
+# Read a file which ends with a newline.
+open(F,"> file.out");
+print F "hello\n";
+close(F);
+# echo prints a trailig newline, because run_make_test appends a newline.
+run_make_test(q!
+X1 := $(file <file.out)
+
+x:;@echo $(X1)
+!,
+              '', "hello");
+
+
+unlink('file.out');
+
+# Read a file which ends with multiple newlines.
+open(F,"> file.out");
+print F "hello\n\n";
+close(F);
+run_make_test(q!
+X1 := $(file <file.out)
+export X1
+
+x:;@echo -n "$$X1"
+!,
+              '', "hello\n");
+
+unlink('file.out');
+
+# Read a file whose contents exceed 200 bytes.
+# 200 is the initial size of variable_buffer.
+# File bigger than 200 bytes causes a realloc.
+# The size of the file in this test not only exceeds 200 bytes, it exceeds 65k.
+
+my $s = "hello world, hello world, hello world, hello world, hello world";
+my $answer = "";
+
+open(F,"> file.out");
+for(my $k = 0; $k <= 2000; $k++) {
+    print F "$s";
+    $answer .= "$s";
+}
+close(F);
+run_make_test(q!
+X1 := $(file <file.out)
+
+x:;@echo "$(X1)"
+!,
+              '', "$answer");
+
+unlink('file.out');
+
+
 # Reading from non-existent file
 run_make_test(q!
 X1 := $(file <file.out)

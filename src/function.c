@@ -2282,8 +2282,8 @@ func_file (char *o, char **argv, const char *funcname UNUSED)
         OSS (fatal, reading_file, _("close: %s: %s"), fn, strerror (errno));
 
       /* Remove trailing newline.  */
-      if (o > preo && o[-1] == '\n')
-        if (--o > preo && o[-1] == '\r')
+      if (o != preo && o[-1] == '\n')
+        if (--o != preo && o[-1] == '\r')
           --o;
     }
   else
