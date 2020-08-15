@@ -2829,9 +2829,10 @@ cleandiff :
         rm *.diff
 @end example
 
-.PHONY works with prerequisites statically defined in the makefile.
+@code{.PHONY} works with prerequisites statically defined in the makefile.
 Declaring a target that changes depending on user input or some other external
-condition as a prerequisites of .PHONY will not achieve the desired effect.
+condition as a prerequisites of @code{.PHONY} will not achieve the desired
+effect.
 
 @example
 print-%:
@@ -2841,12 +2842,12 @@ print-%:
 This rule will print the value of a variable specified by the user on the
 command line.
 
-If you say @samp{make print-OBJ}, make will print the value of variable @var{obj}.
+If you say @samp{make print-OBJ}, make will print the value of variable @var{OBJ}.
 However, if there is a file called print-OBJ in the current directory, then this
 rule will not be executed.
 
-Declaring @samp{print-%} a prerequisite of .PHONY will not work, because when
-you say @samp{make print-OBJ} the target is @samp{print-OBJ}, not
+Declaring @samp{print-%} a prerequisite of @code{.PHONY} will not work, because
+when you say @samp{make print-OBJ} the target is @samp{print-OBJ}, not
 @samp{print-%}.
 
 You can force such target. @xref{Force Targets}.
