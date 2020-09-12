@@ -71,6 +71,9 @@ static struct pspec default_pattern_rules[] =
 
 #else
     { "(%)", "%",
+#ifdef _AIX
+        "OBJECT_MODE=any "
+#endif
         "$(AR) $(ARFLAGS) $@ $<" },
 #endif
     /* The X.out rules are only in BSD's default set because
