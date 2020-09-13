@@ -451,8 +451,9 @@ extern int unixy_shell;
 #define NEXT_TOKEN(s)   while (ISSPACE (*(s))) ++(s)
 #define END_OF_TOKEN(s) while (! STOP_SET (*(s), MAP_SPACE|MAP_NUL)) ++(s)
 
-/* We can't run setrlimit when using posix_spawn.  */
-#if defined(HAVE_SYS_RESOURCE_H) && defined(HAVE_GETRLIMIT) && defined(HAVE_SETRLIMIT) && !defined(USE_POSIX_SPAWN)
+/* Define SET_STACK_SIZE regardless of USE_POSIX_SPAWN to set stack size of
+ * make itself and its re-executed incarnations.  sv 59093. */
+#if defined(HAVE_SYS_RESOURCE_H) && defined(HAVE_GETRLIMIT) && defined(HAVE_SETRLIMIT)
 # define SET_STACK_SIZE
 #endif
 #ifdef SET_STACK_SIZE
