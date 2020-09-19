@@ -1082,19 +1082,34 @@ main (int argc, char **argv, char **envp)
  /* Get rid of any avoidable limit on stack size.  */
   {
     struct rlimit rlim;
+    const int rc = getrlimit (RLIMIT_STACK, &rlim);
 
+#ifdef USE_POSIX_SPAWN
+    const rlim_t defss = 128 * 1024 * 1024;
+
+    /* Set the stack size limit to a hardcoded default value.
+     * The value is chosen to let make run big makefiles and still leave room
+     * for heap in a 32 bit child. */
+    if (rc == 0 && rlim.rlim_cur > 0 && rlim.rlim_cur < rlim.rlim_max &&
+                                rlim.rlim_cur < defss && defss < rlim.rlim_max)
+      {
+        stack_limit = rlim;
+        rlim.rlim_cur = defss;
+        setrlimit (RLIMIT_STACK, &rlim);
+      }
+#else /* USE_POSIX_SPAWN */
     /* Set the stack limit huge so that alloca does not fail.  */
-    if (getrlimit (RLIMIT_STACK, &rlim) == 0
-        && rlim.rlim_cur > 0 && rlim.rlim_cur < rlim.rlim_max)
+    if (rc == 0 && rlim.rlim_cur > 0 && rlim.rlim_cur < rlim.rlim_max)
       {
         stack_limit = rlim;
         rlim.rlim_cur = rlim.rlim_max;
         setrlimit (RLIMIT_STACK, &rlim);
       }
+#endif /* USE_POSIX_SPAWN */
     else
       stack_limit.rlim_cur = 0;
   }
-#endif
+#endif /* SET_STACK_SIZE */
 
   /* Needed for OS/2 */
   initialize_main (&argc, &argv);
