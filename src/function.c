@@ -2292,6 +2292,56 @@ func_file (char *o, char **argv, const char *funcname UNUSED)
   return o;
 }
 
+static
+int resource_from_string (int *result, const char *resource)
+{
+    if (strcmp(resource, "rlimit_stack") == 0) {
+        *result = RLIMIT_STACK;
+        return 0;
+    }
+    return -1;
+}
+
+static
+rlim_t resource_value (const char *value)
+{
+//    strtol(value);
+    int result = atoi(value);
+    return result;
+}
+
+static char *
+func_setrlimit (char *o, char **argv, const char *funcname UNUSED)
+{
+  char *resource;
+  char *value;
+  int r;
+  int rc;
+  rlim_t v;
+  struct rlimit rlim;
+  printf("argv[0]=%s, argv[1]=%s\n", argv[0], argv[1]);
+
+  resource = next_token (argv[0]);
+  value = next_token (argv[0]);
+  end_of_token (resource)[0] = '\0';
+  end_of_token (value)[0] = '\0';
+  printf("resource = %s, value = %s\n", resource, value);
+
+  rc = resource_from_string(&r, resource);
+  if (rc == -1) {
+    OS (fatal, reading_file, _("incorrect resource '%s' passed to 'setrlimit'"), resource);
+  }
+  v = resource_value(value);
+
+  rlim.rlim_cur = v;
+  rc = setrlimit (r, &rlim);
+  if (rc == -1) {
+      OS (error, reading_file, "setrlimit: %s", strerror (errno));
+  }
+  printf("set stack size to %lu\n", v);
+  return o;
+}
+
 static char *
 func_abspath (char *o, char **argv, const char *funcname UNUSED)
 {
@@ -2383,6 +2433,7 @@ static struct function_table_entry function_table_init[] =
   FT_ENTRY ("value",         0,  1,  1,  func_value),
   FT_ENTRY ("eval",          0,  1,  1,  func_eval),
   FT_ENTRY ("file",          1,  2,  1,  func_file),
+  FT_ENTRY ("setrlimit",     1,  1,  1,  func_setrlimit),
 #ifdef EXPERIMENTAL
   FT_ENTRY ("eq",            2,  2,  1,  func_eq),
   FT_ENTRY ("not",           0,  1,  1,  func_not),
