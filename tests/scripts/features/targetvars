@@ -295,6 +295,20 @@ rmdir ('sd');
 # ',
 #               '', "local\n");
 
+
+# Test #20: Conditional assignment of a target specific variable should not
+# prevent export.
+# sv 59230.
+#
+
+$ENV{hello} = "moon";
+run_make_test(q!
+all:; @echo hello=$$hello
+dummy: hello?=world
+!,
+              '', 'hello=moon');
+
+
 1;
 
 ### Local Variables:

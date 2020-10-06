@@ -287,12 +287,16 @@ define_variable_in_set (const char *name, size_t length,
     v->exportable = 0;
   else
     {
-      for (++name; *name != '\0'; ++name)
-        if (*name != '_' && (*name < 'a' || *name > 'z')
-            && (*name < 'A' || *name > 'Z') && !ISDIGIT(*name))
+      /* NAME may not have \0 after the first LENGTH chars.
+       * V->NAME has \0 after the first LENGTH chars.
+       * sv 59230. */
+      const char *n = v->name;
+      for (++n; *n != '\0'; ++n)
+        if (*n != '_' && (*n < 'a' || *n > 'z')
+            && (*n < 'A' || *n > 'Z') && !ISDIGIT(*n))
           break;
 
-      if (*name != '\0')
+      if (*n != '\0')
         v->exportable = 0;
     }
 
@@ -1200,7 +1204,7 @@ do_variable_definition (const floc *flocp, const char *varname,
     case f_conditional:
       /* A conditional variable definition "var ?= value".
          The value is set IFF the variable is not defined yet. */
-      v = lookup_variable (varname, strlen (varname));
+        v = lookup_variable (varname, strlen (varname));
       if (v)
         goto done;
 
