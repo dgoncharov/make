@@ -1903,7 +1903,10 @@ record_target_var (struct nameseq *filenames, char *defn,
       /* Set up the variable to be *-specific.  */
       v->per_target = 1;
       v->private_var = vmod->private_v;
-      v->export = vmod->export_v ? v_export : v_default;
+      /* Keep v->export intact, unless the var was exported.
+       * sv 59230. */
+      if (vmod->export_v)
+        v->export = v_export;
 
       /* If it's not an override, check to see if there was a command-line
          setting.  If so, reset the value.  */

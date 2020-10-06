@@ -308,6 +308,19 @@ dummy: hello?=world
 !,
               '', 'hello=moon');
 
+# Test #21: Assignment of a global variable should not affect export of a
+# target specific variable.
+# sv 59230.
+#
+
+$ENV{hello} = "moon";
+run_make_test(q!
+all:; @echo hello=$$hello
+hello=sun
+dummy: hello?=world
+!,
+              '', 'hello=sun');
+
 
 1;
 
