@@ -3461,7 +3461,13 @@ construct_command_argv_internal (char *line, char **restp, const char *shell,
             p  += 2;
           }
 #endif
-        *ap++ = *p;
+        /* Convert a new line to an escaped space. Otherwise, this new line
+         * will be removed by a recursive run of this function.
+         * sv 59247. */
+        if (unixy_shell && !batch_mode_shell && *p == '\n')
+            *ap++ = ' ';
+        else
+            *ap++ = *p;
       }
     if (ap == new_line + shell_len + sflags_len + 2)
       {

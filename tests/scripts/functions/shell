@@ -83,6 +83,17 @@ all: ; @echo STAT=$(STAT)
               ','',"STAT=$ret\n");
 }
 
+# sv 59247.
+$ENV{world} = "a
+b";
+run_make_test(q!
+hello:=$(shell echo $(world);)
+all:; @echo hello=$(hello)
+.PHONY: all
+!,
+              '', 'hello=a b');
+
+
 1;
 
 ### Local Variables:
