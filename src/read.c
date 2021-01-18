@@ -1802,10 +1802,11 @@ record_target_var (struct nameseq *filenames, char *defn,
           /* Get a reference for this pattern-specific variable struct.  */
           p = create_pattern_var (name, percent);
           p->variable.fileinfo = *flocp;
-          /* I don't think this can fail since we already determined it was a
-             variable definition.  */
+          /* Could be a variable definition or %:define or %:undefine.
+             sv 59870.  */
           v = assign_variable_definition (&p->variable, defn);
-          assert (v != 0);
+          if (!v)
+            O (fatal, flocp, _("Malformed pattern-specific variable definition"));
 
           v->origin = origin;
           if (v->flavor == f_simple)
