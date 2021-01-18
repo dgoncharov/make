@@ -524,8 +524,12 @@ enter_prereqs (struct dep *deps, const char *stem)
                   continue;
                 }
 
-              /* Save the name.  */
-              dp->name = strcache_add_len (buffer, o - buffer);
+              /* Save the name.
+               * VARIABLE_BUFFER_OUTPUT could realloc, which'd render BUFFER
+               * invalid.
+               * sv 59881.  */
+              dp->name = strcache_add_len (variable_buffer,
+                                           o - variable_buffer);
             }
           dp->stem = stem;
           dp->staticpattern = 1;
