@@ -900,11 +900,28 @@ pattern_search (struct file *file, int archive,
           f->also_make = imf->also_make;
           f->is_target = 1;
           f->intermediate = 1;
+          f->notintermediate = 0;
           f->tried_implicit = 1;
 
           imf = lookup_file (pat->pattern);
           if (imf != 0 && imf->precious)
             f->precious = 1;
+
+          if (imf && imf->intermediate)
+            {
+              /* This file was explicitly marked as intermediate in the
+               * makefile.
+               * This takes precedence over a notintermediate pattern that may
+               * also match this file.
+               * Thus, check imf->intermediate before imf->notintermediate. */
+              f->notintermediate = 0;
+              f->intermediate = 1;
+            }
+          else if (imf && imf->notintermediate)
+            {
+              f->notintermediate = 1;
+              f->intermediate = 0;
+            }
 
           for (dep = f->deps; dep != 0; dep = dep->next)
             {
@@ -965,11 +982,13 @@ pattern_search (struct file *file, int archive,
   file->cmds = rule->cmds;
   file->is_target = 1;
 
-  /* Set precious flag. */
+  /* Set precious and notintermediate flags. */
   {
     struct file *f = lookup_file (rule->targets[tryrules[foundrule].matches]);
     if (f && f->precious)
       file->precious = 1;
+    if (f && f->notintermediate)
+      file->notintermediate = 1;
   }
 
   /* If this rule builds other targets, too, put the others into FILE's
@@ -1000,6 +1019,8 @@ pattern_search (struct file *file, int archive,
           f = lookup_file (rule->targets[ri]);
           if (f && f->precious)
             new->file->precious = 1;
+          if (f && f->notintermediate)
+            new->file->notintermediate = 1;
 
           /* Set the is_target flag so that this file is not treated as
              intermediate by the pattern rule search algorithm and

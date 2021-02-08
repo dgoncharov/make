@@ -62,6 +62,9 @@ static struct hash_table files;
 /* Whether or not .SECONDARY with no prerequisites was given.  */
 static int all_secondary = 0;
 
+/* Whether or not .NOTINTERMEDIATE with no prerequisites was given.  */
+static int all_notintermediate = 0;
+
 /* Access the hash table of all file records.
    lookup_file  given a name, return the struct file * for that name,
                 or nil if there is none.
@@ -671,6 +674,13 @@ snap_file (const void *item, void *arg)
   if (all_secondary)
     f->intermediate = 1;
 
+  /* If .NOTINTERMEDIATE is set with no deps, mark all targets as notintermediate.  */
+  if (all_notintermediate)
+    {
+      f->intermediate = 0;
+      f->notintermediate = 1;
+    }
+
   /* If .EXTRA_PREREQS is set, add them as ignored by automatic variables.  */
   if (f->variables)
     prereqs = expand_extra_prereqs (lookup_variable_in_set (STRING_SIZE_TUPLE(".EXTRA_PREREQS"), f->variables->set));
@@ -772,11 +782,25 @@ snap_deps (void)
           f2->mtime_before_update = NONEXISTENT_MTIME;
         }
 
+  for (f = lookup_file (".NOTINTERMEDIATE"); f != 0; f = f->prev)
+    /* Mark .NOTINTERMEDIATE deps as notintermediate files.  */
+    if (f->deps)
+        for (d = f->deps; d != 0; d = d->next)
+          for (f2 = d->file; f2 != 0; f2 = f2->prev)
+            f2->notintermediate = 1;
+    /* .NOTINTERMEDIATE with no deps marks all files as notintermediate.  */
+    else
+      all_notintermediate = 1;
+
   for (f = lookup_file (".INTERMEDIATE"); f != 0; f = f->prev)
     /* Mark .INTERMEDIATE deps as intermediate files.  */
     for (d = f->deps; d != 0; d = d->next)
       for (f2 = d->file; f2 != 0; f2 = f2->prev)
-        f2->intermediate = 1;
+        if (f2->notintermediate)
+            O (fatal, NILF,
+               _(".NOTINTERMEDIATE and .INTERMEDIATE are mutually exclusive"));
+        else
+          f2->intermediate = 1;
     /* .INTERMEDIATE with no deps does nothing.
        Marking all files as intermediates is useless since the goal targets
        would be deleted after they are built.  */
@@ -786,10 +810,19 @@ snap_deps (void)
     if (f->deps)
       for (d = f->deps; d != 0; d = d->next)
         for (f2 = d->file; f2 != 0; f2 = f2->prev)
+        if (f2->notintermediate)
+            O (fatal, NILF,
+               _(".NOTINTERMEDIATE and .SECONDARY are mutually exclusive"));
+        else
           f2->intermediate = f2->secondary = 1;
     /* .SECONDARY with no deps listed marks *all* files that way.  */
     else
       all_secondary = 1;
+
+  if (all_notintermediate && all_secondary)
+    O (fatal, NILF,
+       _(".NOTINTERMEDIATE and .SECONDARY are mutually exclusive"));
+
 
   f = lookup_file (".EXPORT_ALL_VARIABLES");
   if (f != 0 && f->is_target)
