@@ -18,7 +18,7 @@ $dir =~ s,.*/([^/]+)$,../$1,;
 run_make_test(q!
 .PHONY: all
 
-all: case.1 case.2 case.3
+all: case.1 case.2 case.3 case.4
 
 # We can't have this, due to "Implicit Rule Search Algorithm" step 5c
 #xxx: void
@@ -43,6 +43,13 @@ all: case.1 case.2 case.3
 	@exit 0
 
 3.implicit-phony:
+
+# 4 - implicit-phony made by an implicit rule
+%.4: void
+	@exit 1
+%.4: test.x
+	@exit 0
+%.x: ;
 !, '', '');
 
 # TEST #1: make sure files that are built via implicit rules are marked

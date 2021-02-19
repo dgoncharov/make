@@ -2033,6 +2033,7 @@ record_files (struct nameseq *filenames, int are_also_makes,
         {
           deps = split_prereqs (depstr);
           free (depstr);
+          deps->explicit = strchr(deps->name, '%') == 0;
 
           /* We'll enter static pattern prereqs later when we have the stem.
              We don't want to enter pattern rules at all so that we don't
