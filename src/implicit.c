@@ -780,13 +780,14 @@ pattern_search (struct file *file, int archive,
                   }
 
                   /* We could not find the file in any place we should look.
-                     Try to make this dependency as an intermediate file, but
+                     Look for an implicit rule to make this dependency, but
                      only on the second pass.  */
 
                   if (intermed_ok)
                     {
                       DBS (DB_IMPLICIT,
-                           (_("Looking for a rule with intermediate file '%s'.\n"),
+                           (_("Looking for a rule with %s file '%s'.\n"),
+                            d->explicit ? "explicit" : "intermediate",
                             d->name));
 
                       if (int_file == 0)
