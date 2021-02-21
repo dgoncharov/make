@@ -38,7 +38,9 @@ struct nameseq
 
 /* Structure representing one dependency of a file.
    Each struct file's 'deps' points to a chain of these, through 'next'.
-   'stem' is the stem for this dep line of static pattern rule or NULL.  */
+   'stem' is the stem for this dep line of static pattern rule or NULL.
+   Explicit is set when the prerequisite is mentioned explicitly in the
+   makefile and thus cannot be an intermediate file.  */
 
 #define DEP(_t)                                 \
     NAMESEQ (_t);                               \
