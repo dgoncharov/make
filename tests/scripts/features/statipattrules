@@ -108,4 +108,11 @@ all.foo.bar:
 'all.foo
 all.one all-one all.foo.two all.foo-two');
 
+# Test #8: an explicit prerequisite is made by an implicit rule.
+run_make_test(q!
+hello.z: %.z: test.x
+	@echo hello
+%.x: ;
+!, '', 'hello');
+
 1;
