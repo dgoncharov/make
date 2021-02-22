@@ -262,5 +262,33 @@ run_make_test(q!
 !,
               'q/ux', "q/u\nq/u\n");
 
+
+touch('hello.z');
+# Test that implicit rule search finds an implicit rule to make a user defined
+# explicit prerequisite and that this prerequisite is does not consider this
+# prerequsite an intermediate file.
+#
+# This run the prerequsite is an intermediate file.
+run_make_test(q!
+.SECONDEXPANSION:
+all: hello.z
+dep:=%.x
+%.z: $$(dep)
+	touch $@
+%.x: ;
+!, '', "#MAKE#: Nothing to be done for 'all'.\n");
+
+# This run the prerequsite is not an intermediate file.
+run_make_test(q!
+.SECONDEXPANSION:
+all: hello.z
+dep:=test.x
+%.z: $$(dep)
+	touch $@
+%.x: ;
+!, '', "touch hello.z");
+unlink('hello.z');
+
+
 # This tells the test driver that the perl test script executed properly.
 1;
