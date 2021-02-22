@@ -2044,6 +2044,7 @@ record_files (struct nameseq *filenames, int are_also_makes,
           if (! pattern && ! implicit_percent)
             deps = enter_prereqs (deps, NULL);
         }
+        deps->defined_by_user = 1;
     }
 
   /* For implicit rules, _all_ the targets must have a pattern.  That means we

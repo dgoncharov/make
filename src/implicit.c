@@ -676,6 +676,7 @@ pattern_search (struct file *file, int archive,
                           ++deps_found;
                           if (order_only)
                             d->ignore_mtime = 1;
+                          d->explicit = dep->defined_by_user && strchr(d->name, '%') == 0;
                           dptr = &d->next;
                         }
 
