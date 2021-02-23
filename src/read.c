@@ -2034,7 +2034,7 @@ record_files (struct nameseq *filenames, int are_also_makes,
           deps = split_prereqs (depstr);
           free (depstr);
           /* pattern_search replaces % with a stem regardless of whether the %
-           * is escaped, therefore no need to worry about \% here as well.  */
+           * is escaped, therefore no need to worry about escaping % here.  */
           deps->explicit = strchr(deps->name, '%') == 0;
 
           /* We'll enter static pattern prereqs later when we have the stem.
