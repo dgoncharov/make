@@ -108,11 +108,28 @@ all.foo.bar:
 'all.foo
 all.one all-one all.foo.two all.foo-two');
 
-# Test #8: an explicit prerequisite is made by an implicit rule.
+# Test #8:
+# Test that a file explicitly mentioned by the user and made by an implicit
+# rule is not considered intermediate.
+
+touch('hello.z');
+unlink('hello.x');
+unlink('test.x');
+
+# The prerequsite is not explicitly mentioned. Still not intermediate, because
+# of the static pattern rule.
+run_make_test(q!
+hello.z: %.z: %.x
+	touch $@
+%.x: ;
+!, '', "touch hello.z");
+
+# The prerequsite is explicitly mentioned.
 run_make_test(q!
 hello.z: %.z: test.x
-	@echo hello
+	touch $@
 %.x: ;
-!, '', 'hello');
+!, '', "touch hello.z");
+unlink('hello.z');
 
 1;
