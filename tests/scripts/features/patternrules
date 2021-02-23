@@ -44,7 +44,7 @@ all: case.1 case.2 case.3 case.4
 
 3.implicit-phony:
 
-# 4 - implicit-phony made by an implicit rule
+# 4 - explicitly mentioned file made by an implicit rule
 %.4: void
 	@exit 1
 %.4: test.x
