@@ -271,28 +271,55 @@ touch('hello.z');
 unlink('hello.x');
 unlink('test.x');
 
-# This run the prerequsite is not explicitly mentioned and thus is an
-# intermediate file.
+# The prerequsite is not explicitly mentioned and thus is an intermediate file.
 run_make_test(q!
 .SECONDEXPANSION:
-all: hello.z
 dep:=%.x
+all: hello.z
 %.z: $$(dep)
 	touch $@
 %.x: ;
 !, '', "#MAKE#: Nothing to be done for 'all'.\n");
 
-# This run the prerequsite is explicitly mentioned and thus is not an
-# intermediate file.
+# The prerequsite is explicitly mentioned and thus is not an intermediate file.
 run_make_test(q!
 .SECONDEXPANSION:
-all: hello.z
 dep:=test.x
+all: hello.z
 %.z: $$(dep)
 	touch $@
 %.x: ;
 !, '', "touch hello.z");
 unlink('hello.z');
+
+
+# Test that a file explicitly mentioned by the user and made by an implicit
+# rule is not considered intermediate, even when the builtin rules are used.
+
+touch('hello.c');
+touch('hello.tsk');
+unlink('hello.o');
+
+# The prerequsite is not explicitly mentioned and thus is an intermediate file.
+run_make_test(q!
+.SECONDEXPANSION:
+dep:=%.o
+all: hello.tsk
+%.tsk: $$(dep)
+	touch $@
+!, '', "#MAKE#: Nothing to be done for 'all'.\n");
+
+# The prerequsite is explicitly mentioned and thus is not an intermediate file.
+run_make_test(q!
+.SECONDEXPANSION:
+dep:=hello.o
+all: hello.tsk
+%.tsk: $$(dep)
+	touch $@
+!, 'CC="@echo cc" OUTPUT_OPTION=', "cc -c hello.c\ntouch hello.tsk");
+
+unlink('hello.c');
+unlink('hello.tsk');
 
 
 # This tells the test driver that the perl test script executed properly.
