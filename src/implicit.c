@@ -153,6 +153,7 @@ struct patdeps
     struct file *file;
     unsigned int ignore_mtime : 1;
     unsigned int ignore_automatic_vars : 1;
+    unsigned int explicit : 1;
   };
 
 /* This structure stores information about pattern rules that we need
@@ -540,9 +541,13 @@ pattern_search (struct file *file, int archive,
               /* If we don't need a second expansion, just replace the %.  */
               if (! dep->need_2nd_expansion)
                 {
+                  int explicit;
                   p = strchr (nptr, '%');
                   if (p == 0)
-                    strcpy (depname, nptr);
+                    {
+                      strcpy (depname, nptr);
+                      explicit = 1;
+                    }
                   else
                     {
                       char *o = depname;
@@ -556,6 +561,7 @@ pattern_search (struct file *file, int archive,
                       memcpy (o, stem, stemlen);
                       o += stemlen;
                       strcpy (o, p + 1);
+                      explicit = 0;
                     }
 
                   /* Parse the expanded string.  It might have wildcards.  */
@@ -566,6 +572,7 @@ pattern_search (struct file *file, int archive,
                       ++deps_found;
                       d->ignore_mtime = dep->ignore_mtime;
                       d->ignore_automatic_vars = dep->ignore_automatic_vars;
+                      d->explicit = explicit;
                     }
 
                   /* We've used up this dep, so next time get a new one.  */
@@ -586,6 +593,7 @@ pattern_search (struct file *file, int archive,
                   int add_dir = 0;
                   size_t len;
                   struct dep **dptr;
+                  int explicit;
 
                   nptr = get_next_word (nptr, &len);
                   if (nptr == 0)
@@ -615,6 +623,7 @@ pattern_search (struct file *file, int archive,
                     {
                       memcpy (depname, nptr, len);
                       depname[len] = '\0';
+                      explicit = 1;
                     }
                   else
                     {
@@ -635,6 +644,7 @@ pattern_search (struct file *file, int archive,
                         }
                       memcpy (o, p + 1, len - i - 1);
                       o[len - i - 1] = '\0';
+                      explicit = 0;
                     }
 
                   /* Set up for the next word.  */
@@ -674,6 +684,7 @@ pattern_search (struct file *file, int archive,
                           ++deps_found;
                           if (order_only)
                             d->ignore_mtime = 1;
+                          d->explicit = explicit;
                           dptr = &d->next;
                         }
 
@@ -726,6 +737,7 @@ pattern_search (struct file *file, int archive,
                   memset (pat, '\0', sizeof (struct patdeps));
                   pat->ignore_mtime = d->ignore_mtime;
                   pat->ignore_automatic_vars = d->ignore_automatic_vars;
+                  pat->explicit = d->explicit;
 
                   DBS (DB_IMPLICIT,
                        (is_rule
@@ -777,13 +789,14 @@ pattern_search (struct file *file, int archive,
                   }
 
                   /* We could not find the file in any place we should look.
-                     Try to make this dependency as an intermediate file, but
+                     Look for an implicit rule to make this dependency, but
                      only on the second pass.  */
 
                   if (intermed_ok)
                     {
                       DBS (DB_IMPLICIT,
-                           (_("Looking for a rule with intermediate file '%s'.\n"),
+                           (_("Looking for a rule with %s file '%s'.\n"),
+                            d->explicit ? "explicit" : "intermediate",
                             d->name));
 
                       if (int_file == 0)
@@ -899,7 +912,7 @@ pattern_search (struct file *file, int archive,
           f->pat_searched = imf->pat_searched;
           f->also_make = imf->also_make;
           f->is_target = 1;
-          f->intermediate = 1;
+          f->intermediate = pat->explicit == 0;
           f->tried_implicit = 1;
 
           imf = lookup_file (pat->pattern);
@@ -916,6 +929,7 @@ pattern_search (struct file *file, int archive,
 
       dep = alloc_dep ();
       dep->ignore_mtime = pat->ignore_mtime;
+      dep->explicit = pat->explicit;
       dep->ignore_automatic_vars = pat->ignore_automatic_vars;
       s = strcache_add (pat->name);
       if (recursions)
