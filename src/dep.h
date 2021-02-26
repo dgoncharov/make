@@ -40,8 +40,7 @@ struct nameseq
    Each struct file's 'deps' points to a chain of these, through 'next'.
    'stem' is the stem for this dep line of static pattern rule or NULL.
    explicit is set when implicit rule search is performed and the prerequisite
-   is not a result of substitution of % for stem. When explicit is set the file
-   is not intermediate.  */
+   does not contain %. When explicit is set the file is not intermediate.  */
 
 
 #define DEP(_t)                                 \
