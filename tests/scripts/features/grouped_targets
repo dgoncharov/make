@@ -137,8 +137,8 @@ touch('hello.q');
 unlink('hello.x');
 unlink('test.x');
 
-
-# The prerequsite is not explicitly mentioned and thus is an intermediate file.
+# subtest 1
+# hello.x is not explicitly mentioned and thus is an intermediate file.
 run_make_test(q!
 all: hello.z
 %.z %.q: %.x
@@ -146,7 +146,8 @@ all: hello.z
 %.x: ;
 !, '', "#MAKE#: Nothing to be done for 'all'.\n");
 
-# The prerequsite is explicitly mentioned and thus is not an intermediate file.
+# subtest 2
+# test.x is explicitly mentioned and thus is not an intermediate file.
 run_make_test(q!
 all: hello.z
 %.z %.q: test.x

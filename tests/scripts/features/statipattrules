@@ -116,15 +116,17 @@ touch('hello.z');
 unlink('hello.x');
 unlink('test.x');
 
-# The prerequsite is not explicitly mentioned. Still not intermediate, because
-# of the static pattern rule.
+# subtest 1
+# hello.x is not explicitly mentioned. Still not intermediate, because of the
+# static pattern rule.
 run_make_test(q!
 hello.z: %.z: %.x
 	touch $@
 %.x: ;
 !, '', "touch hello.z");
 
-# The prerequsite is explicitly mentioned.
+# subtest 2
+# test.x is explicitly mentioned.
 run_make_test(q!
 hello.z: %.z: test.x
 	touch $@
