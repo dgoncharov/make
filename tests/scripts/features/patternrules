@@ -276,15 +276,6 @@ all: hello.z
 %.x: ;
 !, '', "touch hello.z");
 
-# subtest 3
-# Terminal pattern rules don't not apply unless the prerequisite exists.
-run_make_test(q!
-all: hello.z
-%.z:: test.x
-	touch $@
-%.x: ;
-!, '', "#MAKE#: Nothing to be done for 'all'.\n");
-
 unlink('hello.z');
 
 # Test that a file explicitly mentioned by the user and made by an implicit
@@ -322,7 +313,8 @@ dep:=%.o
 !, '', "#MAKE#: Nothing to be done for 'all'.\n");
 
 # subtest 4
-# test.o is explicitly mentioned and thus is not an intermediate file.
+# Even when test.o is constructed from 2 variables it is still explicitly
+# mentioned and thus is not an intermediate file.
 run_make_test(q!
 all: hello.tsk
 name:=test
