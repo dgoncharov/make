@@ -2032,6 +2032,7 @@ record_files (struct nameseq *filenames, int are_also_makes,
       else
         {
           deps = split_prereqs (depstr);
+printf("record_files name=%s, deps=%s\n", name, deps->name);
           free (depstr);
 
           /* We'll enter static pattern prereqs later when we have the stem.

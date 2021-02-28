@@ -93,6 +93,7 @@ snap_implicit_rules (void)
       unsigned int ndeps = pre_deps;
       struct dep *lastdep = NULL;
 
+printf("snap implicit rules rule=%s\n", *rule->targets);
       ++num_pattern_rules;
 
       if (rule->num > max_pattern_targets)

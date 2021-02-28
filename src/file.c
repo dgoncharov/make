@@ -643,12 +643,18 @@ expand_extra_prereqs (const struct variable *extra)
   struct dep *d;
   struct dep *prereqs = extra ? split_prereqs (variable_expand (extra->value)) : NULL;
 
+if (extra)
+printf("expand extra prereqs, extra->name = %s, extra->value=%s\n", extra->name, extra->value);
+
   for (d = prereqs; d; d = d->next)
     {
+
+printf("expand extra prereqs, d->name=%s\n", d->name);
       d->file = lookup_file (d->name);
       if (!d->file)
         d->file = enter_file (d->name);
       d->name = NULL;
+printf("expand extra prereqs, d->file->name=%s\n", d->file->name);
       d->ignore_automatic_vars = 1;
     }
 
@@ -672,8 +678,10 @@ snap_file (const void *item, void *arg)
     f->intermediate = 1;
 
   /* If .EXTRA_PREREQS is set, add them as ignored by automatic variables.  */
-  if (f->variables)
+  if (f->variables) {
     prereqs = expand_extra_prereqs (lookup_variable_in_set (STRING_SIZE_TUPLE(".EXTRA_PREREQS"), f->variables->set));
+printf("snap file f->name=%s extra prereqs = %s\n", f->name, prereqs->file->name);
+}
 
   else if (f->is_target)
     prereqs = copy_dep_chain (arg);
@@ -689,8 +697,10 @@ snap_file (const void *item, void *arg)
       if (d)
         /* We broke early: must have found a circular dependency.  */
         free_dep_chain (prereqs);
-      else if (!f->deps)
+      else if (!f->deps) {
+printf("snap file f->name=%s adding extra prereqs = %s\n", f->name, prereqs->file->name);
         f->deps = prereqs;
+}
       else
         {
           d = f->deps;

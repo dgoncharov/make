@@ -426,6 +426,7 @@ update_file_1 (struct file *file, unsigned int depth)
   DBF (DB_VERBOSE, _("Considering target file '%s'.\n"));
 
   extra = lookup_pattern_extra_prereqs (file->name);
+printf("extra=%p\n", extra);
   if (extra)
     {
       struct dep *prereqs = expand_extra_prereqs (&extra->variable);
@@ -440,7 +441,10 @@ update_file_1 (struct file *file, unsigned int depth)
            /* We broke early: must have found a circular dependency.  */
            free_dep_chain (prereqs);
          else if (!file->deps)
+           {
+printf("f->name=%s adding extra prereqs = %s\n", file->name, prereqs->file->name);
            file->deps = prereqs;
+           }
          else
            {
              d = file->deps;

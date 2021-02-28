@@ -609,6 +609,7 @@ initialize_file_variables (struct file *file, int reading)
       if (p != 0)
         {
           struct variable_set_list *global = current_variable_set_list;
+printf("file=%s, pattern var %s=%s\n", file->name, p->variable.name, p->variable.value);
 
           /* We found at least one.  Set up a new variable set to accumulate
              all the pattern variables that match this target.  */
