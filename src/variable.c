@@ -661,6 +661,20 @@ initialize_file_variables (struct file *file, int reading)
       l->next_is_parent = 0;
     }
 }
+
+struct pattern_var *
+lookup_pattern_extra_prereqs(const char *target)
+{
+  struct pattern_var dummy;
+  struct pattern_var *p = &dummy;
+  dummy.next = pattern_vars;
+
+  while ((p = lookup_pattern_var (p, target)) != 0)
+    if (strcmp (p->variable.name, ".EXTRA_PREREQS") == 0)
+        return p;
+  return 0;
+}
+
 
 /* Pop the top set off the current variable set list,
    and free all its storage.  */
