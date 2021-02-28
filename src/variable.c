@@ -609,7 +609,6 @@ initialize_file_variables (struct file *file, int reading)
       if (p != 0)
         {
           struct variable_set_list *global = current_variable_set_list;
-printf("file=%s, pattern var %s=%s\n", file->name, p->variable.name, p->variable.value);
 
           /* We found at least one.  Set up a new variable set to accumulate
              all the pattern variables that match this target.  */
@@ -664,15 +663,11 @@ printf("file=%s, pattern var %s=%s\n", file->name, p->variable.name, p->variable
 }
 
 struct pattern_var *
-lookup_pattern_extra_prereqs(const char *target)
+lookup_pattern_extra_prereqs (struct pattern_var *extra, const char *target)
 {
-  struct pattern_var dummy;
-  struct pattern_var *p = &dummy;
-  dummy.next = pattern_vars;
-
-  while ((p = lookup_pattern_var (p, target)) != 0)
-    if (strcmp (p->variable.name, ".EXTRA_PREREQS") == 0)
-        return p;
+  while ((extra = lookup_pattern_var (extra, target)))
+    if (strcmp (extra->variable.name, ".EXTRA_PREREQS") == 0)
+      return extra;
   return 0;
 }
 

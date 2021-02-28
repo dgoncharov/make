@@ -420,39 +420,33 @@ update_file_1 (struct file *file, unsigned int depth)
   struct file *ofile;
   struct dep *d, *ad;
   struct dep amake;
-  struct pattern_var *extra;
+  struct pattern_var *extra = NULL;
   int running = 0;
 
   DBF (DB_VERBOSE, _("Considering target file '%s'.\n"));
 
-  extra = lookup_pattern_extra_prereqs (file->name);
-printf("extra=%p\n", extra);
-  if (extra)
+  while ((extra = lookup_pattern_extra_prereqs (extra, file->name)))
     {
       struct dep *prereqs = expand_extra_prereqs (&extra->variable);
-      if (prereqs)
-       {
-         for (d = prereqs; d; d = d->next)
-           if (streq (file->name, dep_name (d)))
-             /* Skip circular dependencies.  */
-             break;
+      if (prereqs == NULL)
+        continue;
+      for (d = prereqs; d; d = d->next)
+        if (streq (file->name, dep_name (d)))
+          /* Skip circular dependencies.  */
+          break;
 
-         if (d)
-           /* We broke early: must have found a circular dependency.  */
-           free_dep_chain (prereqs);
-         else if (!file->deps)
-           {
-printf("f->name=%s adding extra prereqs = %s\n", file->name, prereqs->file->name);
-           file->deps = prereqs;
-           }
-         else
-           {
-             d = file->deps;
-             while (d->next)
-               d = d->next;
-             d->next = prereqs;
-           }
-       }
+      if (d)
+        /* We broke early: must have found a circular dependency.  */
+        free_dep_chain (prereqs);
+      else if (!file->deps)
+        file->deps = prereqs;
+      else
+        {
+          d = file->deps;
+          while (d->next)
+            d = d->next;
+          d->next = prereqs;
+        }
     }
 
   if (file->updated)
