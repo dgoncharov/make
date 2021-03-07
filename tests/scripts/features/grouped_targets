@@ -151,7 +151,7 @@ all: hello.z
 # test.x is explicitly mentioned and thus is not an intermediate file.
 run_make_test(q!
 all: hello.z
-%.z %.q: test.x
+%.z %.q: %.x test.x
 	touch $*.z $*.q
 %.x: ;
 !, '', "touch hello.z hello.q");
