@@ -1806,12 +1806,26 @@ record_target_var (struct nameseq *filenames, char *defn,
              variable definition.  */
           v = assign_variable_definition (&p->variable, defn);
           assert (v != 0);
+printf("assgined var def %s\n", defn);
 
           v->origin = origin;
           if (v->flavor == f_simple)
             v->value = allocated_variable_expand (v->value);
           else
             v->value = xstrdup (v->value);
+          if (strcmp (v->name, ".EXTRA_PREREQS") == 0)
+            {
+              p = create_pattern_extra_prereq_var (name, percent);
+              v = assign_variable_definition (&p->variable, defn);
+              assert (v != 0);
+printf("assgined var def %s\n", defn);
+
+              v->origin = origin;
+              if (v->flavor == f_simple)
+                v->value = allocated_variable_expand (v->value);
+              else
+                v->value = xstrdup (v->value);
+            }
         }
       else
         {

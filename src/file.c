@@ -669,6 +669,8 @@ snap_file (const void *item, void *arg)
   struct file *f = (struct file*)item;
   struct dep *prereqs = NULL;
 
+//printf("snap file %s\n", f->name);
+
   /* If we're not doing second expansion then reset updating.  */
   if (!second_expansion)
     f->updating = 0;

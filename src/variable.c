@@ -36,9 +36,16 @@ static unsigned long variable_changenum;
 
 static struct pattern_var *pattern_vars;
 
+/* Chain of .EXTRA_PREREQS pattern-specific variables.  */
+static struct pattern_var *pattern_extra_prereq_vars;
+
 /* Pointer to the last struct in the pack of a specific size, from 1 to 255.*/
 
 static struct pattern_var *last_pattern_vars[256];
+
+/* Pointer to the last struct in the pack of a specific size, from 1 to 255.*/
+static struct pattern_var *last_pattern_extra_prereq_vars[256];
+
 
 /* Create a new pattern-specific variable struct. The new variable is
    inserted into the PATTERN_VARS list in the shortest patterns first
@@ -53,6 +60,7 @@ create_pattern_var (const char *target, const char *suffix)
   size_t len = strlen (target);
   struct pattern_var *p = xcalloc (sizeof (struct pattern_var));
 
+printf("create pattern var target=%s, suffix=%s\n", target, suffix);
   if (pattern_vars != 0)
     {
       if (len < 256 && last_pattern_vars[len] != 0)
@@ -95,6 +103,55 @@ create_pattern_var (const char *target, const char *suffix)
   return p;
 }
 
+struct pattern_var *
+create_pattern_extra_prereq_var (const char *target, const char *suffix)
+{
+  size_t len = strlen (target);
+  struct pattern_var *p = xcalloc (sizeof (struct pattern_var));
+
+printf("create pattern extra prereq var target=%s, suffix=%s\n", target, suffix);
+  if (pattern_extra_prereq_vars != 0)
+    {
+      if (len < 256 && last_pattern_extra_prereq_vars[len] != 0)
+        {
+          p->next = last_pattern_extra_prereq_vars[len]->next;
+          last_pattern_extra_prereq_vars[len]->next = p;
+        }
+      else
+        {
+          /* Find the position where we can insert this variable. */
+          struct pattern_var **v;
+
+          for (v = &pattern_extra_prereq_vars; ; v = &(*v)->next)
+            {
+              /* Insert at the end of the pack so that patterns with the
+                 same length appear in the order they were defined .*/
+
+              if (*v == 0 || (*v)->len > len)
+                {
+                  p->next = *v;
+                  *v = p;
+                  break;
+                }
+            }
+        }
+    }
+  else
+    {
+      pattern_extra_prereq_vars = p;
+      p->next = 0;
+    }
+
+  p->target = target;
+  p->len = len;
+  p->suffix = suffix + 1;
+
+  if (len < 256)
+    last_pattern_extra_prereq_vars[len] = p;
+
+  return p;
+}
+
 /* Look up a target in the pattern-specific variable list.  */
 
 static struct pattern_var *
@@ -133,6 +190,46 @@ lookup_pattern_var (struct pattern_var *start, const char *target)
 
   return p;
 }
+
+/* Look up a target in the pattern-specific extra_prereqs variable list.  */
+
+struct pattern_var *
+lookup_pattern_extra_prereq_var (struct pattern_var *start, const char *target)
+{
+  struct pattern_var *p;
+  size_t targlen = strlen (target);
+
+  for (p = start ? start->next : pattern_extra_prereq_vars; p != 0; p = p->next)
+    {
+      const char *stem;
+      size_t stemlen;
+
+      if (p->len > targlen)
+        /* It can't possibly match.  */
+        continue;
+
+      /* From the lengths of the filename and the pattern parts,
+         find the stem: the part of the filename that matches the %.  */
+      stem = target + (p->suffix - p->target - 1);
+      stemlen = targlen - p->len + 1;
+
+      /* Compare the text in the pattern before the stem, if any.  */
+      if (stem > target && !strneq (p->target, target, stem - target))
+        continue;
+
+      /* Compare the text in the pattern after the stem, if any.
+         We could test simply using streq, but this way we compare the
+         first two characters immediately.  This saves time in the very
+         common case where the first character matches because it is a
+         period.  */
+      if (*p->suffix == stem[stemlen]
+          && (*p->suffix == '\0' || streq (&p->suffix[1], &stem[stemlen+1])))
+        break;
+    }
+
+  return p;
+}
+
 
 /* Hash table of all global variable definitions.  */
 
@@ -609,6 +706,7 @@ initialize_file_variables (struct file *file, int reading)
       if (p != 0)
         {
           struct variable_set_list *global = current_variable_set_list;
+printf("file=%s, pattern var %s=%s\n", file->name, p->variable.name, p->variable.value);
 
           /* We found at least one.  Set up a new variable set to accumulate
              all the pattern variables that match this target.  */
@@ -662,14 +760,14 @@ initialize_file_variables (struct file *file, int reading)
     }
 }
 
-struct pattern_var *
-lookup_pattern_extra_prereqs (struct pattern_var *extra, const char *target)
-{
-  while ((extra = lookup_pattern_var (extra, target)))
-    if (strcmp (extra->variable.name, ".EXTRA_PREREQS") == 0)
-      return extra;
-  return 0;
-}
+//struct pattern_var *
+//lookup_pattern_extra_prereqs (struct pattern_var *extra, const char *target)
+//{
+//  while ((extra = lookup_pattern_var (extra, target)))
+//    if (strcmp (extra->variable.name, ".EXTRA_PREREQS") == 0)
+//      return extra;
+//  return 0;
+//}
 
 
 /* Pop the top set off the current variable set list,
@@ -1660,6 +1758,18 @@ try_variable_definition (const floc *flocp, const char *line,
 
   return vp;
 }
+
+//void add_pattern_extra_prereqs_var (struct variable *v)
+//{
+//  struct pattern_extra_prereq_var *e =
+//                            xcalloc (sizeof (struct pattern_extra_prereq_var));
+//  e->variable = v;
+//
+//  e->next = pattern_extra_prereq_vars;
+//  pattern_extra_prereq_vars = e;
+//printf("added pattern specific extra prereqs var %s=%s\n", v->name, v->value);
+//}
+
 
 /* Print information for variable V, prefixing it with PREFIX.  */
 

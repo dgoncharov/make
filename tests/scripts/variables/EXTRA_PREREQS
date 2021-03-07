@@ -30,16 +30,13 @@ tick tack: ; @echo $@
               '', "tick\ntack\ntick tack/all///////\n");
 
 # Simple pattern-specific .EXTRA_PREREQS and automatic variable settings
-# This is not currently supported :-/
-if (0) {
-    run_make_test('
+run_make_test('
 .PHONY: all
 all: ; @echo ${.EXTRA_PREREQS}/$@/$</$^/$?/$+/$|/$*/
 a%: .EXTRA_PREREQS = tick tack
 tick tack: ; @echo $@
 ',
                   '', "tick\ntack\ntick tack/all///////\n");
-}
 
 touch('hi');
 

@@ -111,6 +111,13 @@ struct pattern_var
     struct variable variable;
   };
 
+/* List of pattern specific .EXTRA_PREREQS variables.  */
+//struct pattern_extra_prereq_var
+//  {
+//    struct pattern_extra_prereq_var *next;
+//    const struct variable *variable;
+//  };
+
 extern char *variable_buffer;
 extern struct variable_set_list *current_variable_set_list;
 extern struct variable *default_goal_var;
@@ -156,8 +163,12 @@ struct variable_set_list *push_new_variable_scope (void);
 void pop_variable_scope (void);
 void define_automatic_variables (void);
 void initialize_file_variables (struct file *file, int reading);
-struct pattern_var *lookup_pattern_extra_prereqs(struct pattern_var *extra,
-                                                 const char *target);
+//struct pattern_var *lookup_pattern_extra_prereqs(struct pattern_var *extra,
+//                                                 const char *target);
+struct pattern_var *lookup_pattern_extra_prereq_var (struct pattern_var *start,
+                                                     const char *target);
+
+void add_pattern_extra_prereqs_var (struct variable *v);
 void print_file_variables (const struct file *file);
 void print_target_variables (const struct file *file);
 void merge_variable_set_lists (struct variable_set_list **to_list,
@@ -240,6 +251,8 @@ char **target_environment (struct file *file);
 struct pattern_var *create_pattern_var (const char *target,
                                         const char *suffix);
 
+struct pattern_var *create_pattern_extra_prereq_var (const char *target,
+                                                     const char *suffix);
 extern int export_all_variables;
 
 #define MAKELEVEL_NAME "MAKELEVEL"
