@@ -264,6 +264,7 @@ run_make_test(q!
 
 
 
+# sv 60188.
 # Test that a file explicitly mentioned by the user and made by an implicit
 # rule is not considered intermediate.
 
@@ -297,6 +298,7 @@ all: hello.z
 unlink('hello.z');
 
 
+# sv 60188.
 # Test that a file explicitly mentioned by the user and made by an implicit
 # rule is not considered intermediate, even when the builtin rules are used.
 

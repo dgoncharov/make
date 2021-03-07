@@ -129,6 +129,7 @@ f g h&:: ; @echo Z
 '',
 "Z");
 
+# sv 60188.
 # Test that a file explicitly mentioned by the user and made by an implicit
 # rule is not considered intermediate.
 

@@ -109,6 +109,7 @@ all.foo.bar:
 all.one all-one all.foo.two all.foo-two');
 
 # Test #8:
+# sv 60188.
 # Test that a file explicitly mentioned by the user and made by an implicit
 # rule is not considered intermediate.
 

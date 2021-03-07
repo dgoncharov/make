@@ -212,6 +212,7 @@ FORCE:
 
 unlink('joe-is-forced');
 
+# sv 60188.
 # Even though test.x is explicitly mentioned, terminal pattern rules still
 # apply only if the prerequisite exists.
 touch('hello.z');
