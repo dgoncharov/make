@@ -273,17 +273,6 @@ unlink('test.x');
 
 
 # subtest 1.
-# test.x is explicitly mentioned and thus is not an intermediate file.
-run_make_test(q!
-.SECONDEXPANSION:
-dep:=test.x
-all: hello.z
-%.z: $$(dep)
-	touch $@
-%.x: ;
-!, '', "touch hello.z");
-
-# subtest 2.
 # hello.x is derived from the stem and thus is an intermediate file.
 run_make_test(q!
 .SECONDEXPANSION:
@@ -294,6 +283,17 @@ all: hello.z
 %.x: ;
 !, '', "#MAKE#: Nothing to be done for 'all'.");
 
+
+# subtest 2.
+# test.x is explicitly mentioned and thus is not an intermediate file.
+run_make_test(q!
+.SECONDEXPANSION:
+dep:=test.x
+all: hello.z
+%.z: %.x $$(dep)
+	touch $@
+%.x: ;
+!, '', "touch hello.z");
 unlink('hello.z');
 
 
