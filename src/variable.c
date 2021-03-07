@@ -204,6 +204,8 @@ lookup_pattern_extra_prereq_var (struct pattern_var *start, const char *target)
       const char *stem;
       size_t stemlen;
 
+printf("lookup pattern extra prereqs comparing suffix=%s, target=%s, name=%s, value=%s\n", p->suffix, p->target, p->variable.name, p->variable.value);
+
       if (p->len > targlen)
         /* It can't possibly match.  */
         continue;

@@ -682,7 +682,8 @@ snap_file (const void *item, void *arg)
   /* If .EXTRA_PREREQS is set, add them as ignored by automatic variables.  */
   if (f->variables) {
     prereqs = expand_extra_prereqs (lookup_variable_in_set (STRING_SIZE_TUPLE(".EXTRA_PREREQS"), f->variables->set));
-printf("snap file f->name=%s extra prereqs = %s\n", f->name, prereqs->file->name);
+if (prereqs)
+    printf("snap file f->name=%s extra prereqs = %s\n", f->name, prereqs->file->name);
 }
 
   else if (f->is_target)
