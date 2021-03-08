@@ -36,44 +36,54 @@ static unsigned long variable_changenum;
 
 static struct pattern_var *pattern_vars;
 
-/* Chain of .EXTRA_PREREQS pattern-specific variables.  */
+/* Chain of .EXTRA_PREREQS pattern-specific variables.
+ * The contents of PATTERN_EXTRA_PREREQ_VARS is a subset of PATTERN_VARS.
+ * Because pattern specific .EXTRA_PREQREQS is looked up every time a target is
+ * considered its contents is stored in a dedicated chain to avoid lookup
+ * through the full chain of all pattern specific variables.  */
+
 static struct pattern_var *pattern_extra_prereq_vars;
 
 /* Pointer to the last struct in the pack of a specific size, from 1 to 255.*/
 
 static struct pattern_var *last_pattern_vars[256];
 
-/* Pointer to the last struct in the pack of a specific size, from 1 to 255.*/
+/* Pointer to the last struct in the pack of a specific size, from 1 to 255
+ * This one if for pattern specific .EXTRA_PREREQS only. .*/
+
 static struct pattern_var *last_pattern_extra_prereq_vars[256];
 
 
 /* Create a new pattern-specific variable struct. The new variable is
-   inserted into the PATTERN_VARS list in the shortest patterns first
+   inserted into the *VARS list in the shortest patterns first
    order to support the shortest stem matching (the variables are
    matched in the reverse order so the ones with the longest pattern
    will be considered first). Variables with the same pattern length
    are inserted in the definition order. */
 
-struct pattern_var *
-create_pattern_var (const char *target, const char *suffix)
+static struct pattern_var *
+create_pattern_var_imp (const char *target, const char *suffix,
+                struct pattern_var **vars, struct pattern_var *last_vars[])
 {
   size_t len = strlen (target);
   struct pattern_var *p = xcalloc (sizeof (struct pattern_var));
 
-printf("create pattern var target=%s, suffix=%s\n", target, suffix);
-  if (pattern_vars != 0)
+if (*vars == pattern_extra_prereq_vars)
+    printf("create pattern var target=%s, suffix=%s\n", target, suffix);
+
+  if (*vars != 0)
     {
-      if (len < 256 && last_pattern_vars[len] != 0)
+      if (len < 256 && last_vars[len] != 0)
         {
-          p->next = last_pattern_vars[len]->next;
-          last_pattern_vars[len]->next = p;
+          p->next = last_vars[len]->next;
+          last_vars[len]->next = p;
         }
       else
         {
           /* Find the position where we can insert this variable. */
           struct pattern_var **v;
 
-          for (v = &pattern_vars; ; v = &(*v)->next)
+          for (v = vars; ; v = &(*v)->next)
             {
               /* Insert at the end of the pack so that patterns with the
                  same length appear in the order they were defined .*/
@@ -89,7 +99,7 @@ printf("create pattern var target=%s, suffix=%s\n", target, suffix);
     }
   else
     {
-      pattern_vars = p;
+      *vars = p;
       p->next = 0;
     }
 
@@ -98,72 +108,42 @@ printf("create pattern var target=%s, suffix=%s\n", target, suffix);
   p->suffix = suffix + 1;
 
   if (len < 256)
-    last_pattern_vars[len] = p;
+    last_vars[len] = p;
 
   return p;
 }
+
+
+/* Create a new pattern-specific variable struct.  */
+
+struct pattern_var *
+create_pattern_var (const char *target, const char *suffix)
+{
+    return create_pattern_var_imp (target, suffix, &pattern_vars,
+                                   last_pattern_vars);
+}
+
+/* Create a new pattern-specific .EXTRA_PREREQS variable struct.  */
 
 struct pattern_var *
 create_pattern_extra_prereq_var (const char *target, const char *suffix)
 {
-  size_t len = strlen (target);
-  struct pattern_var *p = xcalloc (sizeof (struct pattern_var));
-
-printf("create pattern extra prereq var target=%s, suffix=%s\n", target, suffix);
-  if (pattern_extra_prereq_vars != 0)
-    {
-      if (len < 256 && last_pattern_extra_prereq_vars[len] != 0)
-        {
-          p->next = last_pattern_extra_prereq_vars[len]->next;
-          last_pattern_extra_prereq_vars[len]->next = p;
-        }
-      else
-        {
-          /* Find the position where we can insert this variable. */
-          struct pattern_var **v;
-
-          for (v = &pattern_extra_prereq_vars; ; v = &(*v)->next)
-            {
-              /* Insert at the end of the pack so that patterns with the
-                 same length appear in the order they were defined .*/
-
-              if (*v == 0 || (*v)->len > len)
-                {
-                  p->next = *v;
-                  *v = p;
-                  break;
-                }
-            }
-        }
-    }
-  else
-    {
-      pattern_extra_prereq_vars = p;
-      p->next = 0;
-    }
-
-  p->target = target;
-  p->len = len;
-  p->suffix = suffix + 1;
-
-  if (len < 256)
-    last_pattern_extra_prereq_vars[len] = p;
-
-  return p;
+    return create_pattern_var_imp (target, suffix, &pattern_extra_prereq_vars,
+                                   last_pattern_extra_prereq_vars);
 }
-
-/* Look up a target in the pattern-specific variable list.  */
 
 static struct pattern_var *
-lookup_pattern_var (struct pattern_var *start, const char *target)
+lookup_pattern_var_imp (struct pattern_var *start, const char *target,
+                        size_t targlen)
 {
   struct pattern_var *p;
-  size_t targlen = strlen (target);
 
-  for (p = start ? start->next : pattern_vars; p != 0; p = p->next)
+  for (p = start; p != 0; p = p->next)
     {
       const char *stem;
       size_t stemlen;
+
+printf("lookup pattern comparing suffix=%s, target=%s, name=%s, value=%s\n", p->suffix, p->target, p->variable.name, p->variable.value);
 
       if (p->len > targlen)
         /* It can't possibly match.  */
@@ -191,46 +171,27 @@ lookup_pattern_var (struct pattern_var *start, const char *target)
   return p;
 }
 
-/* Look up a target in the pattern-specific extra_prereqs variable list.  */
+/* Look up a target in the full list of all pattern-specific variables .  */
+
+static struct pattern_var *
+lookup_pattern_var (struct pattern_var *start, const char *target,
+                    size_t targlen)
+{
+    struct pattern_var *p = start ? start->next : pattern_vars;
+    return lookup_pattern_var_imp (p, target, targlen);
+}
+
+/* Look up a target in the pattern-specific variable list dedicated to
+ * .EXTRA_PREREQ.  */
 
 struct pattern_var *
-lookup_pattern_extra_prereq_var (struct pattern_var *start, const char *target)
+lookup_pattern_extra_prereq_var (struct pattern_var *start, const char *target,
+                                 size_t targlen)
 {
-  struct pattern_var *p;
-  size_t targlen = strlen (target);
-
-  for (p = start ? start->next : pattern_extra_prereq_vars; p != 0; p = p->next)
-    {
-      const char *stem;
-      size_t stemlen;
-
-printf("lookup pattern extra prereqs comparing suffix=%s, target=%s, name=%s, value=%s\n", p->suffix, p->target, p->variable.name, p->variable.value);
-
-      if (p->len > targlen)
-        /* It can't possibly match.  */
-        continue;
-
-      /* From the lengths of the filename and the pattern parts,
-         find the stem: the part of the filename that matches the %.  */
-      stem = target + (p->suffix - p->target - 1);
-      stemlen = targlen - p->len + 1;
-
-      /* Compare the text in the pattern before the stem, if any.  */
-      if (stem > target && !strneq (p->target, target, stem - target))
-        continue;
-
-      /* Compare the text in the pattern after the stem, if any.
-         We could test simply using streq, but this way we compare the
-         first two characters immediately.  This saves time in the very
-         common case where the first character matches because it is a
-         period.  */
-      if (*p->suffix == stem[stemlen]
-          && (*p->suffix == '\0' || streq (&p->suffix[1], &stem[stemlen+1])))
-        break;
-    }
-
-  return p;
+    struct pattern_var *p = start ? start->next : pattern_extra_prereq_vars;
+    return lookup_pattern_var_imp (p, target, targlen);
 }
+
 
 
 /* Hash table of all global variable definitions.  */
@@ -666,6 +627,7 @@ initialize_file_variables (struct file *file, int reading)
 {
   struct variable_set_list *l = file->variables;
 
+printf("init file vars for %s\n", file->name);
   if (l == 0)
     {
       l = (struct variable_set_list *)
@@ -703,8 +665,9 @@ initialize_file_variables (struct file *file, int reading)
   if (!reading && !file->pat_searched)
     {
       struct pattern_var *p;
+      size_t nlen = strlen (file->name);
 
-      p = lookup_pattern_var (0, file->name);
+      p = lookup_pattern_var (0, file->name, nlen);
       if (p != 0)
         {
           struct variable_set_list *global = current_variable_set_list;
@@ -744,7 +707,7 @@ printf("file=%s, pattern var %s=%s\n", file->name, p->variable.name, p->variable
               v->export = p->variable.export;
               v->private_var = p->variable.private_var;
             }
-          while ((p = lookup_pattern_var (p, file->name)) != 0);
+          while ((p = lookup_pattern_var (p, file->name, nlen)) != 0);
 
           current_variable_set_list = global;
         }
@@ -761,15 +724,6 @@ printf("file=%s, pattern var %s=%s\n", file->name, p->variable.name, p->variable
       l->next_is_parent = 0;
     }
 }
-
-//struct pattern_var *
-//lookup_pattern_extra_prereqs (struct pattern_var *extra, const char *target)
-//{
-//  while ((extra = lookup_pattern_var (extra, target)))
-//    if (strcmp (extra->variable.name, ".EXTRA_PREREQS") == 0)
-//      return extra;
-//  return 0;
-//}
 
 
 /* Pop the top set off the current variable set list,
@@ -1760,17 +1714,6 @@ try_variable_definition (const floc *flocp, const char *line,
 
   return vp;
 }
-
-//void add_pattern_extra_prereqs_var (struct variable *v)
-//{
-//  struct pattern_extra_prereq_var *e =
-//                            xcalloc (sizeof (struct pattern_extra_prereq_var));
-//  e->variable = v;
-//
-//  e->next = pattern_extra_prereq_vars;
-//  pattern_extra_prereq_vars = e;
-//printf("added pattern specific extra prereqs var %s=%s\n", v->name, v->value);
-//}
 
 
 /* Print information for variable V, prefixing it with PREFIX.  */

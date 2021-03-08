@@ -422,10 +422,13 @@ update_file_1 (struct file *file, unsigned int depth)
   struct dep amake;
   struct pattern_var *extra = NULL;
   int running = 0;
+  size_t nlen = strlen (file->name);
 
   DBF (DB_VERBOSE, _("Considering target file '%s'.\n"));
 
-  while ((extra = lookup_pattern_extra_prereq_var (extra, file->name)))
+  /* If there are pattern specific extra prerequisites specified for a pattern
+   * which matches this target then add these prerequisites as deps.  */
+  while ((extra = lookup_pattern_extra_prereq_var (extra, file->name, nlen)))
     {
       struct dep *prereqs = expand_extra_prereqs (&extra->variable);
       if (prereqs)
