@@ -427,7 +427,11 @@ remove_intermediates (int sig)
                       }
                   }
                 if (status < 0)
-                  perror_with_name ("unlink: ", f->name);
+                  {
+                    perror_with_name ("\nunlink: ", f->name);
+                    /* Start printing over.  */
+                    doneany = 0;
+                  }
               }
           }
       }
@@ -489,7 +493,6 @@ enter_prereqs (struct dep *deps, const char *stem)
   if (stem)
     {
       const char *pattern = "%";
-      char *buffer = variable_expand ("");
       struct dep *dp = deps, *dl = 0;
 
       while (dp != 0)
@@ -509,14 +512,15 @@ enter_prereqs (struct dep *deps, const char *stem)
               if (stem[0] == '\0')
                 {
                   memmove (percent, percent+1, strlen (percent));
-                  o = variable_buffer_output (buffer, nm, strlen (nm) + 1);
+                  o = variable_buffer_output (variable_buffer, nm,
+                                              strlen (nm) + 1);
                 }
               else
-                o = patsubst_expand_pat (buffer, stem, pattern, nm,
+                o = patsubst_expand_pat (variable_buffer, stem, pattern, nm,
                                          pattern+1, percent+1);
 
               /* If the name expanded to the empty string, ignore it.  */
-              if (buffer[0] == '\0')
+              if (variable_buffer[0] == '\0')
                 {
                   struct dep *df = dp;
                   if (dp == deps)
@@ -528,7 +532,8 @@ enter_prereqs (struct dep *deps, const char *stem)
                 }
 
               /* Save the name.  */
-              dp->name = strcache_add_len (buffer, o - buffer);
+              dp->name = strcache_add_len (variable_buffer,
+                                           o - variable_buffer);
             }
           dp->stem = stem;
           dp->staticpattern = 1;
@@ -586,8 +591,7 @@ expand_deps (struct file *f)
          "$*" so they'll expand properly.  */
       if (d->staticpattern)
         {
-          char *o = variable_expand ("");
-          o = subst_expand (o, name, "%", "$*", 1, 2, 0);
+          char *o = subst_expand (variable_buffer, name, "%", "$*", 1, 2, 0);
           *o = '\0';
           free (name);
           d->name = name = xstrdup (variable_buffer);
