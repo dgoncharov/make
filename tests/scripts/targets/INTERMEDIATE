@@ -104,5 +104,24 @@ $answer = "touch foo.a\ntouch foo\nrm foo.a\n";
 
 unlink('foo');
 
+# sv 60188.
+# Test that a file explicitly mentioned by the user and made by an implicit
+# rule is not considered intermediate. However, being a prereq to .INTERMEDIATE
+# the file is intermediate.
+
+touch('hello.z');
+unlink('test.x');
+
+run_make_test(q!
+all: hello.z
+%.z: test.x; touch $@
+%.x: ;
+.INTERMEDIATE: test.x
+!, '', "#MAKE#: Nothing to be done for 'all'.\n");
+
+unlink('hello.z');
+
+
+
 # This tells the test driver that the perl test script executed properly.
 1;
