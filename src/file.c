@@ -796,13 +796,21 @@ snap_deps (void)
     else
       all_notintermediate = 1;
 
+  /* Here the same file is prevented to be a prereq to both .INTERMEDIATE and
+   * .NOTINTERMEDIATE.  However, it is possible for a file to be a prereq to
+   * .INTERMEDIATE and also match a pattern which is notintermediate through
+   * .NOTINTERMEDIATE.  In this case, intermediate has priority over
+   * notintermediate, because .INTERMEDIATE depends on a file name,
+   * .NOTINTERMEDIATE depends on a pattern. This priority is enforced by
+   * pattern_search.  */
+
   for (f = lookup_file (".INTERMEDIATE"); f != 0; f = f->prev)
     /* Mark .INTERMEDIATE deps as intermediate files.  */
     for (d = f->deps; d != 0; d = d->next)
       for (f2 = d->file; f2 != 0; f2 = f2->prev)
         if (f2->notintermediate)
             O (fatal, NILF,
-               _(".NOTINTERMEDIATE and .INTERMEDIATE are mutually exclusive"));
+               _("A file cannot be both .NOTINTERMEDIATE and .INTERMEDIATE."));
         else
           f2->intermediate = 1;
     /* .INTERMEDIATE with no deps does nothing.
@@ -816,13 +824,14 @@ snap_deps (void)
         for (f2 = d->file; f2 != 0; f2 = f2->prev)
         if (f2->notintermediate)
             O (fatal, NILF,
-               _(".NOTINTERMEDIATE and .SECONDARY are mutually exclusive"));
+               _("A file cannot be both .NOTINTERMEDIATE and .SECONDARY."));
         else
           f2->intermediate = f2->secondary = 1;
     /* .SECONDARY with no deps listed marks *all* files that way.  */
     else
       all_secondary = 1;
-
+//TODO: check for all_secondary and some notintermediate
+// and some secondary and all_notintermediate.
   if (all_notintermediate && all_secondary)
     O (fatal, NILF,
        _(".NOTINTERMEDIATE and .SECONDARY are mutually exclusive"));

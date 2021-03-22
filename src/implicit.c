@@ -909,29 +909,13 @@ pattern_search (struct file *file, int archive,
           f->pat_searched = imf->pat_searched;
           f->also_make = imf->also_make;
           f->is_target = 1;
-          f->intermediate = !pat->is_explicit;
-          f->notintermediate = 0;
+          f->notintermediate = imf->notintermediate;
+          f->intermediate = !(pat->is_explicit || f->notintermediate);
           f->tried_implicit = 1;
 
           imf = lookup_file (pat->pattern);
           if (imf != 0 && imf->precious)
             f->precious = 1;
-
-          if (imf && imf->intermediate)
-            {
-              /* This file was explicitly marked as intermediate in the
-               * makefile.
-               * This takes precedence over a notintermediate pattern that may
-               * also match this file.
-               * Thus, check imf->intermediate before imf->notintermediate. */
-              f->notintermediate = 0;
-              f->intermediate = 1;
-            }
-          else if (imf && imf->notintermediate)
-            {
-              f->notintermediate = 1;
-              f->intermediate = 0;
-            }
 
           for (dep = f->deps; dep != 0; dep = dep->next)
             {
