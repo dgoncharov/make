@@ -674,16 +674,16 @@ snap_file (const void *item, void *arg)
   if (!second_expansion)
     f->updating = 0;
 
-  /* If .SECONDARY is set with no deps, mark all targets as intermediate.  */
-  if (all_secondary)
+  /* More specific setting has priority.  */
+  /* If .SECONDARY is set with no deps, mark all targets as intermediate,
+   * unless the target is a prereq of .NOTINTERMEDIATE.  */
+  if (all_secondary && f->notintermediate == 0)
     f->intermediate = 1;
 
-  /* If .NOTINTERMEDIATE is set with no deps, mark all targets as notintermediate.  */
-  if (all_notintermediate)
-    {
-      f->intermediate = 0;
+  /* If .NOTINTERMEDIATE is set with no deps, mark all targets as notintermediate,
+   * unless the target is a prereq of .INTERMEDIATE.  */
+  if (all_notintermediate && f->intermediate == 0 && f->secondary == 0)
       f->notintermediate = 1;
-    }
 
   /* If .EXTRA_PREREQS is set, add them as ignored by automatic variables.  */
   if (f->variables)
@@ -809,8 +809,9 @@ snap_deps (void)
     for (d = f->deps; d != 0; d = d->next)
       for (f2 = d->file; f2 != 0; f2 = f2->prev)
         if (f2->notintermediate)
-            O (fatal, NILF,
-               _("A file cannot be both .NOTINTERMEDIATE and .INTERMEDIATE."));
+          OS (fatal, NILF,
+            _("%s cannot be both .NOTINTERMEDIATE and .INTERMEDIATE."),
+              f2->name);
         else
           f2->intermediate = 1;
     /* .INTERMEDIATE with no deps does nothing.
@@ -823,15 +824,14 @@ snap_deps (void)
       for (d = f->deps; d != 0; d = d->next)
         for (f2 = d->file; f2 != 0; f2 = f2->prev)
         if (f2->notintermediate)
-            O (fatal, NILF,
-               _("A file cannot be both .NOTINTERMEDIATE and .SECONDARY."));
+          OS (fatal, NILF,
+            _("%s cannot be both .NOTINTERMEDIATE and .SECONDARY."), f2->name);
         else
           f2->intermediate = f2->secondary = 1;
     /* .SECONDARY with no deps listed marks *all* files that way.  */
     else
       all_secondary = 1;
-//TODO: check for all_secondary and some notintermediate
-// and some secondary and all_notintermediate.
+
   if (all_notintermediate && all_secondary)
     O (fatal, NILF,
        _(".NOTINTERMEDIATE and .SECONDARY are mutually exclusive"));
