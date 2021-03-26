@@ -2968,6 +2968,20 @@ The targets which @code{.INTERMEDIATE} depends on are treated as
 intermediate files.  @xref{Chained Rules, ,Chains of Implicit Rules}.
 @code{.INTERMEDIATE} with no prerequisites has no effect.
 
+@findex .NOTINTERMEDIATE
+@item .NOTINTERMEDIATE
+@cindex notintermediate targets, explicit
+
+The targets which @code{.NOTINTERMEDIATE} depends on are never treated as
+intermediate files.  @xref{Chained Rules, ,Chains of Implicit Rules}.
+@code{.NOTINTERMEDIATE} with no prerequisites causes all targets to be treated
+as notintermediate.
+
+Target patterns (such as @samp{%.h}) can also be listed as a prerequisite of
+the special target @code{.NOTINTERMEDIATE} to cause all files the match the
+pattern to be treated as notintermediate.
+
+
 @findex .SECONDARY
 @item .SECONDARY
 @cindex secondary targets
