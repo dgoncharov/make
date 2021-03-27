@@ -17,7 +17,7 @@ hello.z:
 .NOTINTERMEDIATE: %.q %.x
 !, '', "touch hello.z\n");
 
-# Test 2. %.q .NOTINTERMEDIATE pattern has no effect on hello.x.
+# Test 2. .NOTINTERMEDIATE: %.q pattern has no effect on hello.x.
 touch('hello.z');
 run_make_test(q!
 hello.z:
