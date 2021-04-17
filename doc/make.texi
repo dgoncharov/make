@@ -1280,6 +1280,9 @@ are searched, in this order:
 hierarchy.})
 @file{/usr/gnu/include},
 @file{/usr/local/include}, @file{/usr/include}.
+If the @samp{-a} option is specified, then make does not search the default
+include directories.
+(@pxref{Options Summary, ,Summary of Options}).
 
 If an included makefile cannot be found in any of these directories it
 is not an immediately fatal error; processing of the makefile
@@ -8903,6 +8906,11 @@ correct them all before the next attempt to compile.  This is why Emacs'
 Here is a table of all the options @code{make} understands:
 
 @table @samp
+
+@item -a
+Avoid default include directories when searching for included files
+(@pxref{Include, ,Including Other Makefiles}).
+
 @item -b
 @cindex @code{-b}
 @itemx -m
