@@ -689,6 +689,7 @@ extern int print_version_flag, print_directory, check_symlink_flag;
 extern int warn_undefined_variables_flag, posix_pedantic;
 extern int not_parallel, second_expansion, clock_skew_detected;
 extern int rebuilding_makefiles, one_shell, output_sync, verify_flag;
+extern int avoid_def_include_dirs;
 extern unsigned long command_count;
 
 extern const char *default_shell;

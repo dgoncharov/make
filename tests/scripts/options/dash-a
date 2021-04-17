@@ -1,0 +1,43 @@
+#                                                                    -*-perl-*-
+
+$description = "Test the -a option.\n";
+
+# Test that -a avoids default include directories.
+run_make_test(q!
+$(info $(.INCLUDE_DIRS))
+all: ; @:
+!,
+'-a', "\n");
+
+# Test that -a is passed recursively.
+run_make_test(q!
+$(info $(.INCLUDE_DIRS))
+all: ; @$(MAKE) -f work/options/dash-a.mk.1 end_recursion
+end_recursion: ; @:
+!,
+'--no-print-directory -a', "\n\n");
+
+# Test that -a can be set from MAKEFLAGS.
+run_make_test(q!
+MAKEFLAGS+=-a
+$(info $(.INCLUDE_DIRS))
+all: ; @:
+!,
+'-a', "\n");
+
+# Test that -a is orthogonal to -I.
+run_make_test(q!
+$(info $(.INCLUDE_DIRS))
+all: ; @:
+!,
+'-I/tmp -a', "/tmp\n");
+
+# Test that -a can be read from MAKEFLAGS.
+run_make_test(q!
+$(info $(MAKEFLAGS))
+all: ; @:
+!,
+'-a', "a\n");
+
+
+1;

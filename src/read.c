@@ -2923,10 +2923,11 @@ construct_include_path (const char **arg_dirs)
 #endif
   const char **dirs;
   const char **cpp;
-  size_t idx;
+  size_t idx = 0;
 
   /* Compute the number of pointers we need in the table.  */
-  idx = sizeof (default_include_directories) / sizeof (const char *);
+  if (avoid_def_include_dirs == 0)
+    idx = sizeof (default_include_directories) / sizeof (const char *);
   if (arg_dirs)
     for (cpp = arg_dirs; *cpp != 0; ++cpp)
       ++idx;
@@ -2995,22 +2996,23 @@ construct_include_path (const char **arg_dirs)
   }
 #endif
 
-  for (cpp = default_include_directories; *cpp != 0; ++cpp)
-    {
-      int e;
+  if (avoid_def_include_dirs == 0)
+    for (cpp = default_include_directories; *cpp != 0; ++cpp)
+      {
+        int e;
 
-      EINTRLOOP (e, stat (*cpp, &stbuf));
-      if (e == 0 && S_ISDIR (stbuf.st_mode))
-        {
-          size_t len = strlen (*cpp);
-          /* If dir name is written with trailing slashes, discard them.  */
-          while (len > 1 && (*cpp)[len - 1] == '/')
-            --len;
-          if (len > max_incl_len)
-            max_incl_len = len;
-          dirs[idx++] = strcache_add_len (*cpp, len);
-        }
-    }
+        EINTRLOOP (e, stat (*cpp, &stbuf));
+        if (e == 0 && S_ISDIR (stbuf.st_mode))
+          {
+            size_t len = strlen (*cpp);
+            /* If dir name is written with trailing slashes, discard them.  */
+            while (len > 1 && (*cpp)[len - 1] == '/')
+              --len;
+            if (len > max_incl_len)
+              max_incl_len = len;
+            dirs[idx++] = strcache_add_len (*cpp, len);
+          }
+      }
 
   dirs[idx] = 0;
 

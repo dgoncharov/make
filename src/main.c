@@ -327,6 +327,9 @@ char cmd_prefix = '\t';
 
 unsigned long command_count = 1;
 
+/* Avoid default include directories when searching for included files.  */
+
+int avoid_def_include_dirs = 0;
 
 
 /* The usage output.  We write it this way to make life easier for the
@@ -336,6 +339,8 @@ unsigned long command_count = 1;
 static const char *const usage[] =
   {
     N_("Options:\n"),
+    N_("\
+  -a                          Avoid default include directories when searching for included files.\n"),
     N_("\
   -b, -m                      Ignored for compatibility.\n"),
     N_("\
@@ -423,6 +428,7 @@ static int trace_flag = 0;
 
 static const struct command_switch switches[] =
   {
+    { 'a', flag, &avoid_def_include_dirs, 1, 1, 0, 0, 0, 0 },
     { 'b', ignore, 0, 0, 0, 0, 0, 0, 0 },
     { 'B', flag, &always_make_set, 1, 1, 0, 0, 0, "always-make" },
     { 'd', flag, &debug_flag, 1, 1, 0, 0, 0, 0 },
