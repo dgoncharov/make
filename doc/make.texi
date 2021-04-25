@@ -9984,7 +9984,7 @@ The second difference is that if @code{make} @emph{does} create @var{b}
 in order to update something else, it deletes @var{b} later on after it
 is no longer needed.  Therefore, an intermediate file which did not
 exist before @code{make} also does not exist after @code{make}.
-@code{make} reports the deletion to you by printing a @samp{rm -f}
+@code{make} reports the deletion to you by printing a @samp{rm}
 command showing which file it is deleting.
 
 Ordinarily, a file cannot be intermediate if it is mentioned in the
