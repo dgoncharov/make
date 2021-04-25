@@ -805,6 +805,7 @@ update_file_1 (struct file *file, unsigned int depth)
           puts (".");
           fflush (stdout);
         }
+      file->secondary = 1;
 
       notice_finished_file (file);
 

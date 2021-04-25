@@ -148,7 +148,8 @@ foo.in:
 'touch foo.in
 touch foo.h
 touch foo.c
-echo foo.c foo.h >foo.o');
+echo foo.c foo.h >foo.o
+rm foo.h');
 
 unlink('foo.in', 'foo.h', 'foo.c', 'foo.o');
 
@@ -232,6 +233,8 @@ all: foo.x foo-mt.x
 
 touch('a.c');
 
+# Even though a.lnk is intermediate, a.lnk is not removed, because it is not
+# created.
 run_make_test(q!
 all: a.elf a.dbg
 
@@ -241,7 +244,33 @@ all: a.elf a.dbg
 !,
     '-j2', ": a.elf a.lnk\n: a.elf a.dbg\n");
 
-unlink('a.c');
+# a.lnk is removed, because it is intermediate.
+unlink('a.elf', 'a.dbg', 'a.lnk');
+run_make_test(q!
+all: a.elf a.dbg
+
+%.elf %.lnk: %.c ; touch $*.elf $*.lnk
+
+%.elf %.dbg: %.lnk ; touch $*.elf $*.dbg
+!,
+    '-j2', "touch a.elf a.lnk\ntouch a.elf a.dbg\nrm a.lnk\n");
+
+unlink('a.elf', 'a.dbg', 'a.lnk');
+
+# a.lnk is not intermediate, because it is explicitly mentioned.
+run_make_test(q!
+all: a.elf a.dbg
+
+%.elf %.lnk: %.c ; touch $*.elf $*.lnk
+
+%.elf %.dbg: %.lnk ; touch $*.elf $*.dbg
+
+install: a.lnk
+.PHONY: install
+!,
+    '-j2', "touch a.elf a.lnk\ntouch a.elf a.dbg\n");
+unlink('a.c', 'a.elf', 'a.dbg', 'a.lnk');
+
 
 # SV 56655: Test patterns matching files containing whitespace
 touch('some file.yy');
@@ -329,6 +358,58 @@ suf:=.z
 
 unlink('hello.x');
 unlink('test.x');
+
+# Test that chained pattern rules with multiple targets remove all intermediate
+# files.
+# sv 60435.
+# a.1 and a.2 are intermediate and should be removed.
+# a.3 is explicit and should not be removed.
+
+## subtest 1.
+unlink('a.1', 'a.2', 'a.3', 'a.4');
+run_make_test(q!
+a.4:
+%.4: %.1 %.2 a.3 ; cat $^ >$@
+%.1 %.2: ; touch $*.1 $*.2
+%.3: ; touch $@
+!, '', "touch a.3\ntouch a.1 a.2\ncat a.1 a.2 a.3 >a.4\nrm a.1 a.2");
+
+# subtest 2.
+unlink('a.1', 'a.2', 'a.3', 'a.4');
+run_make_test(q!
+a.4:
+%.4: %.1 %.2 a.3 ; cat $^ >$@
+%.1 %.2 %.3: ; touch $*.1 $*.2 $*.3
+!, '', "touch a.1 a.2 a.3\ncat a.1 a.2 a.3 >a.4\nrm a.1 a.2");
+
+# subtest 3.
+unlink('a.1', 'a.2', 'a.3', 'a.4');
+run_make_test(q!
+a.4:
+%.4: %.1 %.2 a.3 ; cat $^ >$@
+%.3 %.1 %.2: ; touch $*.1 $*.2 $*.3
+!, '', "touch a.1 a.2 a.3\ncat a.1 a.2 a.3 >a.4\nrm a.1 a.2");
+
+# subtest 4.
+unlink('a.1', 'a.2', 'a.3', 'a.4');
+run_make_test(q!
+a.4:
+%.4: a.3 %.1 %.2 ; cat $^ >$@
+%.1 %.2 %.3: ; touch $*.1 $*.2 $*.3
+!, '', "touch a.1 a.2 a.3\ncat a.3 a.1 a.2 >a.4\nrm a.1 a.2");
+unlink('a.1', 'a.2', 'a.3', 'a.4');
+
+# subtest 5.
+unlink('a.1', 'a.2', 'a.3', 'a.4');
+run_make_test(q!
+a.3:
+%.3: %.1 %.2 ; cat $^ >$@
+%.1 %.2: ; touch $*.1 $*.2
+install: a.1
+.PHONY: install
+!, '', "touch a.1 a.2\ncat a.1 a.2 >a.3\nrm a.2");
+unlink('a.1', 'a.2', 'a.3', 'a.4');
+
 
 
 # This tells the test driver that the perl test script executed properly.

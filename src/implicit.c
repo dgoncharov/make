@@ -713,6 +713,7 @@ pattern_search (struct file *file, int archive,
               for (d = dl; d != 0; d = d->next)
                 {
                   struct dep *expl_d;
+                  struct file* f;
                   int is_rule = d->name == dep_name (dep);
 
                   if (file_impossible_p (d->name))
@@ -762,7 +763,11 @@ pattern_search (struct file *file, int archive,
                      FILENAME's directory), so it might actually exist.  */
 
                   /* @@ dep->changed check is disabled. */
-                  if (lookup_file (d->name) != 0
+                  f = lookup_file (d->name);
+                  if (f && f->is_explicit == 0 && d->is_explicit == 0)
+                    f->intermediate = 1;
+
+                  if (f != 0
                       /*|| ((!dep->changed || check_lastslash) && */
                       || file_exists_p (d->name))
                     {

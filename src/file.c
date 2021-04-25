@@ -550,6 +550,8 @@ enter_prereqs (struct dep *deps, const char *stem)
         d1->file = enter_file (d1->name);
       d1->staticpattern = 0;
       d1->name = 0;
+      if (stem == 0)
+        d1->file->is_explicit = 1;
     }
 
   return deps;

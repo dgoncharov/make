@@ -2160,6 +2160,7 @@ record_files (struct nameseq *filenames, int are_also_makes,
               free_dep_chain (f->deps);
               f->deps = 0;
             }
+          f->is_explicit = 1;
         }
       else
         {
