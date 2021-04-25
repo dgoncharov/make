@@ -805,6 +805,8 @@ update_file_1 (struct file *file, unsigned int depth)
           puts (".");
           fflush (stdout);
         }
+      /* Since make has not created this file, make should not remove it.
+       * Even if the file is intermediate. */
       file->secondary = 1;
 
       notice_finished_file (file);

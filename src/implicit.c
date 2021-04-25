@@ -755,6 +755,14 @@ pattern_search (struct file *file, int archive,
                       continue;
                     }
 
+                  /* f->is_explicit is set when this file is mentioned
+                   * explicitly on some other rule.
+                   * d->is_explicit is set when this file is mentioned
+                   * explicitly on this rule.  */
+                  f = lookup_file (d->name);
+                  if (f && f->is_explicit == 0 && d->is_explicit == 0)
+                    f->intermediate = 1;
+
                   /* The DEP->changed flag says that this dependency resides
                      in a nonexistent directory.  So we normally can skip
                      looking for the file.  However, if CHECK_LASTSLASH is
@@ -763,10 +771,6 @@ pattern_search (struct file *file, int archive,
                      FILENAME's directory), so it might actually exist.  */
 
                   /* @@ dep->changed check is disabled. */
-                  f = lookup_file (d->name);
-                  if (f && f->is_explicit == 0 && d->is_explicit == 0)
-                    f->intermediate = 1;
-
                   if (f != 0
                       /*|| ((!dep->changed || check_lastslash) && */
                       || file_exists_p (d->name))
