@@ -215,12 +215,21 @@ unlink('joe-is-forced');
 # sv 60188.
 # Even though test.x is explicitly mentioned, terminal pattern rules still
 # apply only if the prerequisite exists.
+unlink('hello.x');
 touch('hello.z');
 
+# subtest 1. test.x is explicitly mentioned.
 run_make_test(q!
 all: hello.z
 %.z:: test.x ; touch $@
 %.x: ;
+!, '', "#MAKE#: Nothing to be done for 'all'.\n");
+
+# subtest 2. hello.x is derived from the stem.
+run_make_test(q!
+all: hello.z
+%.z:: %.x; touch $@
+%.x: ; touch $@
 !, '', "#MAKE#: Nothing to be done for 'all'.\n");
 
 unlink('hello.z');
