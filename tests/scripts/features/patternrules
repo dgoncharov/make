@@ -235,6 +235,7 @@ touch('a.c');
 
 # Even though a.lnk is intermediate, a.lnk is not removed, because it is not
 # created.
+unlink('a.elf', 'a.dbg', 'a.lnk');
 run_make_test(q!
 all: a.elf a.dbg
 
@@ -362,10 +363,19 @@ unlink('test.x');
 # Test that chained pattern rules with multiple targets remove all intermediate
 # files.
 # sv 60435.
+
+# subtest 1.
+# a.1 and a.2 are intermediate and should be removed.
+unlink('a.1', 'a.2', 'a.3', 'a.4');
+run_make_test(q!
+a.4:
+%.4: %.1 %.2 ; cat $^ >$@
+%.1 %.2: ; touch $*.1 $*.2
+!, '', "touch a.1 a.2\ncat a.1 a.2 >a.4\nrm a.1 a.2");
+
+# subtest 2.
 # a.1 and a.2 are intermediate and should be removed.
 # a.3 is explicit and should not be removed.
-
-## subtest 1.
 unlink('a.1', 'a.2', 'a.3', 'a.4');
 run_make_test(q!
 a.4:
@@ -374,7 +384,9 @@ a.4:
 %.3: ; touch $@
 !, '', "touch a.3\ntouch a.1 a.2\ncat a.1 a.2 a.3 >a.4\nrm a.1 a.2");
 
-# subtest 2.
+# subtest 3.
+# a.1 and a.2 are intermediate and should be removed.
+# a.3 is explicit and should not be removed.
 unlink('a.1', 'a.2', 'a.3', 'a.4');
 run_make_test(q!
 a.4:
@@ -382,7 +394,9 @@ a.4:
 %.1 %.2 %.3: ; touch $*.1 $*.2 $*.3
 !, '', "touch a.1 a.2 a.3\ncat a.1 a.2 a.3 >a.4\nrm a.1 a.2");
 
-# subtest 3.
+# subtest 4.
+# a.1 and a.2 are intermediate and should be removed.
+# a.3 is explicit and should not be removed.
 unlink('a.1', 'a.2', 'a.3', 'a.4');
 run_make_test(q!
 a.4:
@@ -390,7 +404,9 @@ a.4:
 %.3 %.1 %.2: ; touch $*.1 $*.2 $*.3
 !, '', "touch a.1 a.2 a.3\ncat a.1 a.2 a.3 >a.4\nrm a.1 a.2");
 
-# subtest 4.
+# subtest 5.
+# a.1 and a.2 are intermediate and should be removed.
+# a.3 is explicit and should not be removed.
 unlink('a.1', 'a.2', 'a.3', 'a.4');
 run_make_test(q!
 a.4:
@@ -399,7 +415,9 @@ a.4:
 !, '', "touch a.1 a.2 a.3\ncat a.3 a.1 a.2 >a.4\nrm a.1 a.2");
 unlink('a.1', 'a.2', 'a.3', 'a.4');
 
-# subtest 5.
+# subtest 6.
+# a.2 is intermediate and should be removed.
+# a.1 is mentioned explicitly on an unrelated rule and should not be removed.
 unlink('a.1', 'a.2', 'a.3', 'a.4');
 run_make_test(q!
 a.3:
@@ -411,7 +429,41 @@ install: a.1
 unlink('a.1', 'a.2', 'a.3', 'a.4');
 
 
+# Test removal of intermediate files.
 
+# subtest 1.
+# hello.x is removed, because it is intermediate.
+unlink('hello.x', 'hello.tsk');
+run_make_test(q!
+hello.tsk:
+%.tsk: %.x; touch $@
+%.x: ; touch $@
+!, '', "touch hello.x\ntouch hello.tsk\nrm hello.x");
+
+
+# subtest 2.
+# Even though hello.x is intermediate, it is not removed, because it is not
+# created.
+unlink('hello.tsk');
+touch('hello.x');
+run_make_test(q!
+hello.tsk:
+%.tsk: %.x; touch $@
+%.x: ; touch $@
+!, '', "touch hello.tsk");
+
+# subtest 2.
+# Even though hello.x is intermediate, it is not removed, because it is not
+# created.
+unlink('hello.x', 'hello.tsk');
+run_make_test(q!
+hello.tsk:
+%.tsk: %.x; touch $@
+%.x: ; : $@
+!, '', ": hello.x\ntouch hello.tsk");
+
+
+unlink('hello.x', 'hello.tsk');
 # This tells the test driver that the perl test script executed properly.
 1;
 
