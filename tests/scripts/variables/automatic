@@ -119,4 +119,28 @@ A B C D E F G H : ; @:
 ',
               '', "all -- A B C D E F -- A\n");
 
+
+# Test #5: test that $$< expands to the first prerequisite.
+# subtest 1. explicit rules.
+unlink('hello.x', 'moon.z');
+run_make_test(q!
+.SECONDEXPANSION:
+hello.x: world.z
+hello.x: $$(subst world,moon,$$<) ;
+!, '', "#MAKE#: *** No rule to make target 'moon.z', needed by 'hello.x'.  Stop.\n", 512);
+
+# subtest 2. static pattern rule.
+run_make_test(q!
+.SECONDEXPANSION:
+hello.x: %.x: world.z
+hello.x: %.x: $$(subst world,moon,$$<) ;
+!, '', "#MAKE#: *** No rule to make target 'moon.z', needed by 'hello.x'.  Stop.\n", 512);
+
+# subtest 3. grouped targets.
+run_make_test(q!
+.SECONDEXPANSION:
+hello.x: world.z
+hello.x bye.x&: $$(subst world,moon,$$<) ;
+!, '', "#MAKE#: *** No rule to make target 'moon.z', needed by 'hello.x'.  Stop.\n", 512);
+
 1;
