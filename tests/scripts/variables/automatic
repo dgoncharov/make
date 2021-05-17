@@ -120,14 +120,29 @@ A B C D E F G H : ; @:
               '', "all -- A B C D E F -- A\n");
 
 
-# Test #5: test that $$< expands to the first prerequisite.
-# Note, $$< in the prerequisite list expands to a different thing that $< in
-# the recipe expands to.  This discrepancy is documented in the manual and is
-# already implemented for implicit rules.  This branch makes explicit rules,
-# static pattern rules and grouped targets mimic the behavior of implicit rules
-# and match the manual.
+# Test #5: test 2nd expansion of automatic variables in prerequisite lists.
+# $$<,$$^,$$+,$$? in the prerequisite list expand to different values
+# that $<,$^,$+,$? in the recipe expand to.
+
 
 # subtest 1. explicit rules.
+# All automatic variables, except $$@, expand to the empty string in the
+# prerequisite list of the 1st rule.
+run_make_test(q!
+.SECONDEXPANSION:
+all: 2.x
+2.x: 5.z 6.z 5.z $$(info in prereq @=$$@,<=$$<,^=$$^,+=$$+,|=$$|,?=$$?,*=$$*,%=$$%)
+	$(info in recipe @=$@,<=$<,^=$^,+=$+,|=$|,?=$?,*=$*,%=$%)
+%.z: ;
+!, '',
+"in prereq @=2.x,<=,^=,+=,|=,?=,*=,%=
+in recipe @=2.x,<=5.z,^=5.z 6.z,+=5.z 6.z 5.z,|=,?=5.z 6.z,*=,%=
+#MAKE#: Nothing to be done for 'all'.\n");
+
+
+# subtest 2. explicit rules.
+# Automatic variables in the prerequisite list of the 2nd (and following) rule
+# expand to the values from the 1st rule.
 run_make_test(q!
 .SECONDEXPANSION:
 all: 2.x 1.x
@@ -143,7 +158,8 @@ in recipe @=2.x,<=9.z,^=9.z 5.z 6.z,+=9.z 5.z 6.z 5.z,|=7.z 8.z,?=9.z 5.z 6.z,*=
 in recipe @=1.x,<=9.z,^=9.z 1.z 2.z,+=9.z 1.z 2.z 2.z,|=3.z 4.z,?=9.z 1.z 2.z,*=,%=
 #MAKE#: Nothing to be done for 'all'.\n");
 
-# subtest 2. pattern rules.
+
+# subtest 3. pattern rules.
 # $$% cannot be used in prerequisites, because in pattern rules % is
 # substituted for stem.
 run_make_test(q!
@@ -161,7 +177,8 @@ in prereq @=1.x,<=1.z,^=1.z 2.z,+=1.z 2.z 2.z,|=3.z 4.z,?=,*=1
 in recipe @=1.x,<=9.z,^=9.z 1.z 2.z,+=9.z 1.z 2.z 2.z,|=3.z 4.z,?=9.z 1.z 2.z,*=1,%=
 #MAKE#: Nothing to be done for 'all'.\n");
 
-# subtest 3. static pattern rules.
+
+# subtest 4. static pattern rules.
 # $$% cannot be used in prerequisites, because in pattern rules % is
 # substituted for stem.
 run_make_test(q!
@@ -179,7 +196,8 @@ in recipe @=2.x,<=9.z,^=9.z 5.z 6.z,+=9.z 5.z 6.z 5.z,|=7.z 8.z,?=9.z 5.z 6.z,*=
 in recipe @=1.x,<=9.z,^=9.z 1.z 2.z,+=9.z 1.z 2.z 2.z,|=3.z 4.z,?=9.z 1.z 2.z,*=1,%=
 #MAKE#: Nothing to be done for 'all'.\n");
 
-# subtest 4. grouped targets.
+
+# subtest 5. grouped targets in explicit rules.
 run_make_test(q!
 .SECONDEXPANSION:
 all: 2.x 1.x
@@ -195,10 +213,27 @@ in recipe @=2.x,<=9.z,^=9.z 5.z 6.z,+=9.z 5.z 6.z 5.z,|=7.z 8.z,?=9.z 5.z 6.z,*=
 #MAKE#: Nothing to be done for 'all'.\n");
 
 
-# subtest 5. double colon rules.
-# Because each double colon rule has a recipe and is independent of the other
-# double colon rules for the same target, each automatic variable in the
-# prerequisite list, except from $$@, second expands to the empty string.
+# subtest 6. grouped targets in implicit rules.
+run_make_test(q!
+.SECONDEXPANSION:
+all: 2.x 1.xx
+2.x: 5.z 6.z 5.z | 7.z 7.z 8.z
+1.xx: 1.z 2.z 2.z | 3.z 4.z
+%.x %.xx&: 9.z $$(info in prereq @=$$@,<=$$<,^=$$^,+=$$+,|=$$|,?=$$?,*=$$*)
+	$(info in recipe @=$@,<=$<,^=$^,+=$+,|=$|,?=$?,*=$*,%=$%)
+%.z: ;
+!, '',
+"in prereq @=2.x,<=5.z,^=5.z 6.z,+=5.z 6.z 5.z,|=7.z 8.z,?=,*=2
+in recipe @=2.x,<=9.z,^=9.z 5.z 6.z,+=9.z 5.z 6.z 5.z,|=7.z 8.z,?=9.z 5.z 6.z,*=2,%=
+in prereq @=1.xx,<=1.z,^=1.z 2.z,+=1.z 2.z 2.z,|=3.z 4.z,?=,*=1
+in recipe @=1.xx,<=9.z,^=9.z 1.z 2.z,+=9.z 1.z 2.z 2.z,|=3.z 4.z,?=9.z 1.z 2.z,*=1,%=
+#MAKE#: Nothing to be done for 'all'.\n");
+
+
+# subtest 7. double colon rules.
+# Because each double colon rule is independent of the other double colon rules
+# for the same target, each automatic variable in the prerequisite list, other
+# than $$@, second expands to the empty string.
 run_make_test(q!
 .SECONDEXPANSION:
 all: 2.x 1.x
