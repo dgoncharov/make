@@ -158,6 +158,20 @@ in recipe @=2.x,<=9.z,^=9.z 5.z 6.z,+=9.z 5.z 6.z 5.z,|=7.z 8.z,?=9.z 5.z 6.z,*=
 in recipe @=1.x,<=9.z,^=9.z 1.z 2.z,+=9.z 1.z 2.z 2.z,|=3.z 4.z,?=9.z 1.z 2.z,*=,%=
 #MAKE#: Nothing to be done for 'all'.\n");
 
+# subtest 3. pattern rules.
+# All automatic variables, except $$@, expand to the empty string in the
+# prerequisite list of the 1st rule.
+#TODO: $$* also expands even in the first rule.
+run_make_test(q!
+.SECONDEXPANSION:
+all: 2.x
+%.x: 5.z 6.z 5.z $$(info in prereq @=$$@,<=$$<,^=$$^,+=$$+,|=$$|,?=$$?,*=$$*)
+	$(info in recipe @=$@,<=$<,^=$^,+=$+,|=$|,?=$?,*=$*,%=$%)
+%.z: ;
+!, '',
+"in prereq @=2.x,<=,^=,+=,|=,?=,*=2
+in recipe @=2.x,<=5.z,^=5.z 6.z,+=5.z 6.z 5.z,|=,?=5.z 6.z,*=2,%=
+#MAKE#: Nothing to be done for 'all'.\n");
 
 # subtest 3. pattern rules.
 # $$% cannot be used in prerequisites, because in pattern rules % is
@@ -177,6 +191,20 @@ in prereq @=1.x,<=1.z,^=1.z 2.z,+=1.z 2.z 2.z,|=3.z 4.z,?=,*=1
 in recipe @=1.x,<=9.z,^=9.z 1.z 2.z,+=9.z 1.z 2.z 2.z,|=3.z 4.z,?=9.z 1.z 2.z,*=1,%=
 #MAKE#: Nothing to be done for 'all'.\n");
 
+# subtest 4. static pattern rules.
+# All automatic variables, except $$@, expand to the empty string in the
+# prerequisite list of the 1st rule.
+#TODO: $$* also expands even in the first rule.
+run_make_test(q!
+.SECONDEXPANSION:
+all: 2.x
+2.x: %.x: 5.z 6.z 5.z $$(info in prereq @=$$@,<=$$<,^=$$^,+=$$+,|=$$|,?=$$?,*=$$*)
+	$(info in recipe @=$@,<=$<,^=$^,+=$+,|=$|,?=$?,*=$*,%=$%)
+%.z: ;
+!, '',
+"in prereq @=2.x,<=,^=,+=,|=,?=,*=2
+in recipe @=2.x,<=5.z,^=5.z 6.z,+=5.z 6.z 5.z,|=,?=5.z 6.z,*=2,%=
+#MAKE#: Nothing to be done for 'all'.\n");
 
 # subtest 4. static pattern rules.
 # $$% cannot be used in prerequisites, because in pattern rules % is
@@ -196,6 +224,20 @@ in recipe @=2.x,<=9.z,^=9.z 5.z 6.z,+=9.z 5.z 6.z 5.z,|=7.z 8.z,?=9.z 5.z 6.z,*=
 in recipe @=1.x,<=9.z,^=9.z 1.z 2.z,+=9.z 1.z 2.z 2.z,|=3.z 4.z,?=9.z 1.z 2.z,*=1,%=
 #MAKE#: Nothing to be done for 'all'.\n");
 
+# subtest 5. grouped targets in explicit rules.
+# All automatic variables, except $$@, expand to the empty string in the
+# prerequisite list of the 1st rule.
+run_make_test(q!
+.SECONDEXPANSION:
+all: 2.x
+2.x 1.x&: 5.z 6.z 5.z $$(info in prereq @=$$@,<=$$<,^=$$^,+=$$+,|=$$|,?=$$?,*=$$*,%=$$%)
+	$(info in recipe @=$@,<=$<,^=$^,+=$+,|=$|,?=$?,*=$*,%=$%)
+%.z: ;
+!, '',
+"in prereq @=2.x,<=,^=,+=,|=,?=,*=,%=
+in prereq @=1.x,<=,^=,+=,|=,?=,*=,%=
+in recipe @=2.x,<=5.z,^=5.z 6.z,+=5.z 6.z 5.z,|=,?=5.z 6.z,*=,%=
+#MAKE#: Nothing to be done for 'all'.\n");
 
 # subtest 5. grouped targets in explicit rules.
 run_make_test(q!
@@ -212,6 +254,19 @@ in prereq @=1.x,<=1.z,^=1.z 2.z,+=1.z 2.z 2.z,|=3.z 4.z,?=,*=,%=
 in recipe @=2.x,<=9.z,^=9.z 5.z 6.z,+=9.z 5.z 6.z 5.z,|=7.z 8.z,?=9.z 5.z 6.z,*=,%=
 #MAKE#: Nothing to be done for 'all'.\n");
 
+# subtest 5. grouped targets in implicit rules.
+# All automatic variables, except $$@, expand to the empty string in the
+# prerequisite list of the 1st rule.
+run_make_test(q!
+.SECONDEXPANSION:
+all: 2.x
+%.x %.xx&: 5.z 6.z 5.z $$(info in prereq @=$$@,<=$$<,^=$$^,+=$$+,|=$$|,?=$$?,*=$$*)
+	$(info in recipe @=$@,<=$<,^=$^,+=$+,|=$|,?=$?,*=$*,%=$%)
+%.z: ;
+!, '',
+"in prereq @=2.x,<=,^=,+=,|=,?=,*=2
+in recipe @=2.x,<=5.z,^=5.z 6.z,+=5.z 6.z 5.z,|=,?=5.z 6.z,*=2,%=
+#MAKE#: Nothing to be done for 'all'.\n");
 
 # subtest 6. grouped targets in implicit rules.
 run_make_test(q!
@@ -229,6 +284,19 @@ in prereq @=1.xx,<=1.z,^=1.z 2.z,+=1.z 2.z 2.z,|=3.z 4.z,?=,*=1
 in recipe @=1.xx,<=9.z,^=9.z 1.z 2.z,+=9.z 1.z 2.z 2.z,|=3.z 4.z,?=9.z 1.z 2.z,*=1,%=
 #MAKE#: Nothing to be done for 'all'.\n");
 
+# subtest 7. double colon rules.
+# All automatic variables, except $$@, expand to the empty string in the
+# prerequisite list of the 1st rule.
+run_make_test(q!
+.SECONDEXPANSION:
+all: 2.x
+2.x:: 5.z 6.z 5.z $$(info in prereq @=$$@,<=$$<,^=$$^,+=$$+,|=$$|,?=$$?,*=$$*,%=$$%)
+	$(info in recipe @=$@,<=$<,^=$^,+=$+,|=$|,?=$?,*=$*,%=$%)
+%.z: ;
+!, '',
+"in prereq @=2.x,<=,^=,+=,|=,?=,*=,%=
+in recipe @=2.x,<=5.z,^=5.z 6.z,+=5.z 6.z 5.z,|=,?=5.z 6.z,*=,%=
+#MAKE#: Nothing to be done for 'all'.\n");
 
 # subtest 7. double colon rules.
 # Because each double colon rule is independent of the other double colon rules
