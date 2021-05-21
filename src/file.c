@@ -687,8 +687,11 @@ snap_file (const void *item, void *arg)
       struct dep *d;
       for (d = prereqs; d; d = d->next)
         if (streq (f->name, dep_name (d)))
-          /* Skip circular dependencies.  */
-          break;
+          {
+            OSS (error, NILF, _("Circular %s <- %s dependency dropped."),
+                 f->name, dep_name (d));
+            break;
+          }
 
       if (d)
         /* We broke early: must have found a circular dependency.  */
