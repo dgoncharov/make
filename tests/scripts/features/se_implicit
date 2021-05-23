@@ -325,7 +325,7 @@ unlink('hello.x');
 unlink('hello.tsk');
 
 
-# sv ???. Second expansion of automatic variables inside a function in the
+# sv 60659. Second expansion of automatic variables inside a function in the
 # prerequisite list.
 # $$@ expands to the target in the 1st and following rules.
 # $$* expands to the stem in the 1st and following rules.

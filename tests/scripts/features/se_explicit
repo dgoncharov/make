@@ -201,7 +201,7 @@ biz: $$(info $$<)
               '', "baz\n#MAKE#: Nothing to be done for 'biz'.\n");
 
 
-# sv ???. Second expansion of automatic variables inside a function in the
+# sv 60659. Second expansion of automatic variables inside a function in the
 # prerequisite list.
 # $$@ expands to the target in the 1st and following rules.
 # $$<,$$^,$$+,$$|,$$?,$$*,$$% expand to the empty string in the prerequisite
