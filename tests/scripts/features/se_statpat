@@ -102,6 +102,24 @@ oo$ba.1
 oo$ba
 ');
 
+# sv 60799.
+# Subtest 1. Handle ; in prerequisite list.
+run_make_test(q!
+.SECONDEXPANSION:
+all: hello.x
+hello.x: %.x: $$(shell echo hello;); $(info $^)
+.PHONY: all hello.x hello
+!, '', "hello\n#MAKE#: Nothing to be done for 'all'.\n");
+
+# Subtest 2. Handle # in prerequisite list.
+run_make_test(q!
+.SECONDEXPANSION:
+all: hello.x
+hello.x: %.x: $$(hello#world); $(info $^)
+.PHONY: all hello.x
+!, '--warn-undefined-variables', "#MAKEFILE#:4: warning: undefined variable 'hello#world'\n\n#MAKE#: Nothing to be done for 'all'.\n");
+
+
 
 # This tells the test driver that the perl test script executed properly.
 1;

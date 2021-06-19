@@ -200,4 +200,20 @@ biz: $$(info $$<)
 !,
               '', "baz\n#MAKE#: Nothing to be done for 'biz'.\n");
 
+# sv 60799.
+# Subtest 1. Handle ; in prerequisite list.
+run_make_test(q!
+.SECONDEXPANSION:
+all: $$(shell echo hello;); $(info $^)
+.PHONY: all hello
+!, '', "hello\n#MAKE#: Nothing to be done for 'all'.\n");
+
+# Subtest 2. Handle # in prerequisite list.
+run_make_test(q!
+.SECONDEXPANSION:
+all: $$(hello#world); $(info $^)
+.PHONY: all
+!, '--warn-undefined-variables', "#MAKEFILE#:3: warning: undefined variable 'hello#world'\n\n#MAKE#: Nothing to be done for 'all'.\n");
+
+
 1;

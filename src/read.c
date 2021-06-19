@@ -156,7 +156,7 @@ static void record_target_var (struct nameseq *filenames, char *defn,
 static enum make_word_type get_next_mword (char *buffer,
                                            char **startp, size_t *length);
 static void remove_comments (char *line);
-static char *find_map_unquote (char *string, int map);
+static char *find_map_unquote (char *string, int map, int secondexpansion);
 static char *find_char_unquote (char *string, int stop);
 static char *unescape_char (char *string, int c);
 
@@ -1008,7 +1008,8 @@ eval (struct ebuffer *ebuf, int set_default)
 
         /* Search the line for an unquoted ; that is not after an
            unquoted #.  */
-        cmdleft = find_map_unquote (line, MAP_SEMI|MAP_COMMENT|MAP_VARIABLE);
+        cmdleft = find_map_unquote (line, MAP_SEMI|MAP_COMMENT|MAP_VARIABLE,
+                                    second_expansion);
         if (cmdleft != 0 && *cmdleft == '#')
           {
             /* We found a comment before a semicolon.  */
@@ -1222,7 +1223,13 @@ eval (struct ebuffer *ebuf, int set_default)
             /* Look for a semicolon in the expanded line.  */
             if (cmdleft == 0)
               {
-                cmdleft = find_char_unquote (p2, ';');
+                if (second_expansion)
+                  /* p2 points to expanded content. Do not allow yet another
+                     second expansion.  */
+                  cmdleft =
+                      find_map_unquote (p2, MAP_SEMI|MAP_VARIABLE, 0);
+                else
+                  cmdleft = find_char_unquote (p2, ';');
                 if (cmdleft != 0)
                   *(cmdleft++) = '\0';
               }
@@ -1347,7 +1354,8 @@ remove_comments (char *line)
 {
   char *comment;
 
-  comment = find_map_unquote (line, MAP_COMMENT|MAP_VARIABLE);
+  comment = find_map_unquote (line, MAP_COMMENT|MAP_VARIABLE,
+                              second_expansion);
 
   if (comment != 0)
     /* Cut off the line at the #.  */
@@ -2289,10 +2297,13 @@ record_files (struct nameseq *filenames, int are_also_makes,
    there are none.
 
    If MAP_VARIABLE is set, then the complete contents of variable references
-   are skipped, even if the contain STOPMAP characters.  */
+   are skipped, even if the contain STOPMAP characters.
+
+   If a $ is found and SECONDEXPANSION is set, then allow one more immediately
+   following optional $ before an open parenthesis.  */
 
 static char *
-find_map_unquote (char *string, int stopmap)
+find_map_unquote (char *string, int stopmap, int secondexpansion)
 {
   size_t string_len = 0;
   char *p = string;
@@ -2311,11 +2322,16 @@ find_map_unquote (char *string, int stopmap)
       /* If we stopped due to a variable reference, skip over its contents.  */
       if (*p == '$')
         {
-          char openparen = p[1];
+          char openparen;
+
+          if (secondexpansion && p[1] == '$')
+            ++p;
 
           /* Check if '$' is the last character in the string.  */
-          if (openparen == '\0')
+          if (p[1] == '\0')
             break;
+
+          openparen = p[1];
 
           p += 2;
 
@@ -3102,6 +3118,8 @@ tilde_expand (const char *name)
    The string is passed as STRINGP, the address of a string pointer.
    The string pointer is updated to point at the first character
    not parsed, which either is a null char or equals STOPMAP.
+   Do not let find_map_unquote do second expansion, because *STRINGP points to
+   an already expanded string.
 
    SIZE is how large (in bytes) each element in the new chain should be.
    This is useful if we want them actually to be other structures
@@ -3192,7 +3210,7 @@ parse_file_seq (char **stringp, size_t size, int stopmap,
       /* There are names left, so find the end of the next name.
          Throughout this iteration S points to the start.  */
       s = p;
-      p = find_map_unquote (p, findmap);
+      p = find_map_unquote (p, findmap, 0);
 
 #ifdef VMS
         /* convert comma separated list to space separated */
@@ -3202,7 +3220,7 @@ parse_file_seq (char **stringp, size_t size, int stopmap,
 #ifdef _AMIGA
       /* If we stopped due to a device name, skip it.  */
       if (p && p != s+1 && p[0] == ':')
-        p = find_map_unquote (p+1, findmap);
+        p = find_map_unquote (p+1, findmap, 0);
 #endif
 #ifdef HAVE_DOS_PATHS
       /* If we stopped due to a drive specifier, skip it.
@@ -3210,7 +3228,7 @@ parse_file_seq (char **stringp, size_t size, int stopmap,
          doesn't allow path names with spaces.  */
       if (p && p == s+1 && p[0] == ':'
           && isalpha ((unsigned char)s[0]) && STOP_SET (p[1], MAP_DIRSEP))
-        p = find_map_unquote (p+1, findmap);
+        p = find_map_unquote (p+1, findmap, 0);
 #endif
 
       if (!p)
