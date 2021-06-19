@@ -6252,11 +6252,11 @@ this is not totally reliable; some makefiles set @code{CFLAGS} explicitly
 and therefore are not affected by the value in the environment.)
 
 When @code{make} runs a recipe, variables defined in the
-makefile are placed into the environment of each shell.  This allows
+makefile can be placed into the environment of each shell.  This allows
 you to pass values to sub-@code{make} invocations (@pxref{Recursion,
 ,Recursive Use of @code{make}}).  By default, only variables that came
-from the environment or the command line are passed to recursive
-invocations.  You can use the @code{export} directive to pass other
+from the environment or the command line are passed to the child, whether
+recursive or not.  You can use the @code{export} directive to pass other
 variables.  @xref{Variables/Recursion, , Communicating Variables to a
 Sub-@code{make}}, for full details.
 
