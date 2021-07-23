@@ -145,39 +145,12 @@ fcntl (intptr_t fd, int cmd, ...)
 }
 #endif /* GNULIB_defined_fcntl */
 
-static intptr_t mutex_handle = -1;
-
-/* Record in a static variable the mutex handle we were requested to
-   use.  That nameless mutex was created by the top-level Make, and
-   its handle was passed to us via inheritance.  The value of that
-   handle is passed via the command-line arguments, so that we know
-   which handle to use.  */
-void
-record_sync_mutex (const char *str)
-{
-  char *endp;
-  intptr_t hmutex = strtol (str, &endp, 16);
-
-  if (*endp == '\0')
-    mutex_handle = hmutex;
-  else
-    {
-      mutex_handle = -1;
-      errno = EINVAL;
-    }
-}
-
-/* Create a new mutex or reuse one created by our parent.  */
+/* Create a new mutex.  */
 intptr_t
 create_mutex (void)
 {
   SECURITY_ATTRIBUTES secattr;
   intptr_t hmutex = -1;
-
-  /* If we have a mutex handle passed from the parent Make, just use
-     that.  */
-  if (mutex_handle > 0)
-    return mutex_handle;
 
   /* We are the top-level Make, and we want the handle to be inherited
      by our child processes.  */
@@ -195,7 +168,6 @@ create_mutex (void)
       hmutex = -1;
     }
 
-  mutex_handle = hmutex;
   return hmutex;
 }
 

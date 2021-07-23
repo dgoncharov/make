@@ -102,14 +102,13 @@ int fcntl (intptr_t fd, int cmd, ...);
 intptr_t create_mutex (void);
 int same_stream (FILE *f1, FILE *f2);
 
-#  define RECORD_SYNC_MUTEX(m) record_sync_mutex(m)
-void record_sync_mutex (const char *str);
-void prepare_mutex_handle_string (intptr_t hdl);
 # else  /* !WINDOWS32 */
 
 typedef int sync_handle_t;      /* file descriptor */
 
-#  define RECORD_SYNC_MUTEX(m) (void)(m)
 
 # endif
+#  define RECORD_SYNC_MUTEX(m) record_sync_mutex(m)
+void record_sync_mutex (const char *str);
+void prepare_mutex_handle_string (sync_handle_t hdl);
 #endif  /* !NO_OUTPUT_SYNC */

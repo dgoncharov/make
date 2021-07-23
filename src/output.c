@@ -170,6 +170,42 @@ set_append_mode (int fd)
 /* Semaphore for use in -j mode with output_sync. */
 static sync_handle_t sync_handle = -1;
 
+
+/* Record in a static variable the mutex handle we were requested to
+   use.  That nameless mutex was created by the top-level Make, and
+   its handle was passed to us via inheritance.  The value of that
+   handle is passed via the command-line arguments, so that we know
+   which handle to use.  */
+void
+record_sync_mutex (const char *str)
+{
+  char *endp;
+  sync_handle_t hmutex = strtol (str, &endp, 16);
+
+  if (*endp == '\0')
+    sync_handle = hmutex;
+  else
+    {
+      sync_handle = -1;
+      errno = EINVAL;
+    }
+}
+
+/* Create a new mutex or reuse one created by our parent.  */
+static sync_handle_t
+init_sync_handle (void)
+{
+  /* If we have a mutex handle passed from the parent Make, just use
+     that.  */
+  if (sync_handle < 0)
+#ifdef WINDOWS32
+    sync_handle = create_mutex ();
+#else
+    sync_handle = output_tmpfd ();
+#endif
+  return sync_handle;
+}
+
 #define FD_NOT_EMPTY(_f) ((_f) != OUTPUT_NONE && lseek ((_f), 0, SEEK_END) > 0)
 
 /* Set up the sync handle.  Disables output_sync on error.  */
@@ -180,37 +216,36 @@ sync_init (void)
 
 #ifdef WINDOWS32
   if ((!STREAM_OK (stdout) && !STREAM_OK (stderr))
-      || (sync_handle = create_mutex ()) == -1)
+      || init_sync_handle () == -1)
     {
       perror_with_name ("output-sync suppressed: ", "stderr");
       output_sync = 0;
+      return 0;
     }
-  else
-    {
-      combined_output = same_stream (stdout, stderr);
-      prepare_mutex_handle_string (sync_handle);
-    }
+  combined_output = same_stream (stdout, stderr);
 
 #else
   if (STREAM_OK (stdout))
     {
       struct stat stbuf_o, stbuf_e;
 
-      sync_handle = fileno (stdout);
+      init_sync_handle ();
       combined_output = (fstat (fileno (stdout), &stbuf_o) == 0
                          && fstat (fileno (stderr), &stbuf_e) == 0
                          && stbuf_o.st_dev == stbuf_e.st_dev
                          && stbuf_o.st_ino == stbuf_e.st_ino);
     }
   else if (STREAM_OK (stderr))
-    sync_handle = fileno (stderr);
+    init_sync_handle ();
   else
     {
       perror_with_name ("output-sync suppressed: ", "stderr");
       output_sync = 0;
+      return 0;
     }
 #endif
 
+  prepare_mutex_handle_string (sync_handle);
   return combined_output;
 }
 
@@ -264,8 +299,21 @@ acquire_semaphore (void)
   fl.l_whence = SEEK_SET;
   fl.l_start = 0;
   fl.l_len = 1;
+
+  if (fcntl (sync_handle, F_GETLK, &fl) == -1)
+    goto error;
+
+  if (fl.l_type != F_UNLCK)
+    return NULL;
+
+  fl.l_type = F_WRLCK;
+  fl.l_whence = SEEK_SET;
+  fl.l_start = 0;
+  fl.l_len = 1;
   if (fcntl (sync_handle, F_SETLKW, &fl) != -1)
     return &fl;
+
+error:
   perror ("fcntl()");
   return NULL;
 }
@@ -369,6 +417,9 @@ output_dump (struct output *out)
          unsynchronized; still better than silently discarding it.
          We want to keep this lock for as little time as possible.  */
       void *sem = acquire_semaphore ();
+      if (sem == 0)
+        O (error, NILF, _(
+              "warning: Cannot acquire output lock, disabling output sync."));
 
       /* Log the working directory for this dump.  */
       if (print_directory && output_sync != OUTPUT_SYNC_RECURSE)

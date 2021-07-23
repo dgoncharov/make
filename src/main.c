@@ -264,8 +264,7 @@ static const int inf_jobs = 0;
 
 static char *jobserver_auth = NULL;
 
-/* Handle for the mutex used on Windows to synchronize output of our
-   children under -O.  */
+/* Handle for the mutex to synchronize output of our children under -O.  */
 
 char *sync_mutex = NULL;
 
@@ -813,8 +812,6 @@ decode_output_sync_flags (void)
 #endif
 }
 
-#ifdef WINDOWS32
-
 #ifndef NO_OUTPUT_SYNC
 
 /* This is called from start_job_command when it detects that
@@ -828,13 +825,20 @@ prepare_mutex_handle_string (sync_handle_t handle)
     {
       /* Prepare the mutex handle string for our children.  */
       /* 2 hex digits per byte + 2 characters for "0x" + null.  */
+#ifdef WINDOWS32
+      static const char fmt[] = "0x%Ix";
+#else
+      static const char fmt[] = "%d";
+#endif
       sync_mutex = xmalloc ((2 * sizeof (sync_handle_t)) + 2 + 1);
-      sprintf (sync_mutex, "0x%Ix", handle);
+      sprintf (sync_mutex, fmt, handle);
       define_makeflags (1, 0);
     }
 }
 
 #endif  /* NO_OUTPUT_SYNC */
+
+#ifdef WINDOWS32
 
 /*
  * HANDLE runtime exceptions by avoiding a requestor on the GUI. Capture
