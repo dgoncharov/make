@@ -295,20 +295,6 @@ acquire_semaphore (void)
 {
   static struct flock fl;
 
-#ifndef WINDOWS32
-  /* make's implementation of fcntl for windows does not support F_GETLK. */
-  fl.l_type = F_WRLCK;
-  fl.l_whence = SEEK_SET;
-  fl.l_start = 0;
-  fl.l_len = 1;
-
-  if (fcntl (sync_handle, F_GETLK, &fl) == -1)
-    goto error;
-
-  if (fl.l_type != F_UNLCK)
-    return NULL;
-#endif
-
   fl.l_type = F_WRLCK;
   fl.l_whence = SEEK_SET;
   fl.l_start = 0;
@@ -316,7 +302,6 @@ acquire_semaphore (void)
   if (fcntl (sync_handle, F_SETLKW, &fl) != -1)
     return &fl;
 
-error:
   perror ("fcntl()");
   return NULL;
 }
