@@ -54,6 +54,9 @@ try_implicit_rule (struct file *file, unsigned int depth)
            _("Looking for archive-member implicit rule for '%s'.\n"));
       if (pattern_search (file, 1, depth, 0))
         return 1;
+      DBS (DB_IMPLICIT,
+           (_("No archive-member implicit rule found for '%s'.\n"),
+            file->name));
     }
 #endif
 
@@ -309,7 +312,9 @@ pattern_search (struct file *file, int archive,
          don't use it here.  */
       if (rule->in_use)
         {
-          DBS (DB_IMPLICIT, (_("Avoiding implicit rule recursion.\n")));
+          DBS (DB_IMPLICIT,
+               (_("Avoiding implicit rule recursion for rule '%s'.\n"),
+                rule->name));
           continue;
         }
 
@@ -432,6 +437,8 @@ pattern_search (struct file *file, int archive,
   for (intermed_ok = 0; intermed_ok < 2; ++intermed_ok)
     {
       pat = deplist;
+      if (intermed_ok)
+        DBS (DB_IMPLICIT, (_("Trying harder.\n")));
 
       /* Try each pattern rule till we find one that applies.  If it does,
          expand its dependencies (as substituted) and chain them in DEPS.  */
@@ -480,6 +487,10 @@ pattern_search (struct file *file, int archive,
                 }
             }
 
+          DBS (DB_IMPLICIT,
+               (_("Trying pattern rule '%s' with stem '%.*s'.\n"),
+                rule->name, (int) stemlen, stem));
+
           if (stemlen + (check_lastslash ? pathlen : 0) > GET_PATH_MAX)
             {
               DBS (DB_IMPLICIT, (_("Stem too long: '%s%.*s'.\n"),
@@ -487,9 +498,6 @@ pattern_search (struct file *file, int archive,
                                  (int) stemlen, stem));
               continue;
             }
-
-          DBS (DB_IMPLICIT, (_("Trying pattern rule with stem '%.*s'.\n"),
-                             (int) stemlen, stem));
 
           if (!check_lastslash)
             {
@@ -721,9 +729,9 @@ pattern_search (struct file *file, int archive,
                          then the rule fails.  Don't bother trying it on the
                          second pass either since we know that will fail.  */
                       DBS (DB_IMPLICIT,
-                           (is_rule
-                            ? _("Rejecting impossible rule prerequisite '%s'.\n")
-                            : _("Rejecting impossible implicit prerequisite '%s'.\n"),
+                           (_("Rejecting rule '%s' due to impossible '%s' "
+                                                       "prerequisite '%s'.\n"),
+                            rule->name, is_rule ? "rule" : "implicit",
                             d->name));
                       tryrules[ri].rule = 0;
 
@@ -744,15 +752,9 @@ pattern_search (struct file *file, int archive,
                   /* If this prereq is also explicitly mentioned for FILE,
                      skip all tests below since it must be built no matter
                      which implicit rule we choose. */
-
                   for (expl_d = file->deps; expl_d != 0; expl_d = expl_d->next)
                     if (streq (dep_name (expl_d), d->name))
                       break;
-                  if (expl_d != 0)
-                    {
-                      (pat++)->name = d->name;
-                      continue;
-                    }
 
                   /* The DEP->changed flag says that this dependency resides
                      in a nonexistent directory.  So we normally can skip
@@ -762,11 +764,17 @@ pattern_search (struct file *file, int archive,
                      FILENAME's directory), so it might actually exist.  */
 
                   /* @@ dep->changed check is disabled. */
-                  if (lookup_file (d->name) != 0
-                      /*|| ((!dep->changed || check_lastslash) && */
-                      || file_exists_p (d->name))
+                  if (expl_d != 0 || lookup_file (d->name) != 0
+                      /*|| ((!dep->changed || check_lastslash) && */)
                     {
                       (pat++)->name = d->name;
+                      DBS (DB_IMPLICIT, (_("'%s' ought to exist.\n"), d->name));
+                      continue;
+                    }
+                  if (file_exists_p (d->name))
+                    {
+                      (pat++)->name = d->name;
+                      DBS (DB_IMPLICIT, (_("Found '%s'.\n"), d->name));
                       continue;
                     }
 
@@ -778,7 +786,7 @@ pattern_search (struct file *file, int archive,
                     if (vname)
                       {
                         DBS (DB_IMPLICIT,
-                             (_("Found prerequisite '%s' as VPATH '%s'\n"),
+                             (_("Found prerequisite '%s' as VPATH '%s'.\n"),
                               d->name, vname));
                         (pat++)->name = d->name;
                         continue;
@@ -826,6 +834,14 @@ pattern_search (struct file *file, int archive,
 
                   /* A dependency of this rule does not exist. Therefore, this
                      rule fails.  */
+                  if (intermed_ok)
+                    DBS (DB_IMPLICIT,
+                         (_("Rejecting rule '%s' "
+                                     "due to impossible prerequisite '%s'.\n"),
+                          rule->name, d->name));
+                  else
+                    DBS (DB_IMPLICIT, (_("Not found '%s'.\n"), d->name));
+
                   failed = 1;
                   break;
                 }
@@ -1023,6 +1039,12 @@ pattern_search (struct file *file, int archive,
  done:
   free (tryrules);
   free (deplist);
+
+  if (rule)
+    DBS (DB_IMPLICIT, (_("Found implicit rule '%s' for '%s'.\n"),
+                       rule->name, filename));
+  else
+    DBS (DB_IMPLICIT, (_("No implicit rule found for '%s'.\n"), filename));
 
   return rule != 0;
 }

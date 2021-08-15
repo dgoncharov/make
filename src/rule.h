@@ -25,6 +25,7 @@ struct rule
     const char **suffixes;      /* Suffixes (after '%') of each target.  */
     struct dep *deps;           /* Dependencies of the rule.  */
     struct commands *cmds;      /* Commands to execute.  */
+    char *name;                 /* Name of the rule. */
     unsigned short num;         /* Number of targets.  */
     char terminal;              /* If terminal (double-colon).  */
     char in_use;                /* If in use by a parent pattern_search.  */

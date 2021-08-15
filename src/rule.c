@@ -59,6 +59,61 @@ struct file *suffix_file;
 /* Maximum length of a suffix.  */
 
 static size_t maxsuffix;
+
+/* Copy N bytes from SRC to DST. Return DST + N.  */
+
+static
+void *mymempcpy (void *dst, const void *src, size_t n)
+{
+    memcpy (dst, src, n);
+    return (char *) dst + n;
+}
+
+/* Init rule name with space separated rule targets, followed by either a colon
+ * or two colons in the case of a terminal rule, followed by space separated
+ * rule prerequisites, followed by a pipe, followed by order-only
+ * prerequisites, if present.  */
+
+static
+void init_rule_name (struct rule *r)
+{
+  unsigned int k;
+  ptrdiff_t len = 8; // Reserve for ":: ", " | " and the null terminator.
+  char *p;
+  const char *sep = "";
+  const struct dep *dep, *ood = 0;
+
+  for (k = 0; k < r->num; ++k)
+    len += r->lens[k] + 1; // Add one for a space.
+
+  for (dep = r->deps; dep; dep = dep->next)
+    len += strlen (dep_name (dep)) + 1; // Add one for a space.
+
+  p = r->name = xmalloc (len);
+  for (k = 0; k < r->num; ++k, sep = " ")
+    p = mymempcpy (mymempcpy (p, sep, strlen (sep)),
+                   r->targets[k], r->lens[k]);
+  *p++ = ':';
+  if (r->terminal)
+    *p++ = ':';
+
+  /* Copy all normal dependencies; note any order-only deps.  */
+  for (dep = r->deps; dep; dep = dep->next)
+    if (dep->ignore_mtime == 0)
+      p = mymempcpy (mymempcpy (p, " ", 1),
+                     dep_name (dep), strlen (dep_name (dep)));
+    else if (ood == 0)
+      ood = dep;
+
+  /* Copy order-only deps, if we have any.  */
+  for (sep = " | "; ood; ood = ood->next, sep = " ")
+    if (ood->ignore_mtime)
+      p = mymempcpy (mymempcpy (p, sep, strlen (sep)),
+                     dep_name (ood), strlen (dep_name (ood)));
+  *p = '\0';
+  assert (p - r->name < len);
+}
+
 
 /* Compute the maximum dependency length and maximum number of dependencies of
    all implicit rules.  Also sets the subdir flag for a rule when appropriate,
@@ -160,6 +215,9 @@ snap_implicit_rules (void)
 
   free (name);
   free_dep_chain (prereqs);
+
+  for (rule = pattern_rules; rule; rule = rule->next)
+    init_rule_name (rule);
 }
 
 /* Create a pattern rule from a suffix rule.
@@ -398,6 +456,7 @@ install_pattern_rule (struct pspec *p, int terminal)
   r->targets = xmalloc (sizeof (const char *));
   r->suffixes = xmalloc (sizeof (const char *));
   r->lens = xmalloc (sizeof (unsigned int));
+  r->name = 0;
 
   r->lens[0] = (unsigned int) strlen (p->target);
   r->targets[0] = p->target;
@@ -439,6 +498,7 @@ freerule (struct rule *rule, struct rule *lastrule)
   free ((void *)rule->targets);
   free ((void *)rule->suffixes);
   free (rule->lens);
+  free ((void *) rule->name);
 
   /* We can't free the storage for the commands because there
      are ways that they could be in more than one place:
@@ -488,6 +548,7 @@ create_pattern_rule (const char **targets, const char **target_percents,
   r->targets = targets;
   r->suffixes = target_percents;
   r->lens = xmalloc (n * sizeof (unsigned int));
+  r->name = 0;
 
   for (i = 0; i < n; ++i)
     {
