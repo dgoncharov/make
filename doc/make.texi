@@ -2061,6 +2061,8 @@ appended to the list of order-only prerequisites).  Note that if you
 declare the same file to be both a normal and an order-only
 prerequisite, the normal prerequisite takes precedence (since they
 have a strict superset of the behavior of an order-only prerequisite).
+An order-only prerequisite marked as phony (@pxref{Phony Targets}) retains its
+order-only behavior.
 
 Consider an example where your targets are to be placed in a separate
 directory, and that directory might not exist before @code{make} is
