@@ -566,18 +566,7 @@ create_pattern_rule (const char **targets, const char **target_percents,
 static void                     /* Useful to call from gdb.  */
 print_rule (struct rule *r)
 {
-  unsigned int i;
-
-  for (i = 0; i < r->num; ++i)
-    {
-      fputs (r->targets[i], stdout);
-      putchar ((i + 1 == r->num) ? ':' : ' ');
-    }
-  if (r->terminal)
-    putchar (':');
-
-  print_prereqs (r->deps);
-
+  printf("%s\n", r->name);
   if (r->cmds != 0)
     print_commands (r->cmds);
 }
