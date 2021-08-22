@@ -25,6 +25,7 @@ this program.  If not, see <http://www.gnu.org/licenses/>.  */
 #include "variable.h"
 #include "debug.h"
 #include "hash.h"
+#include "trie.h"
 
 
 /* Remember whether snap_deps has been invoked: we need this to be sure we
@@ -61,6 +62,8 @@ static struct hash_table files;
 
 /* Whether or not .SECONDARY with no prerequisites was given.  */
 static int all_secondary = 0;
+
+static void *precious_trie;
 
 /* Access the hash table of all file records.
    lookup_file  given a name, return the struct file * for that name,
@@ -757,8 +760,10 @@ snap_deps (void)
 
   for (f = lookup_file (".PRECIOUS"); f != 0; f = f->prev)
     for (d = f->deps; d != 0; d = d->next)
-      for (f2 = d->file; f2 != 0; f2 = f2->prev)
+      for (f2 = d->file; f2 != 0; f2 = f2->prev) {
         f2->precious = 1;
+        trie_push (precious_trie, f2->name);
+      }
 
   for (f = lookup_file (".LOW_RESOLUTION_TIME"); f != 0; f = f->prev)
     for (d = f->deps; d != 0; d = d->next)
@@ -1201,6 +1206,37 @@ void
 init_hash_files (void)
 {
   hash_init (&files, 1000, file_hash_1, file_hash_2, file_hash_cmp);
+}
+
+/* Init global tries.
+ * Must be called before accessing any global trie.  */
+
+void
+init_tries (void)
+{
+  precious_trie = trie_init ();
+}
+
+/* Free global tries.
+ * Must be called when tries are no longer needed.  */
+
+void
+free_tries (void)
+{
+  trie_free (precious_trie);
+  precious_trie = 0;
+}
+
+/* Return 1 if NAME is a precious file.
+ * is_precious can return 1 even when file->precious is 0.
+ * This happens when .PRECIOUS depends on a pattern prerequisite that matches
+ * NAME, but NAME never went through implicit search.
+ * First check file->precious, if file->precious is 0, then call is_precious.
+ * */
+
+int is_precious (const char *name)
+{
+    return trie_find (precious_trie, name);
 }
 
 /* EOF */

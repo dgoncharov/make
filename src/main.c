@@ -1292,6 +1292,8 @@ main (int argc, char **argv, char **envp)
 
   initialize_global_hash_tables ();
 
+  init_tries ();
+
   /* Figure out where we are.  */
 
 #ifdef WINDOWS32
@@ -3529,6 +3531,8 @@ die (int status)
           int _x UNUSED;
           _x = chdir (directory_before_chdir);
         }
+
+      free_tries ();
     }
 
   exit (status);

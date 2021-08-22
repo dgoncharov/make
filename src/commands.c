@@ -615,6 +615,11 @@ delete_target (struct file *file, const char *on_behalf_of)
   if (file->precious || file->phony)
     return;
 
+  if (is_precious (file->name)) {
+    file->precious = 1;
+    return;
+  }
+
 #ifndef NO_ARCHIVES
   if (ar_name (file->name))
     {
