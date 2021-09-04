@@ -423,11 +423,15 @@ update_file_1 (struct file *file, unsigned int depth)
   struct pattern_var *extra = NULL;
   int running = 0;
   size_t nlen = strlen (file->name);
+char *extra_var;
 
   DBF (DB_VERBOSE, _("Considering target file '%s'.\n"));
 
+extra_var =  reference_variable ((char*) "", STRING_SIZE_TUPLE(".EXTRA_PREREQS"));
+printf("extra_var=%s\n", extra_var);
+
   /* If there are pattern specific extra prerequisites specified for a pattern
-   * which matches this target then add these prerequisites as deps.  */
+   * which matches this target, then add these prerequisites as deps.  */
   while ((extra = lookup_pattern_extra_prereq_var (extra, file->name, nlen)))
     {
       struct dep *prereqs = expand_extra_prereqs (&extra->variable);

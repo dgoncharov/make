@@ -596,6 +596,7 @@ expand_deps (struct file *f)
          individual dep lines, we will temporarily set f->stem to d->stem.  */
       if (!initialized)
         {
+printf("%s initializing file vars\n", __func__);
           initialize_file_variables (f, 0);
           initialized = 1;
         }

@@ -1841,6 +1841,7 @@ printf("assgined var def %s\n", defn);
           else if (f->double_colon)
             f = f->double_colon;
 
+printf("%s initializing file vars\n", __func__);
           initialize_file_variables (f, 1);
 
           current_variable_set_list = f->variables;

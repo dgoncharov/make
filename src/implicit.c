@@ -654,6 +654,7 @@ pattern_search (struct file *file, int archive,
                      done so. */
                   if (!file_vars_initialized)
                     {
+printf("%s initializing file vars\n", __func__);
                       initialize_file_variables (file, 0);
                       set_file_variables (file);
                       file_vars_initialized = 1;

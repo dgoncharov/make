@@ -140,10 +140,19 @@ lookup_pattern_var_imp (struct pattern_var *start, const char *target,
 
   for (p = start; p != 0; p = p->next)
     {
+printf("all pattern specific vars, p->suffix=%s, p->target=%s, p->name=%s, p->value=%s, p->next=%p\n", p->suffix, p->target, p->variable.name, p->variable.value, p->next);
+
+    }
+
+//printf("lookup pattern specific var, target=%s, p->suffix=%s, p->target=%s, name=%s, value=%s\n", target, p->suffix, p->target, p->variable.name, p->variable.value);
+
+ 
+  for (p = start; p != 0; p = p->next)
+    {
       const char *stem;
       size_t stemlen;
 
-printf("lookup pattern comparing suffix=%s, target=%s, name=%s, value=%s\n", p->suffix, p->target, p->variable.name, p->variable.value);
+printf("lookup pattern specific var, target=%s, p->suffix=%s, p->target=%s, name=%s, value=%s\n", target, p->suffix, p->target, p->variable.name, p->variable.value);
 
       if (p->len > targlen)
         /* It can't possibly match.  */
@@ -157,7 +166,7 @@ printf("lookup pattern comparing suffix=%s, target=%s, name=%s, value=%s\n", p->
       /* Compare the text in the pattern before the stem, if any.  */
       if (stem > target && !strneq (p->target, target, stem - target))
         continue;
-
+printf("stem=%.*s\n", (int) stemlen, stem);
       /* Compare the text in the pattern after the stem, if any.
          We could test simply using streq, but this way we compare the
          first two characters immediately.  This saves time in the very
@@ -167,6 +176,7 @@ printf("lookup pattern comparing suffix=%s, target=%s, name=%s, value=%s\n", p->
           && (*p->suffix == '\0' || streq (&p->suffix[1], &stem[stemlen+1])))
         break;
     }
+printf("returninig %p\n", p);
 
   return p;
 }
@@ -189,6 +199,7 @@ lookup_pattern_extra_prereq_var (struct pattern_var *start, const char *target,
                                  size_t targlen)
 {
     struct pattern_var *p = start ? start->next : pattern_extra_prereq_vars;
+printf("%s target=%s, start=%p, p=%p\n", __func__, target, start, p);
     return lookup_pattern_var_imp (p, target, targlen);
 }
 
@@ -265,6 +276,8 @@ define_variable_in_set (const char *name, size_t length,
   if (set == NULL)
     set = &global_variable_set;
 
+printf("%s name=%s, value=%s\n", __func__, name, value);
+
   var_key.name = (char *) name;
   var_key.length = (unsigned int) length;
   var_slot = (struct variable **) hash_find_slot (&set->table, &var_key);
@@ -313,6 +326,7 @@ define_variable_in_set (const char *name, size_t length,
          than this one, don't redefine it.  */
       if ((int) origin >= (int) v->origin)
         {
+printf("%s replacing %s = %s with %s\n", __func__, name, v->value, value);
           free (v->value);
           v->value = xstrdup (value);
           if (flocp != 0)
@@ -671,7 +685,7 @@ printf("init file vars for %s\n", file->name);
       if (p != 0)
         {
           struct variable_set_list *global = current_variable_set_list;
-printf("file=%s, pattern var %s=%s\n", file->name, p->variable.name, p->variable.value);
+printf("%s file=%s, adding pattern var %s=%s\n", __func__, file->name, p->variable.name, p->variable.value);
 
           /* We found at least one.  Set up a new variable set to accumulate
              all the pattern variables that match this target.  */
@@ -1249,6 +1263,7 @@ do_variable_definition (const floc *flocp, const char *varname,
   int conditional = 0;
 
   /* Calculate the variable's new value in VALUE.  */
+printf("%s varname=%s value=%s\n", __func__, varname, value);
 
   switch (flavor)
     {
@@ -1666,6 +1681,7 @@ assign_variable_definition (struct variable *v, const char *line)
 
   if (!parse_variable_definition (line, v))
     return NULL;
+printf("%s v->name=%s\n", __func__, v->name);
 
   /* Expand the name, so "$(foo)bar = baz" works.  */
   name = alloca (v->length + 1);

@@ -127,6 +127,8 @@ extern struct variable shell_var;
 #ifndef SIZE_MAX
 # define SIZE_MAX ((size_t)~(size_t)0)
 #endif
+char *
+reference_variable (char *o, const char *name, size_t length);
 
 char *variable_buffer_output (char *ptr, const char *string, size_t length);
 char *variable_expand (const char *line);

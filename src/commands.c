@@ -462,7 +462,7 @@ execute_file_commands (struct file *file)
     }
 
   /* First set the automatic variables according to this file.  */
-
+printf("%s initializing file vars\n", __func__);
   initialize_file_variables (file, 0);
 
   set_file_variables (file);

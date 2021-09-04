@@ -156,7 +156,7 @@ recursively_expand_for_file (struct variable *v, struct file *file)
 #ifdef __GNUC__
 __inline
 #endif
-static char *
+char *
 reference_variable (char *o, const char *name, size_t length)
 {
   struct variable *v;
@@ -428,6 +428,8 @@ expand_argument (const char *str, const char *end)
 {
   char *tmp, *alloc = NULL;
   char *r;
+
+printf("expanding %.*s\n", (int) (end - str), str);
 
   if (str == end)
     return xstrdup ("");
