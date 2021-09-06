@@ -3000,6 +3000,22 @@ The targets which @code{.SECONDARY} depends on are treated as
 intermediate files, except that they are never automatically deleted.
 @xref{Chained Rules, ,Chains of Implicit Rules}.
 
+@code{.SECONDARY} can be used to avoid redundant rebuilds.  For example:
+
+@example
+@group
+hello.tsk: hello.o bye.o
+        $(CC) -o $@ $^
+%.o: %.c
+        $(CC) -c $< -o $@
+
+.SECONDARY: hello.o bye.o
+@end group
+@end example
+
+When an object file is missing, make does not need to rebuild the
+missing file and then hello.tsk, because the object files are secondary.
+
 @code{.SECONDARY} with no prerequisites causes all targets to be treated
 as secondary (i.e., no target is removed because it is considered
 intermediate).
