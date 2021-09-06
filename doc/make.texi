@@ -3013,8 +3013,9 @@ hello.tsk: hello.o bye.o
 @end group
 @end example
 
-When an object file is missing, make does not need to rebuild the
-missing file and then hello.tsk, because the object files are secondary.
+When hello.tsk is up to date in regards to the source files and an object file
+is missing, make does not need to rebuild the missing file and then hello.tsk,
+because the object files are secondary.
 
 @code{.SECONDARY} with no prerequisites causes all targets to be treated
 as secondary (i.e., no target is removed because it is considered
