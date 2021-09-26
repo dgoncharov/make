@@ -2325,12 +2325,15 @@ main (int argc, char **argv, char **envp)
 
         case us_none:
           /* No makefiles needed to be updated.  If we couldn't read some
-             included file that we care about, fail.  */
+             included file that we care about, fail.
+             Unless make imagines this file was updated by an empty rule.  */
           {
             struct goaldep *d;
 
             for (d = read_files; d != 0; d = d->next)
-              if (d->error && ! (d->flags & RM_DONTCARE))
+              if (d->error && ! (d->flags & RM_DONTCARE)
+                  && (d->file->update_status != us_success ||
+                     (d->file->cmds && d->file->deps)))
                 {
                   /* This makefile couldn't be loaded, and we care.  */
                   const char *err = strerror (d->error);
