@@ -1281,6 +1281,16 @@ hierarchy.})
 @file{/usr/gnu/include},
 @file{/usr/local/include}, @file{/usr/include}.
 
+The @code{.INCLUDE_DIRS} variable will contain the current list of
+directories that make will search for included files.  @xref{Special
+Variables, ,Other Special Variables}.
+
+You can avoid searching in these default directories by adding the
+command line option @code{-I} with the special value @code{-} (e.g.,
+@code{-I-}) to the command line.  This will cause @code{make} to
+forget any already-set include directories, including the default
+directories.
+
 If an included makefile cannot be found in any of these directories it
 is not an immediately fatal error; processing of the makefile
 containing the @code{include} continues.  Once it has finished reading
@@ -1369,16 +1379,20 @@ of preventing implicit rule look-up to do so.  For example, you can
 write an explicit rule with the makefile as the target, and an empty
 recipe (@pxref{Empty Recipes, ,Using Empty Recipes}).
 
-If the makefiles specify a double-colon rule to remake a file with
-a recipe but no prerequisites, that file will always be remade
-(@pxref{Double-Colon}).  In the case of makefiles, a makefile that has a
-double-colon rule with a recipe but no prerequisites will be remade every
-time @code{make} is run, and then again after @code{make} starts over
-and reads the makefiles in again.  This would cause an infinite loop:
-@code{make} would constantly remake the makefile, and never do anything
-else.  So, to avoid this, @code{make} will @strong{not} attempt to
-remake makefiles which are specified as targets of a double-colon rule
-with a recipe but no prerequisites.@refill
+If the makefiles specify a double-colon rule to remake a file with a recipe
+but no prerequisites, that file will always be remade (@pxref{Double-Colon}).
+In the case of makefiles, a makefile that has a double-colon rule with a
+recipe but no prerequisites will be remade every time @code{make} is run, and
+then again after @code{make} starts over and reads the makefiles in again.
+This would cause an infinite loop: @code{make} would constantly remake the
+makefile and restart, and never do anything else.  So, to avoid this,
+@code{make} will @strong{not} attempt to remake makefiles which are specified
+as targets of a double-colon rule with a recipe but no prerequisites.
+
+Phony targets (@pxref{Phony Targets}) have the same issue: they are never
+considered up-to-date and so an included file marked as phony would cause
+@code{make} to restart continuously.  To avoid this @code{make} will not
+attempt to remake makefiles which are marked phony.
 
 If you do not specify any makefiles to be read with @samp{-f} or
 @samp{--file} options, @code{make} will try the default makefile names;
@@ -1552,8 +1566,9 @@ immediate if the variable was previously set as a simple variable
 
 For the shell assignment operator @samp{!=}, the right-hand side is
 evaluated immediately and handed to the shell.  The result is stored
-in the variable named on the left, and that variable becomes a simple
-variable (and will thus be re-evaluated on each reference).
+in the variable named on the left, and that variable is considered a
+recursively expanded variable (and will thus be re-evaluated on each
+reference).
 
 @subheading Conditional Directives
 @cindex ifdef, expansion
@@ -2061,6 +2076,10 @@ appended to the list of order-only prerequisites).  Note that if you
 declare the same file to be both a normal and an order-only
 prerequisite, the normal prerequisite takes precedence (since they
 have a strict superset of the behavior of an order-only prerequisite).
+
+Order-only prerequisites are never checked when determining if the
+target is out of date; even order-only prerequisites marked as phony
+(@pxref{Phony Targets}) will not cause the target to be rebuilt.
 
 Consider an example where your targets are to be placed in a separate
 directory, and that directory might not exist before @code{make} is
@@ -2745,15 +2764,15 @@ subdirs:
 @end group
 @end example
 
-There are problems with this method, however.  First, any error
-detected in a sub-make is ignored by this rule, so it will continue
-to build the rest of the directories even when one fails.  This can be
-overcome by adding shell commands to note the error and exit, but then
-it will do so even if @code{make} is invoked with the @code{-k}
-option, which is unfortunate.  Second, and perhaps more importantly,
-you cannot take advantage of @code{make}'s ability to build targets in
-parallel (@pxref{Parallel, ,Parallel Execution}), since there is only
-one rule.
+There are problems with this method, however.  First, any error detected in a
+sub-make is ignored by this rule, so it will continue to build the rest of the
+directories even when one fails.  This can be overcome by adding shell
+commands to note the error and exit, but then it will do so even if
+@code{make} is invoked with the @code{-k} option, which is unfortunate.
+Second, and perhaps more importantly, you cannot take full advantage of
+@code{make}'s ability to build targets in parallel (@pxref{Parallel, ,Parallel
+Execution}), since there is only one rule.  Each individual makefile's targets
+will be built in parallel, but only one sub-directory will be built at a time.
 
 By declaring the sub-directories as @code{.PHONY} targets (you must do
 this as the sub-directory obviously always exists; otherwise it won't
@@ -2784,12 +2803,18 @@ The implicit rule search (@pxref{Implicit Rules}) is skipped for
 @code{.PHONY} is good for performance, even if you are not worried
 about the actual file existing.
 
-A phony target should not be a prerequisite of a real target file; if it
-is, its recipe will be run every time @code{make} goes to update that
-file.  As long as a phony target is never a prerequisite of a real
-target, the phony target recipe will be executed only when the phony
-target is a specified goal (@pxref{Goals, ,Arguments to Specify the
-Goals}).
+A phony target should not be a prerequisite of a real target file; if it is,
+its recipe will be run every time @code{make} considers that file.  As long as
+a phony target is never a prerequisite of a real target, the phony target
+recipe will be executed only when the phony target is a specified goal
+(@pxref{Goals, ,Arguments to Specify the Goals}).
+
+You should not declare an included makefile as phony.  Phony targets are not
+intended to represent real files, and because the target is always considered
+out of date make will always rebuild it then re-execute itself
+(@pxref{Remaking Makefiles, ,How Makefiles Are Remade}).  To avoid this,
+@code{make} will not re-execute itself if an included file marked as phony is
+re-built.
 
 Phony targets can have prerequisites.  When one directory contains multiple
 programs, it is most convenient to describe all of the programs in one
@@ -2967,6 +2992,18 @@ match that file's name.
 The targets which @code{.INTERMEDIATE} depends on are treated as
 intermediate files.  @xref{Chained Rules, ,Chains of Implicit Rules}.
 @code{.INTERMEDIATE} with no prerequisites has no effect.
+
+@findex .NOTINTERMEDIATE
+@item .NOTINTERMEDIATE
+@cindex notintermediate targets, explicit
+
+Prerequisites of the special target @code{.NOTINTERMEDIATE} are never
+considered intermediate files.  @xref{Chained Rules, ,Chains of Implicit Rules}.
+@code{.NOTINTERMEDIATE} with no prerequisites causes all targets to be treated
+as notintermediate.
+
+If the prerequisite is a target pattern then targets that are built using that
+pattern rule are not considered intermediate.
 
 @findex .SECONDARY
 @item .SECONDARY
@@ -6251,14 +6288,13 @@ because you know that no makefile will use them for other things.  (Note
 this is not totally reliable; some makefiles set @code{CFLAGS} explicitly
 and therefore are not affected by the value in the environment.)
 
-When @code{make} runs a recipe, variables defined in the
-makefile are placed into the environment of each shell.  This allows
-you to pass values to sub-@code{make} invocations (@pxref{Recursion,
-,Recursive Use of @code{make}}).  By default, only variables that came
-from the environment or the command line are passed to recursive
-invocations.  You can use the @code{export} directive to pass other
-variables.  @xref{Variables/Recursion, , Communicating Variables to a
-Sub-@code{make}}, for full details.
+When @code{make} runs a recipe, some variables defined in the makefile
+are placed into the environment of each command @code{make} invokes.
+By default, only variables that came from the @code{make}'s
+environment or set on its command line are placed into the environment
+of the commands.  You can use the @code{export} directive to pass
+other variables.  @xref{Variables/Recursion, , Communicating Variables
+to a Sub-@code{make}}, for full details.
 
 Other use of variables from the environment is not recommended.  It is not
 wise for makefiles to depend for their functioning on environment variables
@@ -6663,6 +6699,8 @@ Supports dynamically loadable objects for creating custom extensions.
 @item .INCLUDE_DIRS
 Expands to a list of directories that @code{make} searches for
 included makefiles (@pxref{Include, , Including Other Makefiles}).
+Note that modifying this variable's value does not change the list of
+directories which are searched.
 
 @vindex .EXTRA_PREREQS @r{(prerequisites not added to automatic variables)}
 @item .EXTRA_PREREQS
@@ -9045,7 +9083,11 @@ Ignore all errors in recipes executed to remake files.
 Specifies a directory @var{dir} to search for included makefiles.
 @xref{Include, ,Including Other Makefiles}.  If several @samp{-I}
 options are used to specify several directories, the directories are
-searched in the order specified.
+searched in the order specified.  If the directory @var{dir} is a
+single dash (@code{-}) then any already-specified directories up to
+that point (including the default directory paths) will be discarded.
+You can examine the current list of directories to be searched via the
+@code{.INCLUDE_DIRS} variable.
 
 @item -j [@var{jobs}]
 @cindex @code{-j}
@@ -9974,18 +10016,20 @@ files.  But intermediate files are treated differently in two ways.
 The first difference is what happens if the intermediate file does not
 exist.  If an ordinary file @var{b} does not exist, and @code{make}
 considers a target that depends on @var{b}, it invariably creates
-@var{b} and then updates the target from @var{b}.  But if @var{b} is an
-intermediate file, then @code{make} can leave well enough alone.  It
-won't bother updating @var{b}, or the ultimate target, unless some
-prerequisite of @var{b} is newer than that target or there is some other
-reason to update that target.
+@var{b} and then updates the target from @var{b}.  But if @var{b} is
+an intermediate file, then @code{make} can leave well enough alone:
+it won't create @var{b} unless one of its prerequisites is out of
+date.  This means the target depending on @var{b} won't be rebuilt
+either, unless there is some other reason to update that target: for
+example the target doesn't exist or a different prerequisite is newer
+than the target.
 
-The second difference is that if @code{make} @emph{does} create @var{b}
-in order to update something else, it deletes @var{b} later on after it
-is no longer needed.  Therefore, an intermediate file which did not
-exist before @code{make} also does not exist after @code{make}.
-@code{make} reports the deletion to you by printing a @samp{rm -f}
-command showing which file it is deleting.
+The second difference is that if @code{make} @emph{does} create @var{b} in
+order to update something else, it deletes @var{b} later on after it is no
+longer needed.  Therefore, an intermediate file which did not exist before
+@code{make} also does not exist after @code{make}.  @code{make} reports the
+deletion to you by printing a @samp{rm} command showing which file it is
+deleting.
 
 Ordinarily, a file cannot be intermediate if it is mentioned in the
 makefile as a target or prerequisite.  However, you can explicitly mark a
@@ -9993,22 +10037,26 @@ file as intermediate by listing it as a prerequisite of the special target
 @code{.INTERMEDIATE}.  This takes effect even if the file is mentioned
 explicitly in some other way.
 
+Listing a file as a prerequisite of the special target
+@code{.NOTINTERMEDIATE} forces it to not be considered intermediate
+(just as any other mention of the file will do).  Also, listing the
+target pattern of a pattern rule as a prerequisite of
+@code{.NOTINTERMEDIATE} ensures that no targets generated using that
+pattern rule are considered intermediate.
+
+You can disable intermediate files completely in your makefile by
+providing @code{.NOTINTERMEDIATE} as a target with no prerequisites:
+in that case it applies to every file in the makefile.
+
 @cindex intermediate files, preserving
 @cindex preserving intermediate files
 @cindex secondary files
-You can prevent automatic deletion of an intermediate file by marking it
-as a @dfn{secondary} file.  To do this, list it as a prerequisite of the
-special target @code{.SECONDARY}.  When a file is secondary, @code{make}
-will not create the file merely because it does not already exist, but
-@code{make} does not automatically delete the file.  Marking a file as
-secondary also marks it as intermediate.
-
-You can list the target pattern of an implicit rule (such as @samp{%.o})
-as a prerequisite of the special target @code{.PRECIOUS} to preserve
-intermediate files made by implicit rules whose target patterns match
-that file's name; see @ref{Interrupts}.@refill
-@cindex preserving with @code{.PRECIOUS}
-@cindex @code{.PRECIOUS} intermediate files
+If you do not want @code{make} to create a file merely because it does
+not already exist, but you also do not want @code{make} to
+automatically delete the file, you can mark it as a @dfn{secondary}
+file.  To do this, list it as a prerequisite of the special target
+@code{.SECONDARY}.  Marking a file as secondary also marks it as
+intermediate.
 
 A chain can involve more than two implicit rules.  For example, it is
 possible to make a file @file{foo} from @file{RCS/foo.y,v} by running RCS,
@@ -13165,3 +13213,7 @@ tar.zoo: $(SRCS) $(AUX)
 @printindex fn
 
 @bye
+
+@c Local Variables:
+@c eval: (setq fill-column 78)
+@c End:

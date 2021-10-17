@@ -721,6 +721,7 @@ pattern_search (struct file *file, int archive,
               for (d = dl; d != 0; d = d->next)
                 {
                   struct dep *expl_d;
+                  struct file *f;
                   int is_rule = d->name == dep_name (dep);
 
                   if (file_impossible_p (d->name))
@@ -756,16 +757,15 @@ pattern_search (struct file *file, int archive,
                     if (streq (dep_name (expl_d), d->name))
                       break;
 
-                  /* The DEP->changed flag says that this dependency resides
-                     in a nonexistent directory.  So we normally can skip
-                     looking for the file.  However, if CHECK_LASTSLASH is
-                     set, then the dependency file we are actually looking for
-                     is in a different directory (the one gotten by prepending
-                     FILENAME's directory), so it might actually exist.  */
+                  /* f->is_explicit is set when this file is mentioned
+                    explicitly on some other rule.  d->is_explicit is set when
+                    this file is mentioned explicitly on this rule.  */
+                  f = lookup_file (d->name);
+                  if (f && !f->is_explicit && !d->is_explicit)
+                    f->intermediate = 1;
 
                   /* @@ dep->changed check is disabled. */
-                  if (expl_d != 0 || lookup_file (d->name) != 0
-                      /*|| ((!dep->changed || check_lastslash) && */)
+                  if (expl_d != 0 || f)
                     {
                       (pat++)->name = d->name;
                       DBS (DB_IMPLICIT, (_("'%s' ought to exist.\n"), d->name));
@@ -777,6 +777,20 @@ pattern_search (struct file *file, int archive,
                       DBS (DB_IMPLICIT, (_("Found '%s'.\n"), d->name));
                       continue;
                     }
+
+                  /* The DEP->changed flag says that this dependency resides
+                     in a nonexistent directory.  So we normally can skip
+                     looking for the file.  However, if CHECK_LASTSLASH is
+                     set, then the dependency file we are actually looking for
+                     is in a different directory (the one gotten by prepending
+                     FILENAME's directory), so it might actually exist.  */
+                  /*
+                  if (!dep->changed || check_lastslash)
+                    {
+                      (pat++)->name = d->name;
+                      continue;
+                    }
+                  */
 
                   /* This code, given FILENAME = "lib/foo.o", dependency name
                      "lib/foo.c", and VPATH=src, searches for
@@ -925,7 +939,8 @@ pattern_search (struct file *file, int archive,
           f->pat_searched = imf->pat_searched;
           f->also_make = imf->also_make;
           f->is_target = 1;
-          f->intermediate = !pat->is_explicit;
+          f->notintermediate = imf->notintermediate;
+          f->intermediate = !(pat->is_explicit || f->notintermediate);
           f->tried_implicit = 1;
 
           imf = lookup_file (pat->pattern);
@@ -992,11 +1007,16 @@ pattern_search (struct file *file, int archive,
   file->cmds = rule->cmds;
   file->is_target = 1;
 
-  /* Set precious flag. */
+  /* Set precious and notintermediate flags. */
   {
     struct file *f = lookup_file (rule->targets[tryrules[foundrule].matches]);
-    if (f && f->precious)
-      file->precious = 1;
+    if (f)
+      {
+        if (f->precious)
+          file->precious = 1;
+        if (f->notintermediate)
+          file->notintermediate = 1;
+      }
   }
 
   /* If this rule builds other targets, too, put the others into FILE's
@@ -1025,8 +1045,13 @@ pattern_search (struct file *file, int archive,
 
           /* Set precious flag. */
           f = lookup_file (rule->targets[ri]);
-          if (f && f->precious)
-            new->file->precious = 1;
+          if (f)
+            {
+              if (f->precious)
+                new->file->precious = 1;
+              if (f->notintermediate)
+                new->file->notintermediate = 1;
+            }
 
           /* Set the is_target flag so that this file is not treated as
              intermediate by the pattern rule search algorithm and

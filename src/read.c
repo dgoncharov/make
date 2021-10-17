@@ -107,7 +107,9 @@ static const char *default_include_directories[] =
    This is defined as a placeholder.  */
 # define INCLUDEDIR "."
 #endif
+#if defined(INCLUDEDIR)
     INCLUDEDIR,
+#endif
 #ifndef _AMIGA
     "/usr/gnu/include",
     "/usr/local/include",
@@ -368,24 +370,28 @@ eval_makefile (const char *filename, unsigned short flags)
       }
     }
 
-  /* If the makefile wasn't found and it's either a makefile from
-     the 'MAKEFILES' variable or an included makefile,
-     search the included makefile search path for this makefile.  */
-  if (ebuf.fp == 0 && (flags & RM_INCLUDED) && *filename != '/')
-    {
-      unsigned int i;
-      for (i = 0; include_directories[i] != 0; ++i)
-        {
-          const char *included = concat (3, include_directories[i],
-                                         "/", filename);
-          ebuf.fp = fopen (included, "r");
-          if (ebuf.fp)
-            {
-              filename = included;
-              break;
-            }
-        }
-    }
+  /* If the makefile wasn't found and it's either a makefile from the
+     'MAKEFILES' variable or an included makefile, search the included
+     makefile search path for this makefile.  */
+  if (ebuf.fp == NULL && deps->error == ENOENT && (flags & RM_INCLUDED)
+      && *filename != '/' && include_directories)
+    for (const char **dir = include_directories; *dir != NULL; ++dir)
+      {
+        const char *included = concat (3, *dir, "/", filename);
+
+        ENULLLOOP(ebuf.fp, fopen (included, "r"));
+        if (ebuf.fp)
+          {
+            filename = included;
+            break;
+          }
+        if (errno != ENOENT)
+          {
+            filename = included;
+            deps->error = errno;
+            break;
+          }
+      }
 
   /* Enter the final name for this makefile as a goaldep.  */
   filename = strcache_add (filename);
@@ -905,9 +911,7 @@ eval (struct ebuffer *ebuf, int set_default)
                                       | (set_default ? 0 : RM_NO_DEFAULT_GOAL));
 
               struct goaldep *d = eval_makefile (files->name, flags);
-
-              if (errno)
-                d->floc = *fstart;
+              d->floc = *fstart;
 
               free_ns (files);
               files = next;
@@ -2160,6 +2164,11 @@ record_files (struct nameseq *filenames, int are_also_makes,
               free_dep_chain (f->deps);
               f->deps = 0;
             }
+          /* This file is explicitly mentioned as a target.  There is no need
+             to set is_explicit in the case of double colon below, because an
+             implicit double colon rule only applies when the prerequisite
+             exists. A prerequisite which exists is not intermediate anyway. */
+          f->is_explicit = 1;
         }
       else
         {
@@ -2355,8 +2364,12 @@ find_map_unquote (char *string, int stopmap)
             string_len = strlen (string);
           /* The number of backslashes is now -I.
              Copy P over itself to swallow half of them.  */
-          memmove (&p[i], &p[i/2], (string_len - (p - string)) - (i/2) + 1);
-          p += i/2;
+          {
+            /* Avoid arithmetic conversion of negative values to unsigned.  */
+            int hi = -(i/2);
+            memmove (&p[i], &p[i/2], (string_len - (p - string)) + hi + 1);
+            p += i/2;
+          }
           if (i % 2 == 0)
             /* All the backslashes quoted each other; the STOPCHAR was
                unquoted.  */
@@ -2398,8 +2411,12 @@ find_char_unquote (char *string, int stop)
             string_len = strlen (string);
           /* The number of backslashes is now -I.
              Copy P over itself to swallow half of them.  */
-          memmove (&p[i], &p[i/2], (string_len - (p - string)) - (i/2) + 1);
-          p += i/2;
+          {
+            /* Avoid arithmetic conversion of negative values to unsigned.  */
+            int hi = -(i/2);
+            memmove (&p[i], &p[i/2], (string_len - (p - string)) + hi + 1);
+            p += i/2;
+          }
           if (i % 2 == 0)
             /* All the backslashes quoted each other; the STOPCHAR was
                unquoted.  */
@@ -2524,8 +2541,12 @@ find_percent_cached (const char **string)
 
         /* The number of backslashes is now -I.
            Copy P over itself to swallow half of them.  */
-        memmove (&pv[i], &pv[i/2], (slen - (pv - new)) - (i/2) + 1);
-        p += i/2;
+        {
+          /* Avoid arithmetic conversion of negative values to unsigned.  */
+          int hi = -(i/2);
+          memmove (&pv[i], &pv[i/2], (slen - (pv - new)) + hi + 1);
+          p += i/2;
+        }
 
         /* If the backslashes quoted each other; the % was unquoted.  */
         if (i % 2 == 0)
@@ -2924,6 +2945,7 @@ construct_include_path (const char **arg_dirs)
   const char **dirs;
   const char **cpp;
   size_t idx;
+  int disable = 0;
 
   /* Compute the number of pointers we need in the table.  */
   idx = sizeof (default_include_directories) / sizeof (const char *);
@@ -2942,7 +2964,8 @@ construct_include_path (const char **arg_dirs)
   max_incl_len = 0;
 
   /* First consider any dirs specified with -I switches.
-     Ignore any that don't exist.  Remember the maximum string length.  */
+     Ignore any that don't exist.  Restart if we find "-".
+     Remember the maximum string length.  */
 
   if (arg_dirs)
     while (*arg_dirs != 0)
@@ -2950,6 +2973,14 @@ construct_include_path (const char **arg_dirs)
         const char *dir = *(arg_dirs++);
         char *expanded = 0;
         int e;
+
+        if (dir[0] == '-' && dir[1] == '\0')
+          {
+            disable = 1;
+            idx = 0;
+            max_incl_len = 0;
+            continue;
+          }
 
         if (dir[0] == '~')
           {
@@ -2974,41 +3005,40 @@ construct_include_path (const char **arg_dirs)
       }
 
   /* Now add the standard default dirs at the end.  */
-
-#ifdef  __MSDOS__
-  {
-    /* The environment variable $DJDIR holds the root of the DJGPP directory
-       tree; add ${DJDIR}/include.  */
-    struct variable *djdir = lookup_variable ("DJDIR", 5);
-
-    if (djdir)
-      {
-        size_t len = strlen (djdir->value) + 8;
-        char *defdir = alloca (len + 1);
-
-        strcat (strcpy (defdir, djdir->value), "/include");
-        dirs[idx++] = strcache_add (defdir);
-
-        if (len > max_incl_len)
-          max_incl_len = len;
-      }
-  }
-#endif
-
-  for (cpp = default_include_directories; *cpp != 0; ++cpp)
+  if (!disable)
     {
-      int e;
+#ifdef  __MSDOS__
+      /* The environment variable $DJDIR holds the root of the DJGPP directory
+         tree; add ${DJDIR}/include.  */
+      struct variable *djdir = lookup_variable ("DJDIR", 5);
 
-      EINTRLOOP (e, stat (*cpp, &stbuf));
-      if (e == 0 && S_ISDIR (stbuf.st_mode))
+      if (djdir)
         {
-          size_t len = strlen (*cpp);
-          /* If dir name is written with trailing slashes, discard them.  */
-          while (len > 1 && (*cpp)[len - 1] == '/')
-            --len;
+          size_t len = strlen (djdir->value) + 8;
+          char *defdir = alloca (len + 1);
+
+          strcat (strcpy (defdir, djdir->value), "/include");
+          dirs[idx++] = strcache_add (defdir);
+
           if (len > max_incl_len)
             max_incl_len = len;
-          dirs[idx++] = strcache_add_len (*cpp, len);
+        }
+#endif
+      for (cpp = default_include_directories; *cpp != 0; ++cpp)
+        {
+          int e;
+
+          EINTRLOOP (e, stat (*cpp, &stbuf));
+          if (e == 0 && S_ISDIR (stbuf.st_mode))
+            {
+              size_t len = strlen (*cpp);
+              /* If dir name is written with trailing slashes, discard them.  */
+              while (len > 1 && (*cpp)[len - 1] == '/')
+                --len;
+              if (len > max_incl_len)
+                max_incl_len = len;
+              dirs[idx++] = strcache_add_len (*cpp, len);
+            }
         }
     }
 
@@ -3016,10 +3046,12 @@ construct_include_path (const char **arg_dirs)
 
   /* Now add each dir to the .INCLUDE_DIRS variable.  */
 
+  do_variable_definition (NILF, ".INCLUDE_DIRS", "", o_default, f_simple, 0);
   for (cpp = dirs; *cpp != 0; ++cpp)
     do_variable_definition (NILF, ".INCLUDE_DIRS", *cpp,
                             o_default, f_append, 0);
 
+  free (include_directories);
   include_directories = dirs;
 }
 

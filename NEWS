@@ -28,11 +28,21 @@ https://sv.gnu.org/bugs/index.php?group=make&report_id=111&fix_release_id=109&se
   rebuilt is the same order in which make processed them, and this is defined
   to be true in the GNU make manual.
 
+* WARNING: Backward-incompatibility!
+  Previously only simple (one-letter) options were added to the MAKEFLAGS
+  variable that was visible while parsing makefiles.  Now, all options
+  are available in MAKEFLAGS.
+
 * WARNING: New build requirement
   GNU make utilizes facilities from GNU Gnulib: Gnulib requires certain C99
   features in the C compiler and so these features are required by GNU make:
   https://www.gnu.org/software/gnulib/manual/html_node/C99-features-assumed.html
   The configure script should verify the compiler has these features.
+
+* New feature: The .NOTINTERMEDIATE special target
+  .NOTINTERMEDIATE Disables intermediate behavior for specific files, for all
+  files built using a pattern, or for the entire makefile.
+  Implementation provided by Dmitry Goncharov <dgoncharov@users.sf.net>
 
 * New feature: The $(let ...) function
   This function allows user-defined functions to define a set of local
@@ -40,11 +50,19 @@ https://sv.gnu.org/bugs/index.php?group=make&report_id=111&fix_release_id=109&se
   user-defined function and they will not impact global variable assignments.
   Implementation provided by Jouke Witteveen <j.witteveen@gmail.com>
 
-* New debug option "print" will show the recipe to be run, even when silent
-  mode is set.
+* If the MAKEFLAGS variable is modified in a makefile, it will be re-parsed
+  immediately rather than after all makefiles have been read.  Note that
+  although all options are parsed immediately, some special effects won't
+  appear until after all makefiles are read.
 
-* New debug option "why" will show why a target is rebuilt (which
-  prerequisites caused the target to be considered out of date).
+* The -I option accepts an argument "-" (e.g., "-I-") which means "reset the
+  list of search directories to empty".  Among other things this can be used
+  to prevent GNU make from searching in its default list of directories.
+
+* New debug option "print" will show the recipe to be run, even when silent
+  mode is set, and new debug option "why" will show why a target is rebuilt
+  (which prerequisites caused the target to be considered out of date).
+  Implementation provided by David Boyce <David.S.Boyce@gmail.com>
 
 * The existing --trace option is made equivalent to --debug=print,why
 
@@ -61,6 +79,7 @@ https://sv.gnu.org/bugs/index.php?group=make&report_id=111&fix_release_id=109&se
   expected.
 
 * GNU Make can now be built for MS-Windows using the Tiny C tcc compiler.
+  Port provided by Christian Jullien <eligis@orange.fr>
 
 
 Version 4.3 (19 Jan 2020)
