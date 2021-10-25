@@ -24,7 +24,8 @@ this program.  If not, see <http://www.gnu.org/licenses/>.  */
 #include "commands.h" /* set_file_variables */
 
 static int pattern_search (struct file *file, int archive,
-                           unsigned int depth, unsigned int recursions);
+                           unsigned int depth, unsigned int recursions,
+                           int allow_anyrule);
 
 /* For a FILE which has no commands specified, try to figure out some
    from the implicit pattern rules.
@@ -42,7 +43,7 @@ try_implicit_rule (struct file *file, unsigned int depth)
      (the archive search omits the archive name), it is more specific and
      should come first.  */
 
-  if (pattern_search (file, 0, depth, 0))
+  if (pattern_search (file, 0, depth, 0, 0))
     return 1;
 
 #ifndef NO_ARCHIVES
@@ -52,7 +53,7 @@ try_implicit_rule (struct file *file, unsigned int depth)
     {
       DBF (DB_IMPLICIT,
            _("Looking for archive-member implicit rule for '%s'.\n"));
-      if (pattern_search (file, 1, depth, 0))
+      if (pattern_search (file, 1, depth, 0, 0))
         return 1;
       DBS (DB_IMPLICIT,
            (_("No archive-member implicit rule found for '%s'.\n"),
@@ -204,7 +205,7 @@ stemlen_compare (const void *v1, const void *v2)
 
 static int
 pattern_search (struct file *file, int archive,
-                unsigned int depth, unsigned int recursions)
+                unsigned int depth, unsigned int recursions, int allow_anyrule)
 {
   /* Filename we are searching for a rule for.  */
   const char *filename = archive ? strchr (file->name, '(') : file->name;
@@ -327,7 +328,8 @@ pattern_search (struct file *file, int archive,
           /* Rules that can match any filename and are not terminal
              are ignored if we're recursing, so that they cannot be
              intermediate files.  */
-          if (recursions > 0 && target[1] == '\0' && !rule->terminal)
+          if (recursions > 0 && target[1] == '\0' && !rule->terminal &&
+              allow_anyrule == 0)
             continue;
 
           if (rule->lens[ti] > namelen)
@@ -722,8 +724,10 @@ pattern_search (struct file *file, int archive,
                 {
                   struct file *df;
                   int is_rule = d->name == dep_name (dep);
-                  int explicit;
-                  int exists = -1;
+                  int explicit = 0;
+                  struct dep *dp = 0;
+
+                  allow_anyrule = 0;
 
                   if (file_impossible_p (d->name))
                     {
@@ -772,24 +776,45 @@ pattern_search (struct file *file, int archive,
                   /* If the pattern prereq is also explicitly mentioned for
                      FILE, skip all tests below since it must be built no
                      matter which implicit rule we choose. */
-                  explicit = df || (exists = file_exists_p (d->name)) != 0;
-                  if (!explicit)
-                    for (struct dep *dp = file->deps; dp != 0; dp = dp->next)
+                  if (df && df->is_target)
+                    /* This prerequisite is mentioned explicitly as a target of
+                     * some rule.  */
+                    explicit = 1;
+                  else
+                    for (dp = file->deps; dp != 0; dp = dp->next)
                       if (streq (d->name, dep_name (dp)))
-                        {
-                          explicit = 1;
-                          break;
-                        }
+                        break;
 
-                  if (explicit)
+                  /* If dp is set, this prerequisite is mentioned explicitly as
+                   * a prerequisite of the current target.  */
+
+                  if (explicit || dp)
                     {
                       (pat++)->name = d->name;
-                      if (exists > 0)
-                        DBS (DB_IMPLICIT, (_("Found '%s'.\n"), d->name));
-                      else
-                        DBS (DB_IMPLICIT, (_("'%s' ought to exist.\n"), d->name));
+                      DBS (DB_IMPLICIT, (_("'%s' ought to exist.\n"), d->name));
                       continue;
                     }
+
+                  if (file_exists_p (d->name))
+                    {
+                      (pat++)->name = d->name;
+                      DBS (DB_IMPLICIT, (_("Found '%s'.\n"), d->name));
+                      continue;
+                    }
+
+                  if (df)
+                    /* This prerequisite is mentioned explicitly as a
+                     * prerequisite on some rule, but it is not a prerequisite
+                     * of the current target. Therefore, it is not considered
+                     * ought-to-exist. Need to see if this prerequisite can be
+                     * built in order to decide if this rule is good.
+                     * Match-anything rules are not allowed to build
+                     * intermediates for performance reasons.
+                     * However, because this prerequisite is mentioned
+                     * explicitly, allow match-anything rules to built this
+                     * prerequisite as an intermediate to see if this rule is
+                     * good.  */
+                    allow_anyrule = 1;
 
                   /* This code, given FILENAME = "lib/foo.o", dependency name
                      "lib/foo.c", and VPATH=src, searches for
@@ -825,7 +850,8 @@ pattern_search (struct file *file, int archive,
                       if (pattern_search (int_file,
                                           0,
                                           depth + 1,
-                                          recursions + 1))
+                                          recursions + 1,
+                                          allow_anyrule))
                         {
                           pat->pattern = int_file->name;
                           int_file->name = d->name;
@@ -938,8 +964,8 @@ pattern_search (struct file *file, int archive,
           f->pat_searched = imf->pat_searched;
           f->also_make = imf->also_make;
           f->is_target = 1;
-          f->notintermediate = imf->notintermediate;
-          f->intermediate = !(pat->is_explicit || f->notintermediate);
+          f->notintermediate |= imf->notintermediate;
+          f->intermediate |= !(pat->is_explicit || f->notintermediate);
           f->tried_implicit = 1;
 
           imf = lookup_file (pat->pattern);

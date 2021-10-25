@@ -10942,8 +10942,9 @@ matched against @var{t}; otherwise, against @var{n}.
 
 @item
 If any rule in that list is @emph{not} a match-anything rule, or if
-@var{t} is a prerequisite of an implicit rule, then remove all
-non-terminal match-anything rules from the list.
+@var{t} is a prerequisite of an implicit rule and @var{t} is @emph{not}
+explicitly mentioned, then remove all non-terminal match-anything rules from
+the list.
 
 @item
 Remove from the list all rules with no recipe.
@@ -10964,7 +10965,7 @@ the front of each prerequisite name.@refill
 @item
 Test whether all the prerequisites exist or ought to exist.  (If a
 file name is mentioned in the makefile as a target or as an explicit
-prerequisite, then we say it ought to exist.)
+prerequisite of the current target, then we say it ought to exist.)
 
 If all prerequisites exist or ought to exist, or there are no prerequisites,
 then this rule applies.
