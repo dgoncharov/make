@@ -1,6 +1,6 @@
 #                                                                    -*-perl-*-
 
-$description = "Test implicit rule search algorithm.";
+$description = "Test implicit rule search.";
 
 $details = "";
 
@@ -9,8 +9,9 @@ $details = "";
 # Each test has a %.c rule ahead of %.f rule.
 # hello.f exists and hello.c is missing.
 
-touch('hello.f');
+#touch('hello.f');
 unlink('hello.c', 'hello.tsk', 'hello.o');
+
 
 # Run every test with and without a suffix.
 my @suffixes = ('', '.o');
@@ -19,6 +20,8 @@ my @rules = ('', ':');
 
 for my $s (@suffixes) {
 for my $r (@rules) {
+touch('hello.f');
+
 
 # test 1.
 # Test that make finds the intended implicit rule based on existence of an
@@ -108,12 +111,53 @@ hello$s:
 %$s:$r %.c; \$(info hello.c)
 %$s:$r %.f hello.f; \$(info hello.f)
 ", '', "hello.f\nmake: 'hello$s' is up to date.");
+
+# test 7.
+# Rule '%: %.f' is chosen, because '%: %.f' requires no intermediates.
+run_make_test("
+hello$s:
+%$s:$r %.c; \$(info \$<)
+%$s:$r %.f; \$(info \$<)
+.DEFAULT:; true
+unrelated: hello.c
+", '', "hello.f\nmake: 'hello$s' is up to date.");
+
+
+unlink('hello.f');
+# test 8.
+# hello.f is missing.
+# '%: %.c' rule is chosen by using the default rule to build intemerdiate hello.c.
+run_make_test("
+all: hello$s
+%$s:$r %.c; \$(info \$<)
+%$s:$r %.f; \$(info \$<)
+.DEFAULT:; false
+unrelated: hello.c
+",
+'',
+"false\n#MAKE#: *** [#MAKEFILE#:5: hello.c] Error 1\n",
+512);
+
+# test 9.
+# hello.f is missing.
+# No rule is found, because hello.c is not mentioned explicitly.
+run_make_test("
+all: hello$s
+%$s:$r %.c; \$(info \$<)
+%$s:$r %.f; \$(info \$<)
+.DEFAULT:; \@echo default making \$\@ && false
+",
+'',
+"default making hello$s\n#MAKE#: *** [#MAKEFILE#:5: hello$s] Error 1\n",
+512);
+
 }
 }
 
+touch ('hello.f');
 # Test implicit search of default rules.
-my %suf = ('' => 'f77 hello.f -o hello', '.o' => 'f77 -c hello.f');
-
+#my %suf = ('' => 'f77 hello.f -o hello', '.o' => 'f77 -c hello.f');
+#
 while (($s, $r) = each (%suf)) {
 # test 25
 # %: %.c (and other default rules) are skipped.
@@ -182,9 +226,9 @@ bye.tsk:
 %.tsk: %.o; $(info $@ from $<)
 .DEFAULT:; $(info bye.o)
 unrelated: bye.o
-!, '', "bye.o\nbye.tsk from bye.o\n");
+!, '', "bye.o\nbye.tsk from bye.o\n#MAKE#: 'bye.tsk' is up to date.");
 
 unlink('hello.f');
 
 # This tells the test driver that the perl test script executed properly.
-1;
+1; 
