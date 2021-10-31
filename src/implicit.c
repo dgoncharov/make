@@ -178,6 +178,9 @@ struct tryrule
 
     /* Nonzero if the LASTSLASH logic was used in matching this rule. */
     char checked_lastslash;
+
+    /* Allow terminal rules to build intermediates.  */
+    int allow_intermediates:1;
   };
 
 int
@@ -464,8 +467,11 @@ pattern_search (struct file *file, int archive,
             continue;
 
           /* Reject any terminal rules if we're looking to make intermediate
-             files.  */
-          if (intermed_ok && rule->terminal)
+             files.
+             Unless one of the prerequisites of this rule is explicitly
+             mentioned.  */
+          if (intermed_ok && rule->terminal &&
+              tryrules[ri].allow_intermediates == 0)
             continue;
 
           /* From the lengths of the filename and the matching pattern parts,
@@ -803,18 +809,25 @@ pattern_search (struct file *file, int archive,
                     }
 
                   if (df)
-                    /* This prerequisite is mentioned explicitly as a
-                     * prerequisite on some rule, but it is not a prerequisite
-                     * of the current target. Therefore, it is not considered
-                     * ought-to-exist. Need to see if this prerequisite can be
-                     * built in order to decide if this rule is good.
-                     * Match-anything rules are not allowed to build
-                     * intermediates for performance reasons.
-                     * However, because this prerequisite is mentioned
-                     * explicitly, allow match-anything rules to built this
-                     * prerequisite as an intermediate to see if this rule is
-                     * good.  */
-                    allow_anyrule = 1;
+                    {
+                      /* This prerequisite is mentioned explicitly as a
+                       * prerequisite on some rule, but it is not a prerequisite
+                       * of the current target. Therefore, it is not considered
+                       * ought-to-exist. Need to see if this prerequisite can be
+                       * built in order to decide if this rule is good.
+                       * Match-anything rules are not allowed to build
+                       * intermediates for performance reasons.
+                       * However, because this prerequisite is mentioned
+                       * explicitly, allow match-anything rules to built this
+                       * prerequisite as an intermediate to see if this rule is
+                       * good.  */
+                      DBS (DB_IMPLICIT,
+                           (_("Allowing terminal and match-anything rules for "
+                              "'%s'.\n"),
+                            d->name));
+                      tryrules[ri].allow_intermediates = 1;
+                      allow_anyrule = 1;
+                    }
 
                   /* This code, given FILENAME = "lib/foo.o", dependency name
                      "lib/foo.c", and VPATH=src, searches for
@@ -857,6 +870,17 @@ pattern_search (struct file *file, int archive,
                           int_file->name = d->name;
                           pat->file = int_file;
                           int_file = 0;
+                          (pat++)->name = d->name;
+                          continue;
+                        }
+
+                      if (allow_anyrule && default_file && default_file->cmds)
+                        {
+                          /* This intermediate prerequisite is mentioned
+                           * explicitly, which makes it eligible to be built by
+                           * the default rule.  */
+                          DBS (DB_IMPLICIT,
+                               (_("Found default rule for '%s'.\n"), d->name));
                           (pat++)->name = d->name;
                           continue;
                         }
