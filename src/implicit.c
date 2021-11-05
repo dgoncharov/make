@@ -729,10 +729,9 @@ pattern_search (struct file *file, int archive,
                   int explicit = 0;
                   struct dep *dp = 0;
 
-                  /* When searching for compat rules, consider files marked
-                   * "impossible" on the prior (no compat rules) run.  */
-                  if ((allow_compat_rules == 0 || intermed_ok) &&
-                       file_impossible_p (d->name))
+                  /* When searching for compat rules, try files marked
+                   * "impossible" on the prior, no compat rules run.  */
+                  if (allow_compat_rules == 0 && file_impossible_p (d->name))
                     {
                       /* If this prereq has already been ruled "impossible",
                          then the rule fails.  Don't bother trying it on the
@@ -924,6 +923,12 @@ pattern_search (struct file *file, int archive,
         break;
 
       rule = 0;
+
+      /* If compatibility rules are allowed do not try intermediates.
+       * Intermediates were already tried on the prior, no compat rules run.
+       * */
+      if (allow_compat_rules)
+        break;
     }
 
   /* RULE is nil if the loop went through the list but everything failed.  */
