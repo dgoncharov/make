@@ -822,7 +822,7 @@ pattern_search (struct file *file, int archive,
                        * and continue the search. If a better suitable rule is
                        * not found, then use this rule.  */
                       DBS (DB_IMPLICIT,
-                           (_("Remembering '%s' rule for '%s'.\n"),
+                           (_("Found compatibility rule '%' for '%s'.\n"),
                             get_rule_defn (rule), filename));
                       found_compat_rule = 1;
                     }
@@ -924,7 +924,7 @@ pattern_search (struct file *file, int archive,
 
       rule = 0;
 
-      /* If compatibility rules are allowed do not try intermediates.
+      /* If compatibility rules are allowed, do not try intermediates.
        * Intermediates were already tried on the prior, no compat rules run.
        * */
       if (allow_compat_rules)
@@ -1116,7 +1116,7 @@ pattern_search (struct file *file, int archive,
 
   if (found_compat_rule)
     {
-      DBS (DB_IMPLICIT, (_("Searching for a compat rule for '%s'.\n"),
+      DBS (DB_IMPLICIT, (_("Searching for a compatibility rule for '%s'.\n"),
                          filename));
       assert (allow_compat_rules == 0);
       return pattern_search (file, archive, depth, recursions, 1);
