@@ -18,6 +18,8 @@ my @suffixes = ('', '.o');
 # Run every test with single and double colon rules.
 my @rules = ('', ':');
 
+touch('hello.f');
+
 for my $s (@suffixes) {
 for my $r (@rules) {
 touch('hello.f');
@@ -89,9 +91,6 @@ all: hello$s
 %$s:$r %.f; \$(info hello.f)
 ", '', "hello.f\n#MAKE#: Nothing to be done for 'all'.");
 
-# Test that make finds the intended implicit rule based on existence of a
-# prerequisite in the filesystem.
-#
 # '%.o: %.c' rule is skipped and '%.o: %.f' rule is chosen.
 # '%.o: %.f hello.f' rule has explicit prerequisite hello.f.
 # ought-to-exist does not apply to hello.c.
@@ -102,6 +101,8 @@ all: hello$s
 ", '', "hello.f\n#MAKE#: Nothing to be done for 'all'.");
 
 # Rule '%: %.f' is chosen, because '%: %.f' requires no intermediates.
+# '%: %.c', on the other hand, requires intemediate hello.c to be built by the
+# default rule.
 run_make_test("
 all: hello$s
 %$s:$r %.c; \$(info \$<)
@@ -113,7 +114,9 @@ unrelated: hello.c
 
 unlink('hello.f');
 # hello.f is missing.
-# the default rule builds intemerdiate hello.c.
+# This time both hello.c and hello.f are missing and both '%: %.c' and '%: %.f'
+# require an intermediate.
+# The default rule builds intemerdiate hello.c.
 # '%: %.c' rule is chosen to build hello.
 run_make_test("
 all: hello$s
@@ -138,40 +141,196 @@ all: hello$s
 }
 }
 
+# Almost the same tests as above, but this time an intermediate is built.
+
+touch('hello.f');
+for my $s (@suffixes) {
+for my $r (@rules) {
+
+my $result = "#MAKE#: *** No rule to make target 'hello.tsk', needed by 'all'.  Stop.\n";
+my $rcode = 512;
+if ($s or $r) {
+    $result = "hello.f\nhello.tsk\n#MAKE#: Nothing to be done for 'all'.";
+    $rcode = 0;
+}
+
+run_make_test("
+all: hello.tsk
+%.tsk: %$s; \$(info hello.tsk)
+%$s:$r %.c; \$(info hello.c)
+%$s:$r %.f; \$(info hello.f)
+", '', "$result", $rcode);
+
+run_make_test("
+all: hello.tsk
+%.tsk: %$s hello$s; \$(info hello.tsk)
+%$s:$r %.c; \$(info hello.c)
+%$s:$r %.f; \$(info hello.f)
+", '', $result, $rcode);
+
+run_make_test("
+all: hello.tsk
+%.tsk: %$s; \$(info hello.tsk)
+%$s:$r %.c hello$s; \$(info hello.c)
+%$s:$r %.f; \$(info hello.f)
+", '', $result, $rcode);
+
+}
+}
+
+for my $r (@rules) {
+
+# Circular dependency hello.o <- hello.tsk is dropped.
+run_make_test("
+all: hello.tsk
+%.tsk: %.o; \$(info hello.tsk)
+%.o:$r %.c; \$(info hello.c)
+%.o:$r %.f %.tsk; \$(info hello.f)
+",
+'-R',
+"#MAKE#: Circular hello.o <- hello.tsk dependency dropped.\nhello.f\nhello.tsk\n#MAKE#: Nothing to be done for 'all'.");
+
+}
+
+
+for my $s (@suffixes) {
+for my $r (@rules) {
+
+run_make_test("
+all: hello.tsk
+hello$s: hello.c
+%.tsk: %$s; \$(info hello.tsk)
+%$s:$r %.c; \$(info hello.c)
+%$s:$r %.f; \$(info hello.f)
+",
+'',
+"#MAKE#: *** No rule to make target 'hello.c', needed by 'hello$s'.  Stop.\n",
+512);
+}
+}
+
+for my $s (@suffixes) {
+for my $r (@rules) {
+
+my $result = "#MAKE#: *** No rule to make target 'hello.tsk', needed by 'all'.  Stop.\n";
+if ($s or $r) {
+    $result = "false\n#MAKE#: *** [#MAKEFILE#:6: hello.c] Error 1\n";
+}
+
+run_make_test("
+all: hello.tsk
+%.tsk: %$s; \$(info hello.tsk)
+%$s:$r %.c; \$(info hello.c)
+%$s:$r %.f; \$(info hello.f)
+hello.c:; false
+", '', $result, 512);
+}
+}
+
+
+for my $s (@suffixes) {
+for my $r (@rules) {
+
+run_make_test("
+all: hello.tsk
+%.tsk: %$s; \$(info hello.tsk)
+%$s:$r %.c; \$(info hello.c)
+%$s:$r %.f; \$(info hello.f)
+unrelated: hello$s
+", '', "hello.f\nhello.tsk\n#MAKE#: Nothing to be done for 'all'.");
+}
+}
+
+for my $s (@suffixes) {
+for my $r (@rules) {
+
+my $result = "#MAKE#: *** No rule to make target 'hello.tsk', needed by 'all'.  Stop.\n";
+my $rcode = 512;
+if ($s or $r) {
+    $result = "hello.f\nhello.tsk\n#MAKE#: Nothing to be done for 'all'.";
+    $rcode = 0;
+}
+
+run_make_test("
+all: hello.tsk
+%.tsk: %$s; \$(info hello.tsk)
+%$s:$r %.c; \$(info hello.c)
+%$s:$r %.f hello.f; \$(info hello.f)
+", '', $result, $rcode);
+}
+}
+
+
+
 touch ('hello.f');
 # Test implicit search of builtin rules.
-my %suf = ('' => 'f77 hello.f -o hello', '.o' => 'f77 -c hello.f');
-#
-while (($s, $r) = each (%suf)) {
+
 # %: %.c (and other builtin rules) are skipped.
 # %: %.f is chosen.
-run_make_test("
-all: hello$s
-", 'FC="@echo f77" OUTPUT_OPTION=', "$r\n");
+run_make_test(q!
+all: hello
+!, 'FC="@echo f77" OUTPUT_OPTION=', "f77 hello.f -o hello\n");
+
+# %.o: %.c (and other builtin rules) are skipped.
+# %.o: %.f is chosen.
+run_make_test(q!
+all: hello.o
+!, 'FC="@echo f77" OUTPUT_OPTION=', "f77 -c hello.f\n");
+
 
 # %: %.c is chosen.
-# hello.c is an explicit prerequisite of the top target (hello.o or hello).
+# hello.c is an explicit prerequisite of the top target hello.
 # hello.c ought to exist.
 # hello.c prerequisite causes '%: %.c' rule to be chosen.
-run_make_test("
-hello$s: hello.c
-",
+run_make_test(q!
+hello: hello.c
+!,
 'FC="@echo f77" OUTPUT_OPTION=',
-"#MAKE#: *** No rule to make target 'hello.c', needed by 'hello$s'.  Stop.\n",
+"#MAKE#: *** No rule to make target 'hello.c', needed by 'hello'.  Stop.\n",
+512);
+
+# %.o: %.c is chosen.
+# hello.c is an explicit prerequisite of the top target hello.o.
+# hello.c ought to exist.
+# hello.c prerequisite causes '%.o: %.c' rule to be chosen.
+run_make_test(q!
+hello.o: hello.c
+!,
+'FC="@echo f77" OUTPUT_OPTION=',
+"#MAKE#: *** No rule to make target 'hello.c', needed by 'hello.o'.  Stop.\n",
 512);
 
 # %: %.c (and other builtin rules) are skipped.
 # %: %.f is chosen.
 # ought-to-exist does not apply to hello.c.
-run_make_test("
-all: hello$s
+run_make_test(q!
+all: hello
 unrelated: hello.c
-", 'FC="@echo f77" OUTPUT_OPTION=', "$r\n");
-}
+!, 'FC="@echo f77" OUTPUT_OPTION=', "f77 hello.f -o hello\n");
+
+# %.o: %.c (and other builtin rules) are skipped.
+# %.o: %.f is chosen.
+# ought-to-exist does not apply to hello.c.
+run_make_test(q!
+all: hello.o
+unrelated: hello.c
+!, 'FC="@echo f77" OUTPUT_OPTION=', "f77 -c hello.f\n");
+
+# builtin rule %.o: %.f is removed.
+# %.o: %.c (and other builtin rules) are skipped, because hello.c is missing.
+# ought-to-exist does not apply to hello.c.
+# %.o: %.c is chosen as a compatibility rule, because of hello.c.
+run_make_test(q!
+all: hello.o
+unrelated: hello.c
+%.o: %.f
+!,
+'',
+"#MAKE#: *** No rule to make target 'hello.c', needed by 'hello.o'.  Stop.\n",
+512);
+
 
 # sv 17752.
-# Ensure match anything rules are allowed to build intermediates as long as the
-# intermediate file is mentioned explicitly.
 # In this test the builtin match-anything rule '%: %.f' is used to build
 # intermediate hello from hello.f, because hello is mentioned explicitly in
 # the makefile.
@@ -183,8 +342,6 @@ unrelated: hello
 'FC="@echo f77" OUTPUT_OPTION=',
 "f77 hello.f -o hello\nhello.tsk from hello\n");
 
-# Ensure match anything rules are not allowed to build intermediates unless the
-# intermediate file is mentioned explicitly.
 # In this test the builtin match-anything rule %: %.f cannot be used to build
 # intermediate hello from hello.f, because hello is not mentioned explicitly in
 # the makefile.
