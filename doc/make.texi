@@ -11002,7 +11002,7 @@ made by implicit rules, then this rule applies.
 If no pattern rule has been found so far, check if an explicit prerequisite
 that does not qualify as ought to exist was found.  If such a prerequisite was
 found, then repeat the search again with the difference that once the rule that
-has this prerequisite is found, use that rule.
+has this disqualified prerequisite is found, use that rule.
 @*Do not rely on this search driven by a prerequisite explicitly mentioned on
 an unrelated rule. It exists for compatibility with prior versions of make and
 can be removed in a future version. On top of that, performance will improve
