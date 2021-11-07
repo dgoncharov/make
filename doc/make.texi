@@ -10964,10 +10964,14 @@ the front of each prerequisite name.@refill
 @item
 Test whether all the prerequisites exist or ought to exist.  (If a
 file name is mentioned in the makefile as a target or as an explicit
-prerequisite, then we say it ought to exist.)
-
-If all prerequisites exist or ought to exist, or there are no prerequisites,
+prerequisite of the current target, then we say it ought to exist.)
+@*If all prerequisites exist or ought to exist, or there are no prerequisites,
 then this rule applies.
+@item
+Keep note if the rule has a prerequisites which is mentioned explicitly in the
+makefile, but does not qualify as ought to exist. This happens when an implicit
+prerequsite of a pattern rule is also mentioned explicitly as a prerequisite of
+some unrelated rule.
 @end enumerate
 
 @item
@@ -10994,6 +10998,16 @@ If all prerequisites exist, ought to exist, or can be
 made by implicit rules, then this rule applies.
 @end enumerate
 
+@item
+If no pattern rule has been found so far, check if an explicit prerequisite
+that does not qualify as ought to exist was found.  If such a prerequisite was
+found, then repeat the search again with the difference that once the rule that
+has this prerequisite is found, use that rule.
+@*Do not rely on this search driven by a prerequisite explicitly mentioned on
+an unrelated rule. It exists for compatibility with prior versions of make and
+can be removed in a future version. On top of that, performance will improve
+once you get rid of the offending prerequisite, because make will not have to
+perform this search.
 @item
 If no implicit rule applies, the rule for @code{.DEFAULT}, if any,
 applies.  In that case, give @var{t} the same recipe that
