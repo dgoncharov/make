@@ -816,14 +816,15 @@ pattern_search (struct file *file, int archive,
                   if (df)
                     {
                       /* This prerequisite is mentioned explicitly as a
-                       * prerequisite on some rule, but it is not a prerequisite
-                       * of the current target. Therefore, this prerequisite is
-                       * not considered ought-to-exist. Keep note of this rule
-                       * and continue the search. If a better suitable rule is
-                       * not found, then use this rule.  */
+                       * prerequisite on some rule, but it is not a
+                       * prerequisite of the current target. Therefore, this
+                       * prerequisite does not qualify as ought-to-exist. Keep
+                       * note of this rule and continue the search. If a better
+                       * suitable rule is not found, then use this rule.  */
                       DBS (DB_IMPLICIT,
-                           (_("Found compatibility rule '%' for '%s'.\n"),
-                            get_rule_defn (rule), filename));
+                           (_("Prerequisite '%s' of rule '%s' does not qualify"
+                              " as ought to exist.\n"),
+                            d->name, get_rule_defn (rule)));
                       found_compat_rule = 1;
                     }
 
