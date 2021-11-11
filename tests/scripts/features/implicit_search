@@ -9,7 +9,7 @@ $details = "";
 # Each test has a %.c rule ahead of %.f rule.
 # hello.f exists and hello.c is missing.
 
-unlink('hello.c', 'hello.tsk', 'hello.o');
+unlink('hello.c', 'hello.tsk', 'hello.o', 'hello.x');
 
 
 
@@ -260,7 +260,29 @@ all: hello.tsk
 }
 }
 
+# One of the implicit rules has two prerequisites, hello.c and hello.x
+# hello.c does not qualify as ought to exit.
+# hello.x can be made from hello.z.
+# This test exersizes the break, which prevents making hello.x as an
+# intermediate from hello.z during compatibility search.
+unlink('hello.f');
+touch('hello.z');
+for my $s (@suffixes) {
+for my $r (@rules) {
 
+run_make_test("
+all: hello.tsk
+%.tsk: %$s; \$(info hello.tsk)
+%$s:$r %.c %.x; \$(info hello.c)
+%$s:$r %.f; \$(info hello.f)
+unrelated: hello$s
+%.x:$r %.z; \$(info hello.z)
+",
+'',
+"#MAKE#: *** No rule to make target 'hello$s', needed by 'hello.tsk'.  Stop.\n",
+512);
+}
+}
 
 touch ('hello.f');
 # Test implicit search of builtin rules.
@@ -364,6 +386,7 @@ unrelated: bye.o
 !, '', "bye.o\nbye.tsk from bye.o\n#MAKE#: Nothing to be done for 'all'.");
 
 unlink('hello.f');
+unlink('hello.z');
 
 # This tells the test driver that the perl test script executed properly.
 1;
