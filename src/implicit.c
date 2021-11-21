@@ -729,9 +729,7 @@ pattern_search (struct file *file, int archive,
                   int explicit = 0;
                   struct dep *dp = 0;
 
-                  /* When searching for compat rules, try files marked
-                   * "impossible" on the prior, no compat rules run.  */
-                  if (allow_compat_rules == 0 && file_impossible_p (d->name))
+                  if (file_impossible_p (d->name))
                     {
                       /* If this prereq has already been ruled "impossible",
                          then the rule fails.  Don't bother trying it on the
@@ -880,7 +878,12 @@ pattern_search (struct file *file, int archive,
                         free_variable_set (int_file->variables);
                       if (int_file->pat_variables)
                         free_variable_set (int_file->pat_variables);
-                      file_impossible (d->name);
+
+                      /* Keep prerequisites explicitly mentioned on unrelated
+                       * rules as "possible" to let compatibility search find
+                       * such prerequisites.  */
+                      if (df == 0)
+                        file_impossible (d->name);
                     }
 
                   /* A dependency of this rule does not exist. Therefore, this
