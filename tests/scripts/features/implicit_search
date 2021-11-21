@@ -375,7 +375,25 @@ all: hello.tsk
 "#MAKE#: *** No rule to make target 'hello.tsk', needed by 'all'.  Stop.\n",
 512);
 
-unlink('bye.o', 'bye.tsk');
+# This is just like the one above, but compatibility rule '%.tsk: % %.x' has 2
+# prerequisites, '%' and '%.x'.
+# '%' expands to 'hello' and matches the explicit 'hello' on the unrelated rule.
+# '%.x' is an intermediate built from 'hello.xx' by rule '%.x: %.xx' during the
+# second pass (intermed_ok == 1) of compatibility search.
+# This test validates that compatibility search performs both intermed_ok == 0
+# and intermed_ok == 1 passes.
+unlink('hello.x');
+touch('hello.xx');
+run_make_test(q!
+all: hello.tsk
+%.tsk: % %.x; $(info $@ from $^)
+unrelated: hello
+%.x: %.xx; $(info $@ from $<)
+!,
+'FC="@echo f77" OUTPUT_OPTION=',
+"f77 hello.f -o hello\nhello.x from hello.xx\nhello.tsk from hello hello.x\n");
+
+unlink('bye.o', 'bye.tsk', 'bye.x');
 # sv 21670.
 # Default recipe is used to build bye.o.
 run_make_test(q!
@@ -385,8 +403,25 @@ all: bye.tsk
 unrelated: bye.o
 !, '', "bye.o\nbye.tsk from bye.o\n#MAKE#: Nothing to be done for 'all'.");
 
-unlink('hello.f');
-unlink('hello.z');
+touch('bye.xx');
+# This is just like the one above, but compatibility rule '%.tsk: %.o %.x' has 2
+# prerequisites, '%.o' and '%.x'.
+# '%.o' expands to 'bye.o' and matches the explicit 'bye.o' on the unrelated rule.
+# '%.x' is an intermediate built from 'bye.xx' by rule '%.x: %.xx' during the
+# second pass (intermed_ok == 1) of compatibility search.
+# This test validates that compatibility search performs both intermed_ok == 0
+# and intermed_ok == 1 passes.
+run_make_test(q!
+all: bye.tsk
+%.tsk: %.o %.x; $(info $@ from $^)
+.DEFAULT:; $(info bye.o)
+unrelated: bye.o
+%.x: %.xx; $(info $@ from $<)
+!, '',
+"bye.o\nbye.x from bye.xx\nbye.tsk from bye.o bye.x\n#MAKE#: Nothing to be done for 'all'.");
+
+unlink('hello.f', 'hello.z', 'hello.xx', 'bye.xx');
+
 
 # This tells the test driver that the perl test script executed properly.
 1;

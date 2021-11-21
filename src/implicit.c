@@ -924,12 +924,6 @@ pattern_search (struct file *file, int archive,
         break;
 
       rule = 0;
-
-      /* If compatibility rules are allowed, do not try intermediates.
-       * Intermediates were already tried on the prior, no compat rules run.
-       * */
-      if (allow_compat_rules)
-        break;
     }
 
   /* RULE is nil if the loop went through the list but everything failed.  */
