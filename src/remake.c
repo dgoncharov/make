@@ -487,16 +487,19 @@ update_file_1 (struct file *file, unsigned int depth)
   check_renamed (file);
   noexist = this_mtime == NONEXISTENT_MTIME;
 
-  if (file->keep_intact)
+  if (file->dontcreate && noexist)
     {
-      if (noexist)
-        {
-          OS (error, NILF,
-              _("'%s' is missing and cannot be built due to .KEEPINTACT."),
-              file->name);
-          return us_failed;
-        }
-      DBF (DB_VERBOSE, _("Considering '%s' up to date due to .KEEPINTACT.\n"));
+      // The file is missing and should not be created.
+      OS (error, NILF,
+          _("'%s' is missing and cannot be built due to .DONTCREATE."),
+          file->name);
+      return us_failed;
+    }
+
+  if (file->dontupdate && noexist == 0)
+    {
+      // The file exists and should not be updated.
+      DBF (DB_VERBOSE, _("Considering '%s' up to date due to .DONTUPDATE.\n"));
       return 0;
     }
 

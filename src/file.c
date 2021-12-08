@@ -873,10 +873,21 @@ snap_deps (void)
   if (f != 0 && f->is_target)
     not_parallel = 1;
 
-  for (f = lookup_file (".KEEPINTACT"); f != 0; f = f->prev)
+  // Dontcreate implies dontupdate.
+  // Otherwise, the user would have to specify a source code file as a
+  // prerequisite of .DONTCREATE and also as a prerequisite of .DONTUPDATE and
+  // keep these settings in sync.
+  // Also, is there usefulness or meaning in ability to specify that make can
+  // update a file, but cannot create it?
+  for (f = lookup_file (".DONTCREATE"); f != 0; f = f->prev)
     for (d = f->deps; d != 0; d = d->next)
       for (f2 = d->file; f2 != 0; f2 = f2->prev)
-        f2->keep_intact = 1;
+        f2->dontcreate = f2->dontupdate = 1;
+
+  for (f = lookup_file (".DONTUPDATE"); f != 0; f = f->prev)
+    for (d = f->deps; d != 0; d = d->next)
+      for (f2 = d->file; f2 != 0; f2 = f2->prev)
+        f2->dontupdate = 1;
 
 
 
