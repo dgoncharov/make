@@ -824,6 +824,7 @@ pattern_search (struct file *file, int archive,
                               " as ought to exist.\n"),
                             d->name, get_rule_defn (rule)));
                       found_compat_rule = 1;
+                      pat->is_explicit = 1;
                     }
 
                   /* This code, given FILENAME = "lib/foo.o", dependency name
