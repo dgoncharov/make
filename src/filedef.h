@@ -108,6 +108,7 @@ struct file
                                    pattern-specific variables.  */
     unsigned int no_diag:1;     /* True if the file failed to update and no
                                    diagnostics has been issued (dontcare). */
+    unsigned int keep_intact:1; /* If set, do not update this file.  */
   };
 
 

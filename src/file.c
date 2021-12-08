@@ -873,6 +873,13 @@ snap_deps (void)
   if (f != 0 && f->is_target)
     not_parallel = 1;
 
+  for (f = lookup_file (".KEEPINTACT"); f != 0; f = f->prev)
+    for (d = f->deps; d != 0; d = d->next)
+      for (f2 = d->file; f2 != 0; f2 = f2->prev)
+        f2->keep_intact = 1;
+
+
+
   {
     struct dep *prereqs = expand_extra_prereqs (lookup_variable (STRING_SIZE_TUPLE(".EXTRA_PREREQS")));
 

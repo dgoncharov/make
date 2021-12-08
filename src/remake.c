@@ -470,8 +470,6 @@ update_file_1 (struct file *file, unsigned int depth)
      fail. */
   file->no_diag = file->dontcare;
 
-  ++depth;
-
   /* Notice recursive update of the same file.  */
   start_updating (file);
 
@@ -488,6 +486,22 @@ update_file_1 (struct file *file, unsigned int depth)
   this_mtime = file_mtime (file);
   check_renamed (file);
   noexist = this_mtime == NONEXISTENT_MTIME;
+
+  if (file->keep_intact)
+    {
+      if (noexist)
+        {
+          OS (error, NILF,
+              _("'%s' is missing and cannot be built due to .KEEPINTACT."),
+              file->name);
+          return us_failed;
+        }
+      DBF (DB_VERBOSE, _("Considering '%s' up to date due to .KEEPINTACT.\n"));
+      return 0;
+    }
+
+  ++depth;
+
   if (noexist)
     DBF (DB_BASIC, _("File '%s' does not exist.\n"));
   else if (ORDINARY_MTIME_MIN <= this_mtime && this_mtime <= ORDINARY_MTIME_MAX
