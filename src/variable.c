@@ -600,7 +600,7 @@ initialize_file_variables (struct file *file, int reading)
 
   /* If we're not reading makefiles and we haven't looked yet, see if
      we can find pattern variables for this target.  */
-
+printf("init file vars for %s\n", file->name);
   if (!reading && !file->pat_searched)
     {
       struct pattern_var *p;
