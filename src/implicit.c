@@ -672,13 +672,14 @@ printf("init file vars for $* for %s\n", file->name);
                   else if (!file_variables_set)
                     {
 printf("update stem value for $* for %s\n", file->name);
-                      define_variable_for_file (
-                        "*", 1, file->stem, o_automatic, 0, file);
+//                      define_variable_for_file (
+//                        "*", 1, file->stem, o_automatic, 0, file);
                       file_variables_set = 1;
                     }
 
                   /* Perform the 2nd expansion.  */
                   p = variable_expand_for_file (depname, file);
+printf("p=%s for dep %s\n", p, depname);
                   dptr = &dl;
 
                   /* Parse the results into a deps list.  */
