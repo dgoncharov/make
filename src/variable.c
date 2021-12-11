@@ -1191,7 +1191,7 @@ do_variable_definition (const floc *flocp, const char *varname,
   int conditional = 0;
 
   /* Calculate the variable's new value in VALUE.  */
-
+printf("do var def varname = %s, value = %s\n", varname, value);
   switch (flavor)
     {
     case f_bogus:
