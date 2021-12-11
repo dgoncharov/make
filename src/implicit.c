@@ -663,6 +663,7 @@ pattern_search (struct file *file, int archive,
                      done so. */
                   if (!file_vars_initialized)
                     {
+printf("init file vars for $* for %s\n", file->name);
                       initialize_file_variables (file, 0);
                       set_file_variables (file);
                       file_vars_initialized = 1;
@@ -670,6 +671,7 @@ pattern_search (struct file *file, int archive,
                   /* Update the stem value in $* for this rule.  */
                   else if (!file_variables_set)
                     {
+printf("update stem value for $* for %s\n", file->name);
                       define_variable_for_file (
                         "*", 1, file->stem, o_automatic, 0, file);
                       file_variables_set = 1;
