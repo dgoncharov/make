@@ -201,7 +201,8 @@ define_variable_in_set (const char *name, size_t length,
   struct variable *v;
   struct variable **var_slot;
   struct variable var_key;
-
+if (strcmp(name, "flags") == 0)
+printf("define var in set varname = %s, value = %s, set = %p\n", name, value, set);
   if (set == NULL)
     set = &global_variable_set;
 
