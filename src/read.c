@@ -1832,11 +1832,15 @@ record_target_var (struct nameseq *filenames, char *defn,
             f = f->double_colon;
 
           initialize_file_variables (f, 1);
+if (strcmp(name, "hello.x") == 0)
+printf("%s f = %p, cur var set list = %p, new var set list = %p\n", __func__, f, current_variable_set_list, f->variables);
 
           current_variable_set_list = f->variables;
           v = try_variable_definition (flocp, defn, origin, 1);
           if (!v)
             O (fatal, flocp, _("Malformed target-specific variable definition"));
+if (strcmp(name, "hello.x") == 0)
+printf("%s cur var set list = %p, global var set list = %p\n", __func__, current_variable_set_list, global);
           current_variable_set_list = global;
         }
 

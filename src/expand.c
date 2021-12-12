@@ -130,6 +130,8 @@ recursively_expand_for_file (struct variable *v, struct file *file)
 
   if (file)
     {
+if (strcmp(file->name, "hello.x") == 0)
+printf("%s cur var set list = %p, new var set list = %p\n", __func__, current_variable_set_list, file->variables);
       save = current_variable_set_list;
       current_variable_set_list = file->variables;
     }
@@ -162,7 +164,8 @@ reference_variable (char *o, const char *name, size_t length)
 {
   struct variable *v;
   char *value;
-
+if (strncmp(name, "flags", length) == 0)
+printf("ref var %s\n", name);
   v = lookup_variable (name, length);
 
   if (v == 0)
@@ -224,7 +227,6 @@ variable_expand_string (char *line, const char *string, size_t length)
          at the next $ or the end of the input.  */
 
       p1 = strchr (p, '$');
-
       o = variable_buffer_output (o, p, p1 != 0 ? (size_t) (p1 - p) : strlen (p) + 1);
 
       if (p1 == 0)
@@ -379,7 +381,6 @@ variable_expand_string (char *line, const char *string, size_t length)
               /* This is an ordinary variable reference.
                  Look up the value of the variable.  */
                 o = reference_variable (o, beg, end - beg);
-
             free (abeg);
           }
           break;
@@ -464,6 +465,8 @@ variable_expand_for_file (const char *line, struct file *file)
   if (file == 0)
     return variable_expand (line);
 
+if (strcmp(file->name, "hello.x") == 0)
+printf("%s file = %p, cur var set list = %p, new var set list = %p\n", __func__, file, current_variable_set_list, file->variables);
   savev = current_variable_set_list;
   current_variable_set_list = file->variables;
 

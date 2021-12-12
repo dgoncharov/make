@@ -463,16 +463,23 @@ lookup_variable (const char *name, size_t length)
 
   var_key.name = (char *) name;
   var_key.length = (unsigned int) length;
-
   for (setlist = current_variable_set_list;
        setlist != 0; setlist = setlist->next)
     {
       const struct variable_set *set = setlist->set;
       struct variable *v;
+if (strncmp(name, "flags", length) == 0)
+printf("lookup var %s in setlist = %p, set = %p, global setlist = %p\n", name, setlist, set, &global_setlist);
 
       v = (struct variable *) hash_find_item ((struct hash_table *) &set->table, &var_key);
+if (strncmp(name, "flags", length) == 0)
+printf("v = %p\n", v);
       if (v && (!is_parent || !v->private_var))
+{
+if (strncmp(name, "flags", length) == 0)
+printf("found var %s\n", name);
         return v->special ? lookup_special_var (v) : v;
+}
 
       is_parent |= setlist->next_is_parent;
     }
@@ -575,6 +582,8 @@ initialize_file_variables (struct file *file, int reading)
       l->set = xmalloc (sizeof (struct variable_set));
       hash_init (&l->set->table, PERFILE_VARIABLE_BUCKETS,
                  variable_hash_1, variable_hash_2, variable_hash_cmp);
+if (strcmp(file->name, "hello.x") == 0)
+printf("%s file = %p, file->variables = %p new file variables = %p\n", __func__, file, file->variables, l);
       file->variables = l;
     }
 
@@ -608,6 +617,7 @@ printf("init file vars for %s\n", file->name);
       const size_t targlen = strlen (file->name);
 
       p = lookup_pattern_var (0, file->name, targlen);
+printf("p = %p\n", p);
       if (p != 0)
         {
           struct variable_set_list *global = current_variable_set_list;
@@ -617,6 +627,7 @@ printf("init file vars for %s\n", file->name);
 
           file->pat_variables = create_new_variable_set ();
           current_variable_set_list = file->pat_variables;
+printf("cur var set list = %p, new var list set = %p\n", global, file->pat_variables);
 
           do
             {
@@ -657,6 +668,7 @@ printf("init file vars for %s\n", file->name);
 
   if (file->pat_variables != 0)
     {
+printf("setting up pat var match for file %s\n", file->name);
       file->pat_variables->next = l->next;
       file->pat_variables->next_is_parent = l->next_is_parent;
       l->next = file->pat_variables;
@@ -682,7 +694,7 @@ create_new_variable_set (void)
   setlist->set = set;
   setlist->next = current_variable_set_list;
   setlist->next_is_parent = 0;
-
+printf("created new setlist %p\n", setlist);
   return setlist;
 }
 
@@ -696,6 +708,7 @@ struct variable_set_list *
 push_new_variable_scope (void)
 {
   current_variable_set_list = create_new_variable_set ();
+printf("push new var scope, cur var set list = %p\n", current_variable_set_list);
   if (current_variable_set_list->next == &global_setlist)
     {
       /* It was the global, so instead of new -> &global we want to replace
@@ -719,6 +732,8 @@ pop_variable_scope (void)
 
   /* Can't call this if there's no scope to pop!  */
   assert (current_variable_set_list->next != NULL);
+
+printf("pop var scope, cur var set list = %p\n", current_variable_set_list);
 
   if (current_variable_set_list != &global_setlist)
     {
@@ -1035,6 +1050,7 @@ target_environment (struct file *file)
   /* If we got no value from the environment then never add the default.  */
   int added_SHELL = shell_var.value == 0;
 
+printf("%s cur var set list = %p\n", __func__, current_variable_set_list);
   if (file == 0)
     set_list = current_variable_set_list;
   else
@@ -1131,6 +1147,7 @@ target_environment (struct file *file)
   *++result = 0;
 
   hash_free (&table, 0);
+printf("cur var set list = %p\n", current_variable_set_list);
 
   return result_0;
 }
@@ -1192,7 +1209,6 @@ do_variable_definition (const floc *flocp, const char *varname,
   int conditional = 0;
 
   /* Calculate the variable's new value in VALUE.  */
-printf("do var def varname = %s, value = %s\n", varname, value);
   switch (flavor)
     {
     case f_bogus:
@@ -1458,6 +1474,9 @@ printf("do var def varname = %s, value = %s\n", varname, value);
      inside a $(call ...) or something.  Since this function is only ever
      invoked in places where we want to define globally visible variables,
      make sure we define this variable in the global set.  */
+
+if (strcmp(varname, "flags") == 0)
+printf("do var def varname = %s, value = %s, curr var set list = %p, set=%p\n", varname, value, current_variable_set_list, current_variable_set_list->set);
 
   v = define_variable_in_set (varname, strlen (varname), p, origin,
                               flavor == f_recursive || flavor == f_expand,

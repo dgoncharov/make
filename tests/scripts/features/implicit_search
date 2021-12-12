@@ -434,5 +434,45 @@ unrelated: bye.o
 unlink('hello.f', 'hello.z', 'hello.xx', 'bye.xx');
 
 
+# Test that implicit search keeps target specific flags intact.  A target
+# specific flag causes the prerequisite to be mentioned explicitly.
+unlink('hello.x', 'hello.tsk');
+run_make_test(q!
+all: hello.tsk
+%.tsk: %.x; $(info $@) 
+%.x:; $(flags)
+hello.x: flags:=true
+!, '', "true\nhello.tsk\n");
+
+# Similar to the one above, this time the prerequisite 'hello.x' is also
+# mentioned explicitly on an unrelated rule.
+run_make_test(q!
+all: hello.tsk
+%.tsk: .x; $(info $@) 
+%.x:; $(flags)
+hello.x: flags:=true
+!, '', "true\nhello.tsk\n");
+
+# A target specific flag and a pattern specific flag.
+run_make_test(q!
+all: hello.tsk
+%.tsk: %.x; $(info $@) 
+%.x:; $(flags)
+hello.x: flags+=good
+%.x: flags:=true
+!, '', "true good\nhello.tsk\n");
+
+# Intermediate prerequisite 'hello.x' has a target specific flag, a pattern
+# specfic flag, matches on both rules '%.tsk: %.x' and 'big_%.tsk: %.x'.
+run_make_test(q!
+all: hello.tsk big_hello.tsk
+%.tsk: %.x; $(info $@) 
+big_%.tsk: %.x; $(info $@) 
+%.x:; $(flags)
+hello.x: flags+=good
+%.x: flags:=true
+!, '', "true good\nhello.tsk\nbig_hello.tsk\n");
+
+
 # This tells the test driver that the perl test script executed properly.
 1;

@@ -805,7 +805,7 @@ printf("p=%s for dep %s\n", p, depname);
                       continue;
                     }
 
-                  if (df && allow_compat_rules)
+                  if (df && (allow_compat_rules || getenv("allow_compat_rules")))
                     {
                       (pat++)->name = d->name;
                       DBS (DB_IMPLICIT,
@@ -879,6 +879,9 @@ printf("p=%s for dep %s\n", p, depname);
                       /* If we have tried to find P as an intermediate file
                          and failed, mark that name as impossible so we won't
                          go through the search again later.  */
+if (strcmp(int_file->name, "hello.x") == 0)
+printf("%s file = %p, freeing int_file->variables = %p\n", __func__, int_file, file->variables);
+
                       if (int_file->variables)
                         free_variable_set (int_file->variables);
                       if (int_file->pat_variables)
@@ -979,7 +982,10 @@ printf("p=%s for dep %s\n", p, depname);
           f->deps = imf->deps;
           f->cmds = imf->cmds;
           f->stem = imf->stem;
-          f->variables = imf->variables;
+if (strcmp(f->name, "hello.x") == 0)
+printf("%s file = %p, f->variables = %p, new variables = %p\n", __func__, f, f->variables, imf->variables);
+merge_variable_set_lists(&f->variables, imf->variables);
+//          f->variables = imf->variables;
           f->pat_variables = imf->pat_variables;
           f->pat_searched = imf->pat_searched;
           f->also_make = imf->also_make;
