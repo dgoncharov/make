@@ -1,0 +1,16 @@
+#                                                                    -*-perl-*-
+
+$description = "Test .ONESHELL.";
+
+# Pass a quoted string with spaces to oneshell.
+# sv 61805.
+run_make_test(q!
+.ONESHELL:
+SHELL = /usr/bin/perl
+.SHELLFLAGS = -w -E 'use warnings FATAL => "all";' -E
+all:; @print "it works\n"
+!,
+              '', 'it works');
+
+
+1;

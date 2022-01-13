@@ -3378,11 +3378,15 @@ construct_command_argv_internal (char *line, char **restp, const char *shell,
             new_argv[n++] = xstrdup ("");
           else
             {
-              const char *s = shellflags;
-              char *t;
-              size_t len;
-              while ((t = find_next_token (&s, &len)) != 0)
-                new_argv[n++] = xstrndup (t, len);
+              /* Parse shellflags to new_argv. Use
+               * construct_command_argv_internal to handle quotes. */
+              static char **argv;
+              char *f;
+              f = xstrdup (shellflags);
+              argv = construct_command_argv_internal (f, 0, 0, 0, 0, flags, 0);
+              free (f);
+              for (; *argv; ++argv)
+                new_argv[n++] = *argv;
             }
 
           /* Set the command to invoke.  */
