@@ -10220,6 +10220,35 @@ You can disable intermediate files completely in your makefile by
 providing @code{.NOTINTERMEDIATE} as a target with no prerequisites:
 in that case it applies to every file in the makefile.
 
+Note, mentioning a file explicitly in order to prevent the file from being
+intermediate has the side effect of making rules which depend on this implicit
+prerequisite eligible for compatibility search.  @xref{Implicit Rule Search,
+,Implicit Rule Search Algorithm}
+
+@example
+all: hello.z
+%.z: %.x; $(info $@@ from $<)
+unrelated: hello.x
+@end example
+
+In this example, 'hello.x' is mentioned explicitly to ensure it is not
+intermediate. The side effect is that, this presence of explicit 'hello.x'
+causes rule '%.z: %.x' to be eligible for compatibility search for target
+'hello.z'. This happens because, make tries this rule with stem 'hello' and
+finds that the implicit prerequisite 'hello.x' is mentioned explicitly.
+
+Alternatively, you can ensure a file is not intermediate by having special
+target @code{.NOTINTERMEDIATE} depend on the related pattern.
+
+@example
+all: hello.z
+%.z: %.x; $(info $@@ from $<)
+.NOTINTERMEDIATE: %.x
+@end example
+
+Since no file is mentioned explicitly in this case, no rule is eligible for
+compatibility search.
+
 @cindex intermediate files, preserving
 @cindex preserving intermediate files
 @cindex secondary files
