@@ -2421,16 +2421,72 @@ main (int argc, char **argv, char **envp)
             {
               /* These names might have changed.  */
               int i, j = 0;
+              size_t len;
+              char *a, *f;
               for (i = 1; i < argc; ++i)
-                if (strneq (argv[i], "-f", 2)) /* XXX */
-                  {
-                    if (argv[i][2] == '\0')
-                      /* This cast is OK since we never modify argv.  */
-                      argv[++i] = (char *) makefiles->list[j];
-                    else
-                      argv[i] = xstrdup (concat (2, "-f", makefiles->list[j]));
-                    ++j;
-                  }
+                {
+                  a = argv[i];
+                  len = strlen (a);
+                  assert (len > 0);
+
+                  /* Need to replace <name> with makefiles->list[j].
+                   * In the case of make code piped to the standard input,
+                   * <name> is '-' and makefiles->list[j] carries the filename
+                   * of the temporary file that contains that make code.
+                   *
+                   * Possible inputs are
+                   * -f<name>, -f <name>, -xyzf<name>, -xyzf <name>,
+                   *  --file <name>, --file=<name>,
+                   *  --makefile <name> or --makefile=<name>.
+                   *
+                   * <name> is in argv[i] in the case of -f<name>, -xyzf<name>,
+                   * --file=<name> or --makefile=<name>.
+                   * <name> is in argv[i+1] in the case of
+                   * -f <name>, -xyzf <name>,
+                   *  --file <name> or --makefile <name>.  */
+                  if (streq (a, "--file") || streq (a, "--makefile"))
+                    {
+                      /* --file <name> or --makefile <name>. */
+                      argv[++i] = (char *) makefiles->list[j++];
+                      continue;
+                    }
+                  if (strneq (a, "--file=", 7) || strneq (a, "--makefile=", 11))
+                    {
+                      /* --file=<name> or --makefile=<name>. */
+                      const ptrdiff_t d = a[2] == 'f' ? 7 : 11;
+                      /* +1 for \0. */
+                      const size_t mlen = strlen (makefiles->list[j]) + 1;
+                      a = alloca (len + mlen);
+                      memcpy (a, argv[i], d);
+                      memcpy (a + d, (char *) makefiles->list[j++], mlen);
+                      argv[i] = a;
+                      continue;
+                    }
+                  /* Done with --file and --makefile.  */
+                  if (a[0] != '-' || a[1] == '-')
+                    continue; /* Not a short option.  */
+                  /* One or more of short options. See if there a 'f'.  Even
+                   * though 'f' is the last option, it could immediately be
+                   * followed by <name>.  */
+                  f = strchr (a, 'f');
+                  if (!f)
+                    continue;
+                  if (f[1])
+                    {
+                      /* -f<name> or -xyzf<name>. */
+                      const ptrdiff_t d = f - a + 1;
+                      /* +1 for \0. */
+                      const size_t mlen = strlen (makefiles->list[j]) + 1;
+                      a = alloca (len + mlen);
+                      memcpy (a, argv[i], d);
+                      memcpy (a + d, (char *) makefiles->list[j++], mlen);
+                      argv[i] = a;
+                      continue;
+                    }
+                  else
+                    /* -f <name> or -xyzf <name>. */
+                    argv[++i] = (char *) makefiles->list[j++];
+                }
             }
 
           /* Add -o option for the stdin temporary file, if necessary.  */
