@@ -758,10 +758,15 @@ update_file_1 (struct file *file, unsigned int depth)
               if (ISDB (DB_BASIC))
                 fmt = _("Prerequisite '%s' of target '%s' does not exist.\n");
             }
-          else if (d->changed)
+          else if (d_mtime > this_mtime)
             {
               if (ISDB (DB_BASIC))
                 fmt = _("Prerequisite '%s' is newer than target '%s'.\n");
+            }
+          else if (d->changed)
+            {
+              if (ISDB (DB_BASIC))
+                fmt = _("Prerequisite '%s' of target '%s' changed.\n");
             }
           else if (ISDB (DB_VERBOSE))
             fmt = _("Prerequisite '%s' is older than target '%s'.\n");
