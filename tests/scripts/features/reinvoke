@@ -32,7 +32,8 @@ run_make_test(undef, '', "rebuilding #MAKEFILE#\nrunning rules.\n");
 
 
 # In this test we create an included file that's out-of-date, but then
-# the rule doesn't update it.  Make shouldn't re-exec.
+# the rule doesn't update it.  Make should still re-execute itself.
+# sv xxx.
 
 &utouch(-600, 'b','a');
 #&utouch(-10, 'a');
@@ -48,7 +49,7 @@ b : c ; test -f $@ || echo >> $@
 c: ; echo >> $@
 
 include $(F)',
-              'F=a', "test -f b || echo >> b\nhello\n");
+              'F=a', "test -f b || echo >> b\necho >> a\ntest -f b || echo >> b\nhello\n");
 
 # Now try with the file we're not updating being the actual file we're
 # including: this and the previous one test different parts of the code.

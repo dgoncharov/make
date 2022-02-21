@@ -68,8 +68,10 @@ static struct dep *goal_dep;
    All files start with considered == 0.  */
 static unsigned int considered = 0;
 
-static enum update_status update_file (struct file *file, unsigned int depth);
-static enum update_status update_file_1 (struct file *file, unsigned int depth);
+static enum update_status update_file (struct file *file, unsigned int depth,
+                                       int *remade);
+static enum update_status update_file_1 (struct file *file, unsigned int depth,
+                                         int *remade);
 static enum update_status check_dep (struct file *file, unsigned int depth,
                                      FILE_TIMESTAMP this_mtime, int *must_make);
 static enum update_status touch_file (struct file *file);
@@ -155,7 +157,7 @@ update_goal_chain (struct goaldep *goaldeps)
                  actually run.  */
               ocommands_started = commands_started;
 
-              fail = update_file (file, rebuilding_makefiles ? 1 : 0);
+              fail = update_file (file, rebuilding_makefiles ? 1 : 0, 0);
               check_renamed (file);
 
               /* Set the goal's 'changed' flag if any commands were started
@@ -307,7 +309,7 @@ show_goal_error (void)
    each is considered in turn.  */
 
 static enum update_status
-update_file (struct file *file, unsigned int depth)
+update_file (struct file *file, unsigned int depth, int *remade)
 {
   enum update_status status = us_success;
   struct file *f;
@@ -339,7 +341,7 @@ update_file (struct file *file, unsigned int depth)
 
       f->considered = considered;
 
-      new = update_file_1 (f, depth);
+      new = update_file_1 (f, depth, remade);
       check_renamed (f);
 
       /* Clean up any alloca() used during the update.  */
@@ -418,7 +420,7 @@ complain (struct file *file)
    Return 0 on success, or non-0 on failure.  */
 
 static enum update_status
-update_file_1 (struct file *file, unsigned int depth)
+update_file_1 (struct file *file, unsigned int depth, int *remade)
 {
   enum update_status dep_status = us_success;
   FILE_TIMESTAMP this_mtime;
@@ -639,7 +641,7 @@ update_file_1 (struct file *file, unsigned int depth)
                not prune it.  */
             d->file->considered = 0;
 
-            new = update_file (d->file, depth);
+            new = update_file (d->file, depth, 0);
             if (new > dep_status)
               dep_status = new;
 
@@ -854,6 +856,8 @@ update_file_1 (struct file *file, unsigned int depth)
       break;
     case us_success:
       DBF (DB_BASIC, _("Successfully remade target file '%s'.\n"));
+      if (remade)
+        *remade = 1;
       break;
     case us_question:
       DBF (DB_BASIC, _("Target file '%s' needs to be remade under -q.\n"));
@@ -1028,11 +1032,19 @@ check_dep (struct file *file, unsigned int depth,
       /* If this is a non-intermediate file, update it and record whether it
          is newer than THIS_MTIME.  */
       FILE_TIMESTAMP mtime;
-      dep_status = update_file (file, depth);
+      int remade = 0;
+      dep_status = update_file (file, depth, &remade);
       check_renamed (file);
       mtime = file_mtime (file);
       check_renamed (file);
-      if (mtime == NONEXISTENT_MTIME || mtime > this_mtime)
+
+      /* It is possible for a file to be updated, but mtime be equal to
+       * this_mtime. This could happen when a program creates a file and then
+       * immediately proceeds and runs make and make updates a prerequisite of
+       * the file just created. If this happens fast enough, then both the file
+       * and its prerequisite have the same mtime.  */
+      if (mtime == NONEXISTENT_MTIME || mtime > this_mtime ||
+         (mtime == this_mtime && remade))
         *must_make_ptr = 1;
     }
   else
