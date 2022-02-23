@@ -86,6 +86,17 @@ static const char *library_search (const char *lib, FILE_TIMESTAMP *mtime_ptr);
    targets, and we should only make one goal at a time and return as soon as
    one goal whose 'changed' member is nonzero is successfully made.  */
 
+static int
+some_dep_changed (struct file *file)
+{
+  struct dep *d;
+
+  for (d = file->deps; d != 0; d = d->next)
+    if (d->changed)
+        return 1;
+  return 0;
+}
+
 enum update_status
 update_goal_chain (struct goaldep *goaldeps)
 {
@@ -185,7 +196,9 @@ update_goal_chain (struct goaldep *goaldeps)
                       FILE_TIMESTAMP mtime = MTIME (file);
                       check_renamed (file);
 
-                      if (file->updated && mtime != file->mtime_before_update)
+                      if (file->updated &&
+                         (mtime != file->mtime_before_update ||
+                          some_dep_changed (file)))
                         {
                           /* Updating was done.  If this is a makefile and
                              just_print_flag or question_flag is set (meaning
@@ -1037,7 +1050,8 @@ check_dep (struct file *file, unsigned int depth,
       check_renamed (file);
       mtime = file_mtime (file);
       check_renamed (file);
-      if (mtime == NONEXISTENT_MTIME || mtime > this_mtime)
+      if (mtime == NONEXISTENT_MTIME || mtime > this_mtime ||
+          mtime > file->mtime_before_update)
         *must_make_ptr = 1;
     }
   else
