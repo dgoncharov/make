@@ -1,0 +1,49 @@
+$description = "";
+
+
+# sv xxx.
+# Test that if a prerequisite is remade, then the target is remade too,
+# regardless of the mtime of the prerequisite and the targets.  In this test
+# bye.mk is created and make runs and creates bye.mk.src fast enough, that
+# mtime of bye.mk and bye.mk.src are equal. A patched make the detect that
+# bye.mk.src was created and proceeds to remake bye.mk. Then make compares the
+# mtime of bye.mk before and after update and if make fast enough, then the
+# mtimes are equal, but make should still reexec itself.
+
+# There are two aspects being tested here
+# 1. Test that if a prerequisite is remade, then the target is remade too,
+# regardless of the mtime of the prerequisite and the targets.
+#
+# 2. When a makefile is remade make re-executes itself, even if the mtime of
+# the makefile before and after the update is the same.
+
+my $bye = 'bye.mk';
+my $byesrc = 'bye.mk.src';
+
+unlink($bye, $byesrc);
+
+open(BYE, "> $bye") || die "$0: cannot open $bye for writing: $!";
+printf BYE '
+value:=$(file <bye.mk.src)
+$(info value=$(value))
+
+def:; $(info bye, world)
+bye.mk: bye.mk.src; touch $@
+bye.mk.src:; echo 1 >$@
+' || die "$0: cannot write to $bye: $!";;
+close(BYE);
+
+my $answer =
+"touch bye.mk.src
+touch bye.mk
+make: 'def' is up to date.\n";
+
+
+&run_make_with_options($bye, '-Rd', &get_logfile);
+&compare_output($answer, &get_logfile(1));
+
+#unlink($bye, $byesrc);
+
+
+# This tells the test driver that the perl test script executed properly.
+1;
