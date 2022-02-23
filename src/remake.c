@@ -136,6 +136,7 @@ update_goal_chain (struct goaldep *goaldeps)
             {
               unsigned int ocommands_started;
               enum update_status fail;
+              int remade = 0;
 
               file->dontcare = ANY_SET (g->flags, RM_DONTCARE);
 
@@ -157,7 +158,7 @@ update_goal_chain (struct goaldep *goaldeps)
                  actually run.  */
               ocommands_started = commands_started;
 
-              fail = update_file (file, rebuilding_makefiles ? 1 : 0, 0);
+              fail = update_file (file, rebuilding_makefiles ? 1 : 0, &remade);
               check_renamed (file);
 
               /* Set the goal's 'changed' flag if any commands were started
@@ -187,7 +188,8 @@ update_goal_chain (struct goaldep *goaldeps)
                       FILE_TIMESTAMP mtime = MTIME (file);
                       check_renamed (file);
 
-                      if (file->updated && mtime != file->mtime_before_update)
+                      if (file->updated && (mtime != file->mtime_before_update ||
+                          (mtime == file->mtime_before_update && remade)))
                         {
                           /* Updating was done.  If this is a makefile and
                              just_print_flag or question_flag is set (meaning
