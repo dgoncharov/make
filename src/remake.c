@@ -68,8 +68,10 @@ static struct dep *goal_dep;
    All files start with considered == 0.  */
 static unsigned int considered = 0;
 
-static enum update_status update_file (struct file *file, unsigned int depth);
-static enum update_status update_file_1 (struct file *file, unsigned int depth);
+static enum update_status update_file (struct file *file, unsigned int depth,
+                                       int *must_make);
+static enum update_status update_file_1 (struct file *file, unsigned int depth,
+                                         int *must_make);
 static enum update_status check_dep (struct file *file, unsigned int depth,
                                      FILE_TIMESTAMP this_mtime, int *must_make);
 static enum update_status touch_file (struct file *file);
@@ -145,6 +147,7 @@ update_goal_chain (struct goaldep *goaldeps)
             {
               unsigned int ocommands_started;
               enum update_status fail;
+              int maybe_make = 0;
 
               file->dontcare = ANY_SET (g->flags, RM_DONTCARE);
 
@@ -166,7 +169,7 @@ update_goal_chain (struct goaldep *goaldeps)
                  actually run.  */
               ocommands_started = commands_started;
 
-              fail = update_file (file, rebuilding_makefiles ? 1 : 0);
+              fail = update_file (file, rebuilding_makefiles ? 1 : 0, &maybe_make);
               check_renamed (file);
 
               /* Set the goal's 'changed' flag if any commands were started
@@ -197,8 +200,7 @@ update_goal_chain (struct goaldep *goaldeps)
                       check_renamed (file);
 
                       if (file->updated &&
-                         (mtime != file->mtime_before_update ||
-                          some_dep_changed (file)))
+                         (mtime != file->mtime_before_update || maybe_make))
                         {
                           /* Updating was done.  If this is a makefile and
                              just_print_flag or question_flag is set (meaning
@@ -320,7 +322,7 @@ show_goal_error (void)
    each is considered in turn.  */
 
 static enum update_status
-update_file (struct file *file, unsigned int depth)
+update_file (struct file *file, unsigned int depth, int *must_make_ptr)
 {
   enum update_status status = us_success;
   struct file *f;
@@ -352,7 +354,7 @@ update_file (struct file *file, unsigned int depth)
 
       f->considered = considered;
 
-      new = update_file_1 (f, depth);
+      new = update_file_1 (f, depth, must_make_ptr);
       check_renamed (f);
 
       /* Clean up any alloca() used during the update.  */
@@ -431,7 +433,7 @@ complain (struct file *file)
    Return 0 on success, or non-0 on failure.  */
 
 static enum update_status
-update_file_1 (struct file *file, unsigned int depth)
+update_file_1 (struct file *file, unsigned int depth, int *must_make_ptr)
 {
   enum update_status dep_status = us_success;
   FILE_TIMESTAMP this_mtime;
@@ -594,7 +596,10 @@ update_file_1 (struct file *file, unsigned int depth)
             d->file->dontcare = dontcare;
 
           if (! d->ignore_mtime)
-            must_make = maybe_make;
+            {
+              must_make = maybe_make;
+              *must_make_ptr |= maybe_make;
+            }
 
           check_renamed (d->file);
 
@@ -614,11 +619,16 @@ update_file_1 (struct file *file, unsigned int depth)
           if (dep_status && !keep_going_flag)
             break;
 
+if (strcmp(d->file->name, "hello.1") == 0 ||
+strcmp(d->file->name, "hello.2") == 0 ||
+strcmp(d->file->name, "hello.tsk") == 0)
+printf("file %s, last_mtime = %lu, mtime_before = %lu, mtime=%lu\n", d->file->name, d->file->last_mtime, d->file->mtime_before_update, mtime);
           if (!running)
             /* The prereq is considered changed if the timestamp has changed
                while it was built, OR it doesn't exist.  */
             d->changed = ((file_mtime (d->file) != mtime)
-                          || (mtime == NONEXISTENT_MTIME));
+                          || (mtime == NONEXISTENT_MTIME)) ||
+                          some_dep_changed (d->file);
 
           lastd = d;
           d = d->next;
@@ -652,7 +662,7 @@ update_file_1 (struct file *file, unsigned int depth)
                not prune it.  */
             d->file->considered = 0;
 
-            new = update_file (d->file, depth);
+            new = update_file (d->file, depth, must_make_ptr);
             if (new > dep_status)
               dep_status = new;
 
@@ -1046,7 +1056,7 @@ check_dep (struct file *file, unsigned int depth,
       /* If this is a non-intermediate file, update it and record whether it
          is newer than THIS_MTIME.  */
       FILE_TIMESTAMP mtime;
-      dep_status = update_file (file, depth);
+      dep_status = update_file (file, depth, must_make_ptr);
       check_renamed (file);
       mtime = file_mtime (file);
       check_renamed (file);

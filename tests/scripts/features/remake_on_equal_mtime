@@ -1,0 +1,26 @@
+$description = "Remake whan a prerequisite is created even if the mtimes of the
+target and the prerequisite are equal.";
+
+unlink('hello.o', 'hello.2');
+touch('hello.tsk');
+
+#run_make_test(q!
+#all: hello.tsk
+#hello.tsk: hello.o; touch $@
+#hello.o:; touch $@
+#!, '-Rd', "touch hello.o\ntouch hello.tsk\n");
+
+
+touch('hello.tsk', 'hello.1');
+
+
+run_make_test(q!
+all: hello.tsk
+hello.tsk: hello.1; touch $@
+hello.1: hello.2; touch $@
+hello.2:; touch $@
+!, '-Rd', "touch hello.o\ntouch hello.tsk\n");
+
+#unlink('hello.o', 'hello.tsk', 'hello.1', 'hello.2');
+# This tells the test driver that the perl test script executed properly.
+1;
