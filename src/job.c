@@ -2309,6 +2309,7 @@ child_execute_job (struct childbase *child, int good_stdin, char **argv)
 
   /* Run the command.  */
   exec_command (argv, child->environment);
+  _exit (127);
 
 #else /* USE_POSIX_SPAWN */
 
@@ -2632,8 +2633,6 @@ exec_command (char **argv, char **envp)
 
 # ifdef __EMX__
   return pid;
-# else
-  _exit (127);
 # endif
 #endif /* !WINDOWS32 */
 #endif /* !VMS */

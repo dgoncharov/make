@@ -84,7 +84,7 @@ void exec_command (char **argv) NORETURN;
 #elif defined(__EMX__)
 int exec_command (char **argv, char **envp);
 #else
-void exec_command (char **argv, char **envp) NORETURN;
+void exec_command (char **argv, char **envp);
 #endif
 
 void unblock_all_sigs (void);

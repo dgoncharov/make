@@ -2658,7 +2658,12 @@ main (int argc, char **argv, char **envp)
 
           /* We shouldn't get here but just in case.  */
           jobserver_post_child(1);
-          break;
+          /* Get rid of a temp file from reading a makefile from stdin.  */
+          if (stdin_offset >= 0)
+            /* Print no error, if unlink fails.
+             * exec_command printed the important error.  */
+            unlink (makefiles->list[stdin_offset]);
+          _exit (127);
         }
 
       if (any_failed)
