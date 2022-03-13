@@ -230,7 +230,8 @@ pattern_search (struct file *file, int archive,
 
   /* Names of possible dependencies are constructed in this buffer.
      We may replace % by $(*F) for second expansion, increasing the length.  */
-  char *depname = alloca (namelen + max_pattern_dep_length + 4);
+  size_t deplen = namelen + max_pattern_dep_length + 64;
+  char *depname = alloca (deplen);
 
   /* The start and length of the stem of FILENAME for the current rule.  */
   const char *stem = 0;
@@ -601,20 +602,25 @@ pattern_search (struct file *file, int archive,
                 {
                   int add_dir = 0;
                   size_t len;
+                  const char *end;
                   struct dep **dptr;
                   int is_explicit;
                   const char *cp;
                   char *p;
 
+//printf("looking for a prereq in nptr = %s\n", nptr);
                   nptr = get_next_word (nptr, &len);
+//printf("prereq is %s, len = %lu\n\n\n", nptr, len);
                   if (nptr == 0)
                     continue;
+                  end = nptr + len;
+
 
                   /* See if this is a transition to order-only prereqs.  */
                   if (! order_only && len == 1 && nptr[0] == '|')
                     {
                       order_only = 1;
-                      nptr += len;
+                      nptr = end;
                       continue;
                     }
 
@@ -629,37 +635,84 @@ pattern_search (struct file *file, int archive,
                      (since $* and $(*F) are simple variables) there won't be
                      additional re-expansion of the stem.  */
 
-                  cp = lindex (nptr, nptr + len, '%');
+//printf("trying to find %% in \"%s\"\n\n\n", nptr);
+                  cp = lindex (nptr, end, '%');
                   if (cp == 0)
                     {
+//printf("not found %% in %s\n", nptr);
                       memcpy (depname, nptr, len);
                       depname[len] = '\0';
                       is_explicit = 1;
                     }
                   else
                     {
-                      size_t i = cp - nptr;
-                      char *o = depname;
-                      memcpy (o, nptr, i);
-                      o += i;
-                      if (check_lastslash)
+                      /* Go through all % between NPTR and END.
+                       * Copy contents of [NPTR, END) to depname, with
+                       * the first % after NPTR and then each first % after
+                       * white space replaced with *$ or $(*F).  */
+                      size_t i, dlen = deplen;
+                      char *o;
+
+                      for (i = 0; i < len; ++i)
+                        dlen += nptr[i] == '%' ? 4 : 0;
+                      if (dlen > deplen)
                         {
-                          add_dir = 1;
-                          memcpy (o, "$(*F)", 5);
-                          o += 5;
+                          deplen = dlen;
+                          depname = alloca (deplen);
                         }
-                      else
-                        {
-                          memcpy (o, "$*", 2);
-                          o += 2;
-                        }
-                      memcpy (o, cp + 1, len - i - 1);
-                      o[len - i - 1] = '\0';
+                      o = depname;
+
                       is_explicit = 0;
+                      for (;;)
+                        {
+                          i = cp - nptr;
+memset (o, 0, namelen + max_pattern_dep_length + 8);
+//printf("found %% in \"%s\", depname=\"%s\"\n", nptr, depname);
+                          memcpy (o, nptr, i);
+//printf("depname after memcpy=\"%s\"\n", depname);
+//printf("o before increment = \"%s\"\n", o);
+                          o += i;
+//printf("o before replacement = \"%s\"\n", o);
+                          if (check_lastslash)
+                            {
+                              add_dir = 1;
+                              memcpy (o, "$(*F)", 5);
+                              o += 5;
+                            }
+                          else
+                            {
+                              memcpy (o, "$*", 2);
+                              o += 2;
+                            }
+//printf("depname after replacement \"%s\"\n", depname);
+//printf("o after replacement = \"%s\"\n", o);
+                          nptr = cp + 1;
+                          assert (nptr <= end);
+                          len = end - nptr;
+                          memcpy (o, cp + 1, len);
+                          o[len] = '\0';
+//printf("after memcpy, depname = \"%s\", len = %lu, looking for the next word\n", depname, len);
+
+                          /* No need to worry about order-only, or nested
+                           * function calls, because NPTR went though
+                           * get_next_word.  */
+                          i = strcspn (nptr, " \t");
+                          if (nptr + i >= end)
+                            break;
+                          o += i;
+                          nptr += i;
+
+//printf("trying to find %% in \"%s\", depname = \"%s\", len = %lu, nptr + len = %s\n\n\n", nptr, depname, len, nptr + len);
+                          cp = lindex (nptr, end, '%');
+                          if (cp == 0)
+                            break;
+                        }
                     }
 
                   /* Set up for the next word.  */
-                  nptr += len;
+//printf("before nptr = \"%s\", nptr = %p, len = %lu\n", nptr, nptr, len);
+                  nptr = end;
+//printf("after nptr = \"%s\", nptr = %p, len = %lu\n", nptr, nptr, len);
 
                   /* Initialize and set file variables if we haven't already
                      done so. */
