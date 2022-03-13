@@ -232,6 +232,7 @@ pattern_search (struct file *file, int archive,
      We may replace % by $(*F) for second expansion, increasing the length.  */
   size_t deplen = namelen + max_pattern_dep_length + 64;
   char *depname = alloca (deplen);
+  char *dend = depname + deplen;
 
   /* The start and length of the stem of FILENAME for the current rule.  */
   const char *stem = 0;
@@ -650,23 +651,25 @@ pattern_search (struct file *file, int archive,
                        * Copy contents of [NPTR, END) to depname, with
                        * the first % after NPTR and then each first % after
                        * white space replaced with *$ or $(*F).  */
-                      size_t i, dlen = deplen;
-                      char *o;
-
-                      for (i = 0; i < len; ++i)
-                        dlen += nptr[i] == '%' ? 4 : 0;
-                      if (dlen > deplen)
-                        {
-                          deplen = dlen;
-                          depname = alloca (deplen);
-                        }
-                      o = depname;
+                      size_t i;
+                      char *o = depname;
 
                       is_explicit = 0;
                       for (;;)
                         {
                           i = cp - nptr;
-memset (o, 0, namelen + max_pattern_dep_length + 8);
+                          if (o + i >= dend)
+                            {
+                              /* Realloc depname.  */
+                              char *dname;
+                              len = o - depname;
+                              deplen += i + 64;
+                              dname = alloca (deplen);
+                              dend = dname + deplen;
+                              memcpy (dname, depname, len);
+                              depname = dname;
+                              o = depname + len;
+                            }
 //printf("found %% in \"%s\", depname=\"%s\"\n", nptr, depname);
                           memcpy (o, nptr, i);
 //printf("depname after memcpy=\"%s\"\n", depname);
@@ -688,9 +691,6 @@ memset (o, 0, namelen + max_pattern_dep_length + 8);
 //printf("o after replacement = \"%s\"\n", o);
                           nptr = cp + 1;
                           assert (nptr <= end);
-                          len = end - nptr;
-                          memcpy (o, cp + 1, len);
-                          o[len] = '\0';
 //printf("after memcpy, depname = \"%s\", len = %lu, looking for the next word\n", depname, len);
 
                           /* No need to worry about order-only, or nested
@@ -698,7 +698,8 @@ memset (o, 0, namelen + max_pattern_dep_length + 8);
                            * get_next_word.  */
                           i = strcspn (nptr, " \t");
                           if (nptr + i >= end)
-                            break;
+                              break;
+                          memcpy (o, nptr, i);
                           o += i;
                           nptr += i;
 
@@ -707,6 +708,11 @@ memset (o, 0, namelen + max_pattern_dep_length + 8);
                           if (cp == 0)
                             break;
                         }
+                        len = end - nptr;
+//printf("before last memcpy, depname = \"%s\"\n", depname);
+                        memcpy (o, nptr, len);
+                        o[len] = '\0';
+//printf("after last memcpy, depname = \"%s\"\n", depname);
                     }
 
                   /* Set up for the next word.  */
