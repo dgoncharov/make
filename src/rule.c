@@ -129,7 +129,10 @@ snap_implicit_rules (void)
 
   for (dep = prereqs; dep; dep = dep->next)
     {
-      size_t l = strlen (dep_name (dep));
+      size_t l = 0;
+      const char *d = dep_name (dep);
+      for (; *d; ++d)
+        l += dep->need_2nd_expansion && *d == '%' ? 5 : 1;
       if (l > max_pattern_dep_length)
         max_pattern_dep_length = l;
       ++pre_deps;

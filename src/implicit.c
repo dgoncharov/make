@@ -230,7 +230,7 @@ pattern_search (struct file *file, int archive,
 
   /* Names of possible dependencies are constructed in this buffer.
      We may replace % by $(*F) for second expansion, increasing the length.  */
-  size_t deplen = namelen + max_pattern_dep_length + 64;
+  size_t deplen = namelen + max_pattern_dep_length + 4;
   char *depname = alloca (deplen);
   char *dend = depname + deplen;
 
@@ -651,26 +651,14 @@ pattern_search (struct file *file, int archive,
                        * Copy contents of [NPTR, END) to depname, with
                        * the first % after NPTR and then each first % after
                        * white space replaced with *$ or $(*F).  */
-                      size_t i;
                       char *o = depname;
 
                       is_explicit = 0;
                       for (;;)
                         {
-                          i = cp - nptr;
-                          if (o + i >= dend)
-                            {
-                              /* Realloc depname.  */
-                              char *dname;
-                              len = o - depname;
-                              deplen += i + 64;
-                              dname = alloca (deplen);
-                              dend = dname + deplen;
-                              memcpy (dname, depname, len);
-                              depname = dname;
-                              o = depname + len;
-                            }
+                          size_t i = cp - nptr;
 //printf("found %% in \"%s\", depname=\"%s\"\n", nptr, depname);
+                          assert (o + i < dend);
                           memcpy (o, nptr, i);
 //printf("depname after memcpy=\"%s\"\n", depname);
 //printf("o before increment = \"%s\"\n", o);
@@ -679,18 +667,23 @@ pattern_search (struct file *file, int archive,
                           if (check_lastslash)
                             {
                               add_dir = 1;
+                              assert (o + 5 < dend);
                               memcpy (o, "$(*F)", 5);
                               o += 5;
                             }
                           else
                             {
+                              assert (o + 2 < dend);
                               memcpy (o, "$*", 2);
                               o += 2;
                             }
+                          assert (o < dend);
 //printf("depname after replacement \"%s\"\n", depname);
 //printf("o after replacement = \"%s\"\n", o);
+                          assert (cp + 1 <= end);
                           nptr = cp + 1;
-                          assert (nptr <= end);
+                          if (nptr >= end)
+                            break;
 //printf("after memcpy, depname = \"%s\", len = %lu, looking for the next word\n", depname, len);
 
                           /* No need to worry about order-only, or nested
@@ -698,7 +691,9 @@ pattern_search (struct file *file, int archive,
                            * get_next_word.  */
                           i = strcspn (nptr, " \t");
                           if (nptr + i >= end)
-                              break;
+                            break;
+                          assert (o + i < dend);
+                          assert (nptr + i < end);
                           memcpy (o, nptr, i);
                           o += i;
                           nptr += i;
