@@ -1,0 +1,28 @@
+#                                                                    -*-perl-*-
+$description = "Stem computation and substitution.";
+
+$details = 'Test that make correctly computes stem and substitutes % for
+computed stem in pattern rules and static pattern rules with and without second
+expansion and with and without last slash.';
+
+my @dir = ('', 'lib/'); # With and without last slash.
+my @secondexpansion = ('', '.SECONDEXPANSION:');
+my @targets = ('', 'h.x: '); # pattern rules and static pattern rules.
+
+for my $se (@secondexpansion) {
+for my $d (@dir) {
+for my $t (@targets) {
+my $p = $d && $t ? "$d$t" : "$t";
+my $dollar = $se ? '$' : '';
+
+run_make_test("
+$se
+all: ${d}h.x
+lib/h.z h.z:; \$(info \$@)
+${p}%.x: $dollar\$(shell echo %.z); \$(info \$@)
+", '', "${d}h.z\n${d}h.x\n#MAKE#: Nothing to be done for 'all'.\n");
+}
+}
+}
+
+1;
