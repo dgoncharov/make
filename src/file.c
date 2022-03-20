@@ -573,6 +573,7 @@ expand_deps (struct file *f)
   struct dep **dp;
   const char *file_stem = f->stem;
   int initialized = 0;
+  char *perc;
 
   f->updating = 0;
 
@@ -580,7 +581,7 @@ expand_deps (struct file *f)
      expansion, expand it then insert the result into the list.  */
   dp = &f->deps;
   d = f->deps;
-  while (d != 0)
+  for (perc = 0; d != 0; perc = 0)
     {
       char *p;
       struct dep *new, *next;
@@ -598,10 +599,14 @@ expand_deps (struct file *f)
          "$*" so they'll expand properly.  */
       if (d->staticpattern)
         {
-          char *o = subst_expand (variable_buffer, name, "%", "$*", 1, 2, 0);
-          *o = '\0';
-          free (name);
-          d->name = name = xstrdup (variable_buffer);
+          perc = strchr (name, '%');
+          if (perc)
+            {
+//printf("expanding %s\n", name);
+              memmove (perc + 1, perc, name + strlen (name) - perc + 1);
+              memcpy (perc, "$*", 2);
+//printf("expanded %s\n", name);
+            }
           d->staticpattern = 0;
         }
 
@@ -626,9 +631,9 @@ expand_deps (struct file *f)
 
       /* At this point we don't need the name anymore: free it.  */
       free (name);
-
+//printf("p = %s, stem = %s\n", p, d->stem);
       /* Parse the prerequisites and enter them into the file database.  */
-      new = enter_prereqs (split_prereqs (p), d->stem);
+      new = enter_prereqs (split_prereqs (p), perc ? 0 : d->stem);
 
       /* If there were no prereqs here (blank!) then throw this one out.  */
       if (new == 0)
