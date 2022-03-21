@@ -230,7 +230,9 @@ pattern_search (struct file *file, int archive,
 
   /* Names of possible dependencies are constructed in this buffer.
      We may replace % by $(*F) for second expansion, increasing the length.  */
-  char *depname = alloca (namelen + max_pattern_dep_length + 4);
+  size_t deplen = namelen + max_pattern_dep_length + 4;
+  char *depname = alloca (deplen);
+  char *dend = depname + deplen;
 
   /* The start and length of the stem of FILENAME for the current rule.  */
   const char *stem = 0;
@@ -601,6 +603,7 @@ pattern_search (struct file *file, int archive,
                 {
                   int add_dir = 0;
                   size_t len;
+                  const char *end;
                   struct dep **dptr;
                   int is_explicit;
                   const char *cp;
@@ -609,12 +612,14 @@ pattern_search (struct file *file, int archive,
                   nptr = get_next_word (nptr, &len);
                   if (nptr == 0)
                     continue;
+                  end = nptr + len;
+
 
                   /* See if this is a transition to order-only prereqs.  */
                   if (! order_only && len == 1 && nptr[0] == '|')
                     {
                       order_only = 1;
-                      nptr += len;
+                      nptr = end;
                       continue;
                     }
 
@@ -629,7 +634,7 @@ pattern_search (struct file *file, int archive,
                      (since $* and $(*F) are simple variables) there won't be
                      additional re-expansion of the stem.  */
 
-                  cp = lindex (nptr, nptr + len, '%');
+                  cp = lindex (nptr, end, '%');
                   if (cp == 0)
                     {
                       memcpy (depname, nptr, len);
@@ -638,28 +643,63 @@ pattern_search (struct file *file, int archive,
                     }
                   else
                     {
-                      size_t i = cp - nptr;
+                      /* Go through all % between NPTR and END.
+                       * Copy contents of [NPTR, END) to depname, with
+                       * the first % after NPTR and then each first % after
+                       * white space replaced with *$ or $(*F).
+                       * depname has enough room to substitute each % with
+                       * $(*F).  */
                       char *o = depname;
-                      memcpy (o, nptr, i);
-                      o += i;
-                      if (check_lastslash)
-                        {
-                          add_dir = 1;
-                          memcpy (o, "$(*F)", 5);
-                          o += 5;
-                        }
-                      else
-                        {
-                          memcpy (o, "$*", 2);
-                          o += 2;
-                        }
-                      memcpy (o, cp + 1, len - i - 1);
-                      o[len - i - 1] = '\0';
+
                       is_explicit = 0;
+                      for (;;)
+                        {
+                          size_t i = cp - nptr;
+                          assert (o + i < dend);
+                          memcpy (o, nptr, i);
+                          o += i;
+                          if (check_lastslash)
+                            {
+                              add_dir = 1;
+                              assert (o + 5 < dend);
+                              memcpy (o, "$(*F)", 5);
+                              o += 5;
+                            }
+                          else
+                            {
+                              assert (o + 2 < dend);
+                              memcpy (o, "$*", 2);
+                              o += 2;
+                            }
+                          assert (o < dend);
+                          assert (cp + 1 <= end);
+                          nptr = cp + 1;
+                          if (nptr >= end)
+                            break;
+
+                          /* No need to worry about order-only, or nested
+                           * function calls, because NPTR went though
+                           * get_next_word.  */
+                          i = strcspn (nptr, " \t");
+                          if (nptr + i >= end)
+                            break;
+                          assert (o + i < dend);
+                          assert (nptr + i < end);
+                          memcpy (o, nptr, i);
+                          o += i;
+                          nptr += i;
+
+                          cp = lindex (nptr, end, '%');
+                          if (cp == 0)
+                            break;
+                        }
+                        len = end - nptr;
+                        memcpy (o, nptr, len);
+                        o[len] = '\0';
                     }
 
                   /* Set up for the next word.  */
-                  nptr += len;
+                  nptr = end;
 
                   /* Initialize and set file variables if we haven't already
                      done so. */
