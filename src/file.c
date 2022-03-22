@@ -573,7 +573,6 @@ expand_deps (struct file *f)
   struct dep **dp;
   const char *file_stem = f->stem;
   int initialized = 0;
-  char *perc;
 
   f->updating = 0;
 
@@ -581,7 +580,7 @@ expand_deps (struct file *f)
      expansion, expand it then insert the result into the list.  */
   dp = &f->deps;
   d = f->deps;
-  for (perc = 0; d != 0; perc = 0)
+  while (d != 0)
     {
       char *p;
       struct dep *new, *next;
@@ -599,14 +598,32 @@ expand_deps (struct file *f)
          "$*" so they'll expand properly.  */
       if (d->staticpattern)
         {
-          perc = strchr (name, '%');
-          if (perc)
+          char *s = name;
+          const char *end;
+          int found = 0;
+          size_t n;
+          for (n = 0; *s; ++s, ++n)
+            if (*s == '%')
+              {
+                ++n; /* Reserve one extra byte to replace % with $*.  */
+                found = 1;
+              }
+          if (found)
+            name = realloc (name, n);
+printf("name = %s, n = %lu\n", name, n);
+          end = name + n;
+          s = name;
+          /* Substitude the very first % and first after each white space.  */
+          for (n = 0; *s; )
             {
-//printf("expanding %s\n", name);
-              memmove (perc + 1, perc, name + strlen (name) - perc + 1);
-              memcpy (perc, "$*", 2);
-//printf("expanded %s\n", name);
+              s = strchr (s, '%');
+              if (s == 0)
+                break;
+              memmove (s + 1, s, end - s + 1);
+              memcpy (s, "$*", 2);
+              s += strcspn (s, " \t");
             }
+printf("substituted name = %s, n = %lu\n", name, n);
           d->staticpattern = 0;
         }
 
@@ -625,15 +642,13 @@ expand_deps (struct file *f)
       set_file_variables (f);
 
       p = variable_expand_for_file (d->name, f);
-
       if (d->stem != 0)
         f->stem = file_stem;
 
       /* At this point we don't need the name anymore: free it.  */
       free (name);
-//printf("p = %s, stem = %s\n", p, d->stem);
       /* Parse the prerequisites and enter them into the file database.  */
-      new = enter_prereqs (split_prereqs (p), perc ? 0 : d->stem);
+      new = enter_prereqs (split_prereqs (p), 0);
 
       /* If there were no prereqs here (blank!) then throw this one out.  */
       if (new == 0)

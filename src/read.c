@@ -1304,9 +1304,10 @@ eval (struct ebuffer *ebuf, int set_default)
 
         /* Put all the prerequisites here; they'll be parsed later.  */
         if (beg <= end && *beg != '\0')
+//            depstr = xstrndup (beg, end - beg + 1);
           {
             size_t l = end - beg + 1;
-            depstr = xmalloc (l + 2);
+            depstr = xmalloc (l + 1);
             if (l > 0)
               strncpy (depstr, beg, l);
             depstr[l] = '\0';
