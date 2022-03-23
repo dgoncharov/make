@@ -596,21 +596,26 @@ expand_deps (struct file *f)
 
       /* If it's from a static pattern rule, convert the patterns into
          "$*" so they'll expand properly.  */
-      if (d->staticpattern)
+      while (d->staticpattern)
         {
           char *s = name;
           const char *end;
           int found = 0;
           size_t n;
+
+          d->staticpattern = 0;
+
           for (n = 0; *s; ++s, ++n)
             if (*s == '%')
               {
                 ++n; /* Reserve one extra byte to replace % with $*.  */
                 found = 1;
               }
-          if (found)
-            name = realloc (name, n);
-printf("name = %s, n = %lu\n", name, n);
+          if (found == 0)
+            break;
+          d->name = name = realloc (name, n);
+//printf("name = %s, n = %lu\n", name, n);
+          name[n] = 0;
           end = name + n;
           s = name;
           /* Substitude the very first % and first after each white space.  */
@@ -619,12 +624,12 @@ printf("name = %s, n = %lu\n", name, n);
               s = strchr (s, '%');
               if (s == 0)
                 break;
-              memmove (s + 1, s, end - s + 1);
+              memmove (s + 1, s, end - s);
               memcpy (s, "$*", 2);
               s += strcspn (s, " \t");
             }
-printf("substituted name = %s, n = %lu\n", name, n);
-          d->staticpattern = 0;
+//printf("substituted name = %s, n = %lu, strlen (name) = %lu\n", name, n, strlen (name));
+          break;
         }
 
       /* We're going to do second expansion so initialize file variables for
