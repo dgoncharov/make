@@ -108,9 +108,31 @@ ${d}bye.x: $r%.x: $dollar\$(wordlist 1, 99, ${prefix}%${suffix}.1 ${prefix}%${su
 ", '', "${d}bye.x from $prereqs\n#MAKE#: Nothing to be done for 'all'.\n");
 }
 
-# Malformed makefile.
 }
 }
+}
+
+# Escaped %.
+# The following combinations are generated without second expansion.
+# 1.
+# all: the%weird\\_hello_pattern\\.x
+# the\\%weird\\_hello_pattern\\.x: the\\%weird\\_%_pattern\\.x: ...
+#
+# 2.
+# all: lib/the%weird\\_hello_pattern\\.x
+# lib/the\\%weird\\_hello_pattern\\.x: lib/the\\%weird\\_%_pattern\\.x: ...
+#
+# Other combinations or second expansion are not tested, because escaped % is
+# not implemented for those.
+
+for my $d (@dir) {
+my $prereqs = "${d}the%weird\\\\_hello_pattern%\\\\.1 ${d}the%weird\\\\_hello_pattern%\\\\.2";
+run_make_test("
+$se
+all: ${d}the%weird\\\\_hello_pattern\\\\.x
+${d}the\\%weird\\\\_hello_pattern\\\\.x: ${d}the\\%weird\\\\_%_pattern\\\\.x: $dollar\$(wordlist 1, 99, ${d}the\\%weird\\\\_%_pattern%\\\\.1 ${d}the\\%weird\\\\_%_pattern%\\\\.2); \$(info \$@ from \$^)
+.PHONY: $prereqs
+", '', "${d}the%weird\\\\_hello_pattern\\\\.x from $prereqs\n#MAKE#: Nothing to be done for 'all'.\n");
 }
 
 1;
