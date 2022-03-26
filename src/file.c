@@ -571,7 +571,7 @@ expand_deps (struct file *f)
 {
   struct dep *d;
   struct dep **dp;
-  const char *file_stem = f->stem;
+  const char *file_stem = f->stem, *fstem;
   int initialized = 0;
 
   f->updating = 0;
@@ -596,13 +596,41 @@ expand_deps (struct file *f)
 
       /* If it's from a static pattern rule, convert the patterns into
          "$*" so they'll expand properly.  */
-      if (d->staticpattern)
+      while (d->staticpattern)
         {
-          char *o = subst_expand (variable_buffer, name, "%", "$*", 1, 2, 0);
-          *o = '\0';
-          free (name);
-          d->name = name = xstrdup (variable_buffer);
+          char *s = name;
+          const char *end;
+          int found = 0;
+          size_t n;
+
           d->staticpattern = 0;
+
+          for (n = 0; *s; ++s, ++n)
+            if (*s == '%')
+              {
+                ++n; /* Reserve one extra byte to replace % with $*.  */
+                found = 1;
+              }
+          if (found == 0)
+            break;
+          d->name = name = s = realloc (name, n);
+          name[n] = 0;
+          end = name + n;
+          /* Substitute the very first % and then first % after each white
+           * space.  */
+          for (n = 0; *s; )
+            {
+              s = strchr (s, '%');
+              if (s == 0)
+                break;
+              assert (s + 1 < end);
+              /* Substitute % with $*. Enough room was ensured by realloc.  */
+              memmove (s + 1, s, end - s);
+              memcpy (s, "$*", 2);
+              /* Skip until the next white space.  */
+              s += strcspn (s, " \t");
+            }
+          break;
         }
 
       /* We're going to do second expansion so initialize file variables for
@@ -628,7 +656,7 @@ expand_deps (struct file *f)
       free (name);
 
       /* Parse the prerequisites and enter them into the file database.  */
-      new = enter_prereqs (split_prereqs (p), d->stem);
+      new = split_prereqs (p);
 
       /* If there were no prereqs here (blank!) then throw this one out.  */
       if (new == 0)
@@ -640,10 +668,22 @@ expand_deps (struct file *f)
         }
 
       /* Add newly parsed prerequisites.  */
+      fstem = d->stem;
       next = d->next;
       *dp = new;
-      for (dp = &new->next, d = new->next; d != 0; dp = &d->next, d = d->next)
-        ;
+      for (dp = &new, d = new; d != 0; dp = &d->next, d = d->next)
+        {
+          if (d->name == 0 || d->name[0] == '\0')
+            continue;
+          d->file = lookup_file (d->name);
+          if (d->file == 0)
+            d->file = enter_file (d->name);
+          d->name = 0;
+          d->stem = fstem;
+          if (!fstem)
+            /* This file is explicitly mentioned as a prereq.  */
+            d->file->is_explicit = 1;
+        }
       *dp = next;
       d = *dp;
     }
