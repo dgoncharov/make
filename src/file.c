@@ -613,22 +613,20 @@ expand_deps (struct file *f)
               }
           if (found == 0)
             break;
-          d->name = name = realloc (name, n);
-//printf("name = %s, n = %lu\n", name, n);
+          d->name = name = s = realloc (name, n);
           name[n] = 0;
           end = name + n;
-          s = name;
           /* Substitude the very first % and first after each white space.  */
           for (n = 0; *s; )
             {
               s = strchr (s, '%');
               if (s == 0)
                 break;
+              assert (s + 1 < end);
               memmove (s + 1, s, end - s);
               memcpy (s, "$*", 2);
               s += strcspn (s, " \t");
             }
-//printf("substituted name = %s, n = %lu, strlen (name) = %lu\n", name, n, strlen (name));
           break;
         }
 
@@ -647,11 +645,13 @@ expand_deps (struct file *f)
       set_file_variables (f);
 
       p = variable_expand_for_file (d->name, f);
+
       if (d->stem != 0)
         f->stem = file_stem;
 
       /* At this point we don't need the name anymore: free it.  */
       free (name);
+
       /* Parse the prerequisites and enter them into the file database.  */
       new = enter_prereqs (split_prereqs (p), 0);
 
