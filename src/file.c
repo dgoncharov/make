@@ -673,9 +673,11 @@ expand_deps (struct file *f)
       *dp = new;
       for (dp = &new, d = new; d != 0; dp = &d->next, d = d->next)
         {
+          struct file *x;
           if (d->name == 0 || d->name[0] == '\0')
             continue;
-          d->file = lookup_file (d->name);
+
+          d->file = x = lookup_file (d->name);
           if (d->file == 0)
             d->file = enter_file (d->name);
           d->name = 0;
@@ -683,6 +685,8 @@ expand_deps (struct file *f)
           if (!fstem)
             /* This file is explicitly mentioned as a prereq.  */
             d->file->is_explicit = 1;
+          else if (x == 0 && d->file->notintermediate == 0)
+            d->file->intermediate = 1;
         }
       *dp = next;
       d = *dp;
