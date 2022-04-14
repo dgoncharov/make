@@ -571,7 +571,6 @@ expand_deps (struct file *f)
 {
   struct dep *d;
   struct dep **dp;
-  const char *file_stem = f->stem;
   int initialized = 0;
 
   f->updating = 0;
@@ -614,15 +613,9 @@ expand_deps (struct file *f)
           initialized = 1;
         }
 
-      if (d->stem != 0)
-        f->stem = d->stem;
-
-      set_file_variables (f);
+      set_file_variables (f, d->stem ? d->stem : f->stem);
 
       p = variable_expand_for_file (d->name, f);
-
-      if (d->stem != 0)
-        f->stem = file_stem;
 
       /* At this point we don't need the name anymore: free it.  */
       free (name);
