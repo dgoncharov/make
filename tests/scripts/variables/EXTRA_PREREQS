@@ -3,6 +3,12 @@
 $description = "Test the .EXTRA_PREREQS special variable.";
 $details = "";
 
+sub cirmsg
+{
+    my $dep = $_[0];
+    return "#MAKE#: Circular $dep <- $dep dependency dropped.\n";
+}
+
 # Simple global .EXTRA_PREREQS and automatic variable settings
 run_make_test('
 .EXTRA_PREREQS = tick tack
@@ -10,7 +16,7 @@ run_make_test('
 all: ; @echo ${.EXTRA_PREREQS}/$@/$</$^/$?/$+/$|/$*/
 tick tack: ; @echo $@
 ',
-              '', "tick\ntack\ntick tack/all///////\n");
+              '', cirmsg('tick') . cirmsg('tack') . "tick\ntack\ntick tack/all///////\n");
 
 # Global .EXTRA_PREREQS and pattern rules
 run_make_test('
@@ -18,7 +24,7 @@ run_make_test('
 a%: ; @echo ${.EXTRA_PREREQS}/$@/$</$^/$?/$+/$|/$*/
 tick tack: ; @echo $@
 ',
-              'all', "tick\ntack\ntick tack/all//////ll/\n");
+              'all', cirmsg('tick') . cirmsg('tack') . "tick\ntack\ntick tack/all//////ll/\n");
 
 # Simple target-specific .EXTRA_PREREQS and automatic variable settings
 run_make_test('
@@ -73,7 +79,7 @@ target: ${OTHER_PREREQUISITES} ; @echo ${.EXTRA_PREREQS} $^
 .PHONY: target ${.EXTRA_PREREQS} ${OTHER_PREREQUISITES}
 ${.EXTRA_PREREQS} ${OTHER_PREREQUISITES}: ; @echo $@
 ',
-              '', "hi\nho\nhey\nfoo\nbar\nbaz\nhi ho hey foo bar baz\n");
+              '', cirmsg('hi') . cirmsg('ho') . cirmsg('hey') . "hi\nho\nhey\nfoo\nbar\nbaz\nhi ho hey foo bar baz\n");
 
 # Test that target specific .EXTRA_PREREQS override global .EXTRA_PREREQS:
 run_make_test('
@@ -85,7 +91,7 @@ target: ${OTHER_PREREQUISITES} ; @echo ${.EXTRA_PREREQS} $^
 .PHONY: target ${DEPENDENCY_ONLY_PREREQUISITES} ${OTHER_PREREQUISITES} ${.EXTRA_PREREQS}
 ${DEPENDENCY_ONLY_PREREQUISITES} ${OTHER_PREREQUISITES} ${.EXTRA_PREREQS}: ; @echo $@
 ',
-              '', "tick\ntack\nfoo\nbar\nbaz\nho\nhey\nhi ho hey foo bar baz\n");
+              '', cirmsg('tick') . cirmsg('tack') . "tick\ntack\nfoo\nbar\nbaz\nho\nhey\nhi ho hey foo bar baz\n");
 
 # Cleanup:
 unlink('hi');
@@ -127,7 +133,7 @@ run_make_test('
 all: ; @echo ${.EXTRA_PREREQS} $^
 tick tack: ; @echo $@
 ',
-              '', "tack\ntick\ntack tick\n");
+              '', cirmsg('tick') . cirmsg('tack') . "tack\ntick\ntack tick\n");
 
 run_make_test('
 .PHONY: all tick tack
@@ -143,7 +149,7 @@ a%: ; @echo ${.EXTRA_PREREQS} $^
 .EXTRA_PREREQS = *ck
 tick tack: ; @echo $@
 ',
-              'all', "tack\ntick\ntack tick\n");
+              'all', cirmsg('tick') . cirmsg('tack') . "tack\ntick\ntack tick\n");
 
 unlink('tick', 'tack');
 
