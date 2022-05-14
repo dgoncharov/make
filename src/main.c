@@ -2868,6 +2868,7 @@ static void
 handle_non_switch_argument (const char *arg, int env)
 {
   struct variable *v;
+  size_t alen;
 
   if (arg[0] == '-' && arg[1] == '\0')
     /* Ignore plain '-' for compatibility.  */
@@ -2898,6 +2899,15 @@ handle_non_switch_argument (const char *arg, int env)
       }
   }
 #endif
+
+  alen = strlen (arg);
+  if ((alen > 10 && memcmp (arg, "MAKEFLAGS=", 10) == 0) ||
+      (alen > 13 && memcmp (arg, "GNUMAKEFLAGS=", 13) == 0))
+    {
+      ON (error, NILF, _("warning: ignoring argument '%s'."), arg);
+      return;
+    }
+
   v = try_variable_definition (0, arg, o_command, 0);
   if (v != 0)
     {

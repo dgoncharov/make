@@ -12900,6 +12900,10 @@ recipe line: its contents may not be quoted correctly for use in the
 shell.  Always allow recursive @code{make}'s to obtain these values
 through the environment from its parent.
 
+@code{MAKEFLAGS=<value>}, other than @code{MAKEFLAGS=}, cannot be defined on
+the command line and passed to @code{make} as an argument.  @code{make} ignores
+@code{MAKEFLAGS=<value>} arguments on the command line and in recipes.
+
 @item GNUMAKEFLAGS
 
 Other flags parsed by @code{make}.  You can set this in the environment or
@@ -12910,6 +12914,11 @@ makefile.  This variable will be seen by GNU @code{make} and ignored
 by other @code{make} implementations.  It's not needed if you only use
 GNU @code{make}; just use @code{MAKEFLAGS} directly.
 @xref{Options/Recursion, ,Communicating Options to a Sub-@code{make}}.
+
+@code{GNUMAKEFLAGS=<value>}, other than @code{GNUMAKEFLAGS=}, cannot be defined
+on the command line and passed to @code{make} as an argument.  @code{make}
+ignores @code{GNUMAKEFLAGS=<value>} arguments on the command line and in
+recipes.
 
 @item MAKECMDGOALS
 

@@ -62,4 +62,77 @@ MAKEFLAGS= -I- -Ifoo -Ibar $MAKEFLAGS= -I- -Ifoo -Ibar');
 rmdir('foo');
 rmdir('bar');
 
+# Test MAKEFLAGS=<value> arguments are ignored.
+# sv 62469.
+
+run_make_test(q!
+$(info MAKEFLAGS=$(MAKEFLAGS))
+all:; $(info hello)
+!, 'MAKEFLAGS=-s',
+"#MAKE#: warning: ignoring argument 'MAKEFLAGS=-s'.
+MAKEFLAGS=
+hello
+make: 'all' is up to date.\n");
+
+# Test MAKEFLAGS=<value> arguments to recursive make calls are ignored.
+# sv 62469.
+run_make_test(q!
+$(info MAKEFLAGS=$(MAKEFLAGS))
+all:; @$(MAKE) -f #MAKEFILE# test MAKEFLAGS=-k
+test:; $(info test)
+!, '--no-print-directory',
+"MAKEFLAGS= --no-print-directory
+#MAKE#: warning: ignoring argument 'MAKEFLAGS=-k'.
+MAKEFLAGS= --no-print-directory
+test
+#MAKE#[1]: 'test' is up to date.\n");
+
+#
+# Test that it is possible to reset MAKEFLAGS specified in the makefile or env
+# with MAKEFLAGS= argument.
+# sv 62469.
+#
+# Subtest 1.
+# First run the test without MAKEFLAGS= argument.
+
+$ENV{MAKEFLAGS}='-k';
+run_make_test(q!
+MAKEFLAGS+=-r
+$(info MAKEFLAGS=$(MAKEFLAGS))
+all:; $(info hello)
+!, '',
+"MAKEFLAGS=k -r
+hello
+make: 'all' is up to date.\n");
+
+# Subtest 2.
+# Run the same test with MAKEFLAGS= argument.
+
+$ENV{MAKEFLAGS}='-k';
+run_make_test(q!
+MAKEFLAGS+=-r
+$(info MAKEFLAGS=$(MAKEFLAGS))
+all:; $(info hello)
+!, 'MAKEFLAGS=',
+"MAKEFLAGS=
+hello
+make: 'all' is up to date.\n");
+
+# Test that MAKEFLAGS= argument to a recursive make call resets MAKEFLAGS set
+# in the makefile or env.
+# sv 62469.
+
+$ENV{MAKEFLAGS}='-k';
+run_make_test(q!
+MAKEFLAGS+=-r
+$(info MAKEFLAGS=$(MAKEFLAGS))
+all:; @$(MAKE) -f #MAKEFILE# test MAKEFLAGS=
+test:; $(info test)
+!, '--no-print-directory',
+"MAKEFLAGS=k --no-print-directory -r
+MAKEFLAGS=
+test
+#MAKE#[1]: 'test' is up to date.\n");
+
+
 1;
