@@ -55,4 +55,19 @@ $answer = "touch xxx\n";
 
 unlink('xxx');
 
+# Test that switch presence testing technique recommented by the manual works
+# when -I<path> and long options are specified.
+# sv 62496.
+run_make_test(q!
+$(info '$(findstring t,$(filter-out -%,$(MAKEFLAGS)))')
+all:;
+!, '-I/tmp --no-print-directory', "''\nmake: 'all' is up to date.\n");
+
+# Same as above, this time with -t.
+run_make_test(q!
+$(info '$(findstring t,$(filter-out -%,$(MAKEFLAGS)))')
+all:;
+!, '-I/tmp --no-print-directory -t', "'t'\ntouch all\n");
+
+unlink('all');
 1;

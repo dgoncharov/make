@@ -7199,7 +7199,7 @@ marking an archive file up to date:
 
 @example
 archive.a: @dots{}
-ifneq (,$(findstring t,$(MAKEFLAGS)))
+ifeq (t,$(findstring t,$(filter-out -%,$(MAKEFLAGS))))
         +touch archive.a
         +ranlib -t archive.a
 else
@@ -7211,6 +7211,9 @@ endif
 The @samp{+} prefix marks those recipe lines as ``recursive'' so that
 they will be executed despite use of the @samp{-t} flag.
 @xref{Recursion, ,Recursive Use of @code{make}}.
+
+@samp{filter-out -%} filters out long and -I<path> options from
+@code{MAKEFLAGS}.
 
 @node Functions, Running, Conditionals, Top
 @chapter Functions for Transforming Text
