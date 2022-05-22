@@ -62,4 +62,67 @@ MAKEFLAGS= -I- -Ifoo -Ibar $MAKEFLAGS= -I- -Ifoo -Ibar');
 rmdir('foo');
 rmdir('bar');
 
+# Test that command line switches are all present in MAKEFLAGS.
+# sv 62514.
+
+# Simple flags.
+my @opts = ('i', 'k', 'L', 'n', 'q', 'r', 's', 'w', 'd');
+for my $opt (@opts) {
+run_make_test(q!
+MAKEFLAGS:=B
+all:; $(info makeflags='$(MAKEFLAGS)')
+!, "-$opt", "/makeflags='B$opt'/");
+}
+
+# Switches which carry arguments.
+my @opts = (' -I/tmp', ' -Onone', ' --debug=b', ' -l2.5');
+for my $opt (@opts) {
+run_make_test(q!
+MAKEFLAGS:=B
+all:; $(info makeflags='$(MAKEFLAGS)')
+!, "$opt", "/makeflags='B$opt'/");
+}
+
+# Long options which take no arguments.
+# sv 62514.
+my @opts = (' --no-print-directory', ' --warn-undefined-variables', ' --trace');
+for my $opt (@opts) {
+run_make_test(q!
+MAKEFLAGS:=B
+all:; $(info makeflags='$(MAKEFLAGS)')
+!, "$opt", "/makeflags='B$opt'/");
+}
+
+# Test that make filters out duplicates.
+# Each option is specified in the makefile, env and on the command line.
+my @opts = (' -I/tmp', ' -Onone', ' --debug=b', ' -l2.5');
+$ENV{'MAKEFLAGS'} = $opt;
+for my $opt (@opts) {
+run_make_test("
+MAKEFLAGS:=B $opt
+all:; \$(info makeflags='\$(MAKEFLAGS)')
+", "$opt", "/makeflags='B$opt'/");
+}
+
+# Test that make filters out duplicates.
+# Each option is specified in the makefile, env and on the command line.
+# decode_switches reallocates when the number of parameters in sl->list exceeds 5.
+# This test exercises the realloc branch.
+$ENV{'MAKEFLAGS'} = '-I1 -Onone --debug=b -l2.5 -I2 -I3 -I4 -I5 -I6 -I2 -I2';
+run_make_test(q!
+MAKEFLAGS:=B -I1 -Onone --debug=b -l2.5 -I2 -I3 -I4 -I5 -I6 -I2 -I2
+all:; $(info makeflags='$(MAKEFLAGS)')
+!,
+'-I1 -Onone --debug=b -l2.5 -I2 -I3 -I4 -I5 -I6',
+"/makeflags='B -I1 -I2 -I3 -I4 -I5 -I6 -l2.5 -Onone --debug=b'/");
+
+# A mix of multiple flags from env, the makefile and command line.
+$ENV{'MAKEFLAGS'} = 'ikLB --no-print-directory --warn-undefined-variables --trace';
+run_make_test(q!
+MAKEFLAGS:=ikLnqrswd -I/tmp -I/tmp -Onone -Onone -l2.5 -l2.5
+all:; $(info makeflags='$(MAKEFLAGS)')
+!,
+'-Onone -l2.5 -l2.5 -Onone -I/tmp -ikLnqrswd -i -n -s -k -L -I/tmp',
+"/makeflags='BdikLnqrsw -I/tmp -l2.5 -Onone --trace --warn-undefined-variables'/");
+
 1;
