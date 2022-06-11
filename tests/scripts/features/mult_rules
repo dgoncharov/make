@@ -69,6 +69,20 @@ $answer = "EXTRA EXTRA\n";
 
 unlink("defs.h","test.h","config.h","extra.h");
 
+# sv 62615
+# Test that overriding a recipe does not leak.
+# To see a leak build with -fsanitize=leak.
+run_make_test(q!
+all: hello.o
+hello.o: hello.h; $(info $@ from $^)
+hello.o: hello.c; $(info $@ from $^)
+hello.c hello.h:;
+!, '',
+"#MAKEFILE#:4: warning: overriding recipe for target 'hello.o'
+#MAKEFILE#:3: warning: ignoring old recipe for target 'hello.o'
+hello.o from hello.c hello.h
+make: Nothing to be done for 'all'.\n");
+
 1;
 
 

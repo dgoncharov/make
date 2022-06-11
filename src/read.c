@@ -2157,7 +2157,12 @@ record_files (struct nameseq *filenames, int are_also_makes,
           if (f == default_file && this == 0 && cmds == 0)
             f->cmds = 0;
           if (cmds != 0)
-            f->cmds = cmds;
+            {
+              if (f->cmds)
+                free (f->cmds->commands);
+              free (f->cmds);
+              f->cmds = cmds;
+            }
 
           /* Defining .SUFFIXES with no dependencies clears out the list of
              suffixes.  */
