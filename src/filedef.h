@@ -126,6 +126,7 @@ void rehash_file (struct file *file, const char *name);
 void set_command_state (struct file *file, enum cmd_state state);
 void notice_finished_file (struct file *file);
 void init_hash_files (void);
+void free_hash_files (void);
 void verify_file_data_base (void);
 char *build_target_list (char *old_list);
 void print_prereqs (const struct dep *deps);

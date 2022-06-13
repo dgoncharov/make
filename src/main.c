@@ -3721,6 +3721,8 @@ die (int status)
       if (verify_flag)
         verify_file_data_base ();
 
+      free_hash_files ();
+
       clean_jobserver (status);
 
       if (output_context)

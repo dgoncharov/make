@@ -1291,4 +1291,33 @@ init_hash_files (void)
   hash_init (&files, 1000, file_hash_1, file_hash_2, file_hash_cmp);
 }
 
+void
+free_hash_files (void)
+{
+  struct file **file_slot;
+  struct file **file_end;
+  struct file *f;
+  file_slot = (struct file **) files.ht_vec;
+  file_end = file_slot + files.ht_size;
+  for ( ; file_slot < file_end; file_slot++)
+    if (! HASH_VACANT (*file_slot))
+      {
+        f = *file_slot;
+//TODO: introduce free_commands (f);
+//TODO: introduce free_variables (f);
+        if (f->cmds)
+          {
+              unsigned short k;
+              free (f->cmds->commands);
+              if (f->cmds->command_lines)
+                for (k = 0; k < f->cmds->ncommand_lines; ++k)
+                  free (f->cmds->command_lines[k]);
+              free (f->cmds);
+        }
+        free_dep_chain (f->deps);
+      }
+
+  hash_free (&files, 1);
+}
+
 /* EOF */
