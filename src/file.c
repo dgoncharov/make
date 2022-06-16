@@ -346,6 +346,17 @@ rehash_file (struct file *from_file, const char *to_hname)
 
   to_file->builtin = 0;
   from_file->renamed = to_file;
+  if (from_file->cmds)
+    {
+        unsigned short k;
+        free (from_file->cmds->commands);
+        if (from_file->cmds->command_lines)
+          for (k = 0; k < f->cmds->ncommand_lines; ++k)
+            free (from_file->cmds->command_lines[k]);
+        free (from_file->cmds);
+    }
+  /* from_file should also be freed, but the caller uses it after rehash_file
+     returns.  */
 }
 
 /* Rename FILE to NAME.  This is not as simple as resetting
