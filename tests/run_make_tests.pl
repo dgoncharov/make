@@ -124,6 +124,8 @@ $ERR_command_not_found = undef;
       $! = &POSIX::ERANGE;
   }
 
+  $makeENV{ASAN_OPTIONS} = 'detect_leaks=0';
+
   if (open(my $F, '<', 'file.none')) {
       print "Opened non-existent file! Skipping related tests.\n";
   } else {
