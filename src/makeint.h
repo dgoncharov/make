@@ -683,6 +683,7 @@ extern const floc **expanding_var;
 
 extern unsigned short stopchar_map[];
 
+extern char *jobserver_auth;
 extern int just_print_flag, run_silent, ignore_errors_flag, keep_going_flag;
 extern int print_data_base_flag, question_flag, touch_flag, always_make_flag;
 extern int env_overrides, no_builtin_rules_flag, no_builtin_variables_flag;

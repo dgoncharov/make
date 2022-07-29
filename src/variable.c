@@ -1022,18 +1022,21 @@ should_export (const struct variable *v)
    The child's MAKELEVEL variable is incremented.  */
 
 char **
-target_environment (struct file *file)
+target_environment (struct file *file, int recursive)
 {
   struct variable_set_list *set_list;
   struct variable_set_list *s;
   struct hash_table table;
   struct variable **v_slot;
   struct variable **v_end;
-  struct variable makelevel_key;
+  struct variable makelevel_key, makeflags;
   char **result_0;
   char **result;
   /* If we got no value from the environment then never add the default.  */
   int added_SHELL = shell_var.value == 0;
+  void *slot;
+  int n;
+  size_t authlen;
 
   if (file == 0)
     set_list = current_variable_set_list;
@@ -1078,6 +1081,12 @@ target_environment (struct file *file)
   makelevel_key.name = (char *)MAKELEVEL_NAME;
   makelevel_key.length = MAKELEVEL_LENGTH;
   hash_delete (&table, &makelevel_key);
+
+  makeflags.name = (char *)MAKEFLAGS_NAME;
+  makeflags.length = sizeof (MAKEFLAGS_NAME) - 1;
+  slot = hash_find_slot (&table, &makeflags);
+  makeflags = **(struct variable **) slot;
+  hash_delete_at (&table, slot);
 
   result = result_0 = xmalloc ((table.ht_fill + 3) * sizeof (char *));
 
@@ -1135,6 +1144,17 @@ target_environment (struct file *file)
 
   *result = xmalloc (100);
   sprintf (*result, "%s=%u", MAKELEVEL_NAME, makelevel + 1);
+
+  authlen = strlen (jobserver_auth);
+  *++result = xmalloc (64 + authlen + strlen (makeflags.value));
+  n = sprintf (*result, "%s=%s", MAKEFLAGS_NAME, makeflags.value);
+//#ifdef HAVE_SEM_OPEN
+  if (recursive && jobserver_auth)
+    {
+      char *a = mempcpy (*result + n, " --jobserver-auth=", 18);
+      memcpy (a, jobserver_auth, authlen + 1);
+    }
+//#endif
   *++result = 0;
 
   hash_free (&table, 0);

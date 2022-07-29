@@ -232,7 +232,7 @@ static const int inf_jobs = 0;
 
 /* Authorization for the jobserver.  */
 
-static char *jobserver_auth = NULL;
+char *jobserver_auth = NULL;
 
 /* Shuffle mode for goals and prerequisites.  */
 
@@ -475,7 +475,6 @@ static const struct command_switch switches[] =
 
     /* These are long-style options.  */
     { CHAR_MAX+1, strlist, &db_flags, 1, 1, 0, "basic", 0, "debug" },
-    { CHAR_MAX+2, string, &jobserver_auth, 1, 1, 0, 0, 0, "jobserver-auth" },
     { CHAR_MAX+3, flag, &trace_flag, 1, 1, 0, 0, 0, "trace" },
     { CHAR_MAX+4, flag_off, &print_directory_flag, 1, 1, 0, 0,
       &default_print_directory_flag, "no-print-directory" },
@@ -3395,6 +3394,8 @@ define_makeflags (int all, int makefile)
           break;
 
         case positive_int:
+          if (cs->c == 'j' || strcmp (cs->long_name, "jobs") == 0)
+            break;
           if (all)
             {
               if ((cs->default_value != 0
@@ -3662,6 +3663,7 @@ clean_jobserver (int status)
              "INTERNAL: Exiting with %u jobserver tokens available; should be %u!",
              tokens, master_job_slots);
 
+      jobserver_unlink ();
       reset_jobserver ();
     }
 }

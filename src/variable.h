@@ -235,7 +235,7 @@ void undefine_variable_in_set (const char *name, size_t length,
                                        (int)(l), (n));                  \
                               }while(0)
 
-char **target_environment (struct file *file);
+char **target_environment (struct file *file, int recursive);
 
 struct pattern_var *create_pattern_var (const char *target,
                                         const char *suffix);
