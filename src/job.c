@@ -1,3 +1,5 @@
+#define HAVE_SEM_OPEN 1
+
 /* Job execution and handling for GNU Make.
 Copyright (C) 1988-2022 Free Software Foundation, Inc.
 This file is part of GNU Make.
@@ -253,6 +255,16 @@ unsigned long job_counter = 0;
 /* Number of jobserver tokens this instance is currently using.  */
 
 unsigned int jobserver_tokens = 0;
+
+/* Number of successful waits since startup.  */
+volatile sig_atomic_t nwaits = 0;
+
+/* Number of free tokens used since startup.  */
+volatile sig_atomic_t nfree = 0;
+
+/* Total number of times job_sem has been posted since startup.  */
+volatile sig_atomic_t nposted = 0;
+
 
 
 #ifdef WINDOWS32
@@ -474,9 +486,31 @@ is_bourne_compatible_shell (const char *path)
 extern sigset_t fatal_signal_set;
 
 static void
+block_sigchld ()
+{
+  int rc;
+  sigset_t set;
+  sigemptyset (&set);
+  sigaddset (&set, SIGCHLD);
+  rc = sigprocmask (SIG_BLOCK, &set, (sigset_t *) 0);
+  assert (rc == 0);
+}
+
+static void
+unblock_sigchld ()
+{
+  int rc;
+  sigset_t set;
+  sigemptyset (&set);
+  sigaddset (&set, SIGCHLD);
+  rc = sigprocmask (SIG_UNBLOCK, &set, (sigset_t *) 0);
+  assert (rc == 0);
+}
+
+static void
 block_sigs ()
 {
-  sigprocmask (SIG_BLOCK, &fatal_signal_set, (sigset_t *) 0);
+//  sigprocmask (SIG_BLOCK, &fatal_signal_set, (sigset_t *) 0);
 }
 
 static void
@@ -500,13 +534,13 @@ extern int fatal_signal_mask;
 static void
 block_sigs ()
 {
-  sigblock (fatal_signal_mask);
+//  sigblock (fatal_signal_mask);
 }
 
 static void
 unblock_sigs ()
 {
-  sigsetmask (siggetmask () & ~fatal_signal_mask);
+//  sigsetmask (siggetmask () & ~fatal_signal_mask);
 }
 
 void
@@ -614,7 +648,7 @@ child_handler (int sig UNUSED)
 {
   ++dead_children;
 
-  jobserver_signal ();
+//  jobserver_signal ();
 
 #ifdef __EMX__
   /* The signal handler must called only once! */
@@ -664,6 +698,7 @@ reap_children (int block, int err)
       int child_failed;
       int any_remote, any_local;
       int dontcare;
+      int rc, semvalue;
 
       if (err && block)
         {
@@ -778,6 +813,7 @@ reap_children (int block, int err)
               exit_code = WEXITSTATUS (status);
               exit_sig = WIFSIGNALED (status) ? WTERMSIG (status) : 0;
               coredump = WCOREDUMP (status);
+              ++nwaits;
             }
           else
             {
@@ -917,6 +953,18 @@ reap_children (int block, int err)
       /* If we have started jobs in this second, remove one.  */
       if (job_counter)
         --job_counter;
+
+      block_sigchld ();
+      rc = sem_getvalue(job_sem, &semvalue);
+      assert (rc == 0);
+printf("nwaits = %d, nposted = %d, nfree = %d, semvalue = %d\n", nwaits, nposted, nfree, semvalue);
+      for (; nwaits > nposted + nfree && job_sem != SEM_FAILED; ++nposted)
+        {
+printf("posting sem\n");
+          rc = sem_post (job_sem);
+          assert (rc == 0);
+        }
+      unblock_sigchld ();
 
     process_child:
 
@@ -1134,6 +1182,7 @@ free_childbase (struct childbase *child)
 static void
 free_child (struct child *child)
 {
+  int enabled;
   output_close (&child->output);
 
   if (!jobserver_tokens)
@@ -1142,15 +1191,19 @@ free_child (struct child *child)
 
   /* If we're using the jobserver and this child is not the only outstanding
      job, put a token back into the pipe for it.  */
-
-  if (jobserver_enabled () && jobserver_tokens > 1)
+  enabled = jobserver_enabled ();
+printf("jobserver_enabled = %d, jobserver_tokens = %u\n", enabled, jobserver_tokens);
+  if (enabled && jobserver_tokens > 1)
     {
+#ifndef HAVE_SEM_OPEN
       jobserver_release (1);
-      DB (DB_JOBS, (_("Released token for child %p (%s).\n"),
+#endif
+      DB (DB_JOBS, (_("Exiting child %p (%s) and releasing a token.\n"),
                     child, child->file->name));
     }
 
   --jobserver_tokens;
+printf("jobserver_tokens = %u\n", jobserver_tokens);
 
   if (handling_fatal_signal) /* Don't bother free'ing if about to die.  */
     return;
@@ -1430,7 +1483,7 @@ start_job_command (struct child *child)
 #ifndef _AMIGA
   /* Set up the environment for the child.  */
   if (child->environment == 0)
-    child->environment = target_environment (child->file);
+    child->environment = target_environment (child->file, child->recursive);
 #endif
 
 #if !defined(__MSDOS__) && !defined(_AMIGA) && !defined(WINDOWS32)
@@ -1867,7 +1920,11 @@ new_job (struct file *file)
 
         /* If we don't already have a job started, use our "free" token.  */
         if (!jobserver_tokens)
-          break;
+          {
+printf("jobserver_tokens = 0, using free token\n");
+            ++nfree;
+            break;
+          }
 
         /* Prepare for jobserver token acquisition.  */
         jobserver_pre_acquire ();
@@ -1881,7 +1938,11 @@ new_job (struct file *file)
 
         /* If our "free" slot is available, use it; we don't need a token.  */
         if (!jobserver_tokens)
-          break;
+          {
+printf("jobserver_tokens = 0, using free token\n");
+            ++nfree;
+            break;
+          }
 
         /* There must be at least one child already, or we have no business
            waiting for a token. */
@@ -1901,7 +1962,9 @@ new_job (struct file *file)
       }
 #endif
 
+printf("jobserver_tokens = %u, incrementing\n", jobserver_tokens);
   ++jobserver_tokens;
+printf("jobserver_tokens = %u\n", jobserver_tokens);
 
   /* Trace the build.
      Use message here so that changes to working directories are logged.  */
@@ -2800,7 +2863,7 @@ construct_command_argv_internal (char *line, char **restp, const char *shell,
       "eval", "exec", "exit", "export", "fc", "fg", "for", "getopts", "hash",
       "if", "jobs", "login", "logout", "read", "readonly", "return", "set",
       "shift", "test", "times", "trap", "type", "ulimit", "umask", "unalias",
-      "unset", "wait", "while", 0 };
+      "unset", "wait", "while", "sleep", 0 };
 
 # ifdef HAVE_DOS_PATHS
   /* This is required if the MSYS/Cygwin ports (which do not define

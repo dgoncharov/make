@@ -1,3 +1,9 @@
+//TODO: detect at configure time
+#define HAVE_SEM_OPEN 1
+#define HAVE_SEMAPHORE_H 1
+
+
+
 /* POSIX-based operating system interface for GNU Make.
 Copyright (C) 2016-2022 Free Software Foundation, Inc.
 This file is part of GNU Make.
@@ -17,11 +23,20 @@ this program.  If not, see <http://www.gnu.org/licenses/>.  */
 #include "makeint.h"
 
 #include <stdio.h>
+#include <assert.h>
 
 #ifdef HAVE_FCNTL_H
 # include <fcntl.h>
 #elif defined(HAVE_SYS_FILE_H)
 # include <sys/file.h>
+#endif
+
+#ifdef HAVE_SYS_STAT_H
+# include <sys/stat.h>
+#endif
+
+#ifdef HAVE_SEMAPHORE_H
+# include <semaphore.h>
 #endif
 
 #if defined(HAVE_PSELECT) && defined(HAVE_SYS_SELECT_H)
@@ -36,6 +51,11 @@ this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 /* This section provides OS-specific functions to support the jobserver.  */
 
+#ifdef HAVE_SEM_OPEN
+static const char job_sem_name[] = "gmake.fifo";
+sem_t *job_sem = SEM_FAILED;
+int nslots;
+#endif
 /* These track the state of the jobserver pipe.  Passed to child instances.  */
 static int job_fds[2] = { -1, -1 };
 
@@ -83,6 +103,19 @@ set_blocking (int fd, int blocking)
 unsigned int
 jobserver_setup (int slots)
 {
+#ifdef HAVE_SEM_OPEN
+  int rc, count;
+printf("opening sem %s with %d tokens\n", job_sem_name, slots);
+  nslots = slots;
+  job_sem = sem_open (job_sem_name, O_RDWR|O_EXCL|O_CREAT, S_IRUSR|S_IWUSR, slots);
+  rc = sem_getvalue(job_sem, &count);
+  DB (DB_JOBS, (_("Opened semaphore %s with value %d\n"), job_sem_name, count));
+  assert (rc == 0);
+  assert (count == slots);
+printf("job_sem = %p: %s\n", job_sem, strerror (errno));
+  if (job_sem == SEM_FAILED)
+    pfatal_with_name (_("creating jobs semaphore"));
+#else
   int r;
 
   EINTRLOOP (r, pipe (job_fds));
@@ -106,13 +139,44 @@ jobserver_setup (int slots)
 
   /* When using pselect() we want the read to be non-blocking.  */
   set_blocking (job_fds[0], 0);
+#endif
 
   return 1;
+}
+
+int
+jobserver_unlink ()
+{
+#ifdef HAVE_SEM_OPEN
+  int rc = 0;
+  if (job_sem != SEM_FAILED)
+    rc = sem_unlink (job_sem_name);
+  assert (rc == 0 || errno == ENOENT);
+#endif
+  return 0;
+}
+
+static unsigned int
+open_sem (const char *name)
+{
+#ifdef HAVE_SEM_OPEN
+  assert (job_sem == SEM_FAILED);
+  job_sem = sem_open (name, O_RDWR);
+  if (job_sem == SEM_FAILED)
+    perror_with_name (_("opening jobs semaphore"), name);
+ 
+  DB (DB_JOBS, (_("Jobserver client (sem %s)\n"), name));
+  return 1;
+#endif
+  return 0;
 }
 
 unsigned int
 jobserver_parse_auth (const char *auth)
 {
+#ifdef HAVE_SEM_OPEN
+  return open_sem (auth);
+#else
   /* Given the command-line parameter, parse it.  */
   if (sscanf (auth, "%d,%d", &job_fds[0], &job_fds[1]) != 2)
     OS (fatal, NILF,
@@ -151,25 +215,42 @@ jobserver_parse_auth (const char *auth)
   fd_noinherit (job_fds[1]);
 
   return 1;
+#endif
 }
 
 char *
 jobserver_get_auth (void)
 {
+#ifdef HAVE_SEM_OPEN
+  char *auth = xstrdup (job_sem_name);
+#else
   char *auth = xmalloc ((INTSTR_LENGTH * 2) + 2);
   sprintf (auth, "%d,%d", job_fds[0], job_fds[1]);
+#endif
+printf("auth = %s\n", auth);
   return auth;
 }
 
 unsigned int
 jobserver_enabled (void)
 {
+#ifdef HAVE_SEM_OPEN
+  return job_sem != SEM_FAILED;
+#else
   return job_fds[0] >= 0;
+#endif
 }
 
 void
 jobserver_clear (void)
 {
+#ifdef HAVE_SEM_OPEN
+  int rc = 0;
+  if (job_sem != SEM_FAILED)
+    rc = sem_close (job_sem);
+  assert (rc == 0);
+  job_sem = SEM_FAILED;
+#else
   if (job_fds[0] >= 0)
     close (job_fds[0]);
   if (job_fds[1] >= 0)
@@ -178,11 +259,25 @@ jobserver_clear (void)
     close (job_rfd);
 
   job_fds[0] = job_fds[1] = job_rfd = -1;
+#endif
 }
 
 void
 jobserver_release (int is_fatal)
 {
+#ifdef HAVE_SEM_OPEN
+  int r;
+  DB (DB_JOBS, (_("releasing 1 token on sem %s\n"), jobserver_auth));
+  EINTRLOOP (r, sem_post (job_sem));
+  if (r == 0)
+    {
+      DB (DB_JOBS, (_("released 1 token on sem %s\n"), jobserver_auth));
+      return;
+    }
+  if (is_fatal)
+    pfatal_with_name (_("post jobserver"));
+  perror_with_name ("post", "");
+#else
   int r;
   EINTRLOOP (r, write (job_fds[1], &token, 1));
   if (r != 1)
@@ -191,6 +286,7 @@ jobserver_release (int is_fatal)
         pfatal_with_name (_("write jobserver"));
       perror_with_name ("write", "");
     }
+#endif
 }
 
 unsigned int
@@ -198,6 +294,23 @@ jobserver_acquire_all (void)
 {
   unsigned int tokens = 0;
 
+#ifdef HAVE_SEM_OPEN
+  int rc, semvalue;
+  rc = sem_getvalue(job_sem, &semvalue);
+  assert (rc == 0);
+printf("sem value = %d\n", semvalue);
+  while (1)
+    {
+      errno = 0;
+      EINTRLOOP (rc, sem_trywait (job_sem));
+      if (rc)
+        assert (errno == EAGAIN);
+      if (rc)
+        return tokens;
+printf("rc = %d: %s\n", rc, strerror(errno));
+      ++tokens;
+    }
+#else
   /* Use blocking reads to wait for all outstanding jobs.  */
   set_blocking (job_fds[0], 1);
 
@@ -214,49 +327,80 @@ jobserver_acquire_all (void)
         return tokens;
       ++tokens;
     }
+#endif
 }
 
 /* Prepare the jobserver to start a child process.  */
 void
 jobserver_pre_child (int recursive)
 {
+#ifdef HAVE_SEM_OPEN
+  if (recursive == 0)
+    {
+
+    }
+#else
   if (recursive && job_fds[0] >= 0)
     {
       fd_inherit (job_fds[0]);
       fd_inherit (job_fds[1]);
     }
+#endif
 }
 
 /* Reconfigure the jobserver after starting a child process.  */
 void
 jobserver_post_child (int recursive)
 {
+#ifndef HAVE_SEM_OPEN
   if (recursive && job_fds[0] >= 0)
     {
       fd_noinherit (job_fds[0]);
       fd_noinherit (job_fds[1]);
     }
+#endif
 }
 
 void
-jobserver_signal (void)
+jobserver_signal (int signo, siginfo_t *siginfo, void *uctx)
 {
+#ifdef HAVE_SEM_OPEN
+  /* Close the semaphore, but keep job_sem value intact.
+   * sem_wait will attempt to wait on job_sem and receive EBADF.  */
+  int rc, count;
+
+  /* Search for a child matching the deceased one?  */
+  rc = sem_getvalue(job_sem, &count);
+  printf("received sigchld, job_sem = %p, jobserver_tokens = %u, nposted = %d, nwaits = %d, nfree = %d, semvalue = %d\n", job_sem, jobserver_tokens, nposted, nwaits, nfree, count);
+  assert (rc == 0);
+  printf("pid = %d, code = %d\n", siginfo->si_pid, siginfo->si_code);
+  if (job_sem != SEM_FAILED && nposted + nfree < nwaits)
+    {
+printf("Posting sem %s with value %d\n", jobserver_auth, count);
+      rc = sem_post (job_sem);
+      assert (rc == 0);
+      ++nposted;
+    }
+#else
   if (job_rfd >= 0)
     {
       close (job_rfd);
       job_rfd = -1;
     }
+#endif
 }
 
 void
 jobserver_pre_acquire (void)
 {
+#ifndef HAVE_SEM_OPEN
   /* Make sure we have a dup'd FD.  */
   if (job_rfd < 0 && job_fds[0] >= 0 && make_job_rfd () < 0)
     pfatal_with_name (_("duping jobs pipe"));
+#endif
 }
 
-#ifdef HAVE_PSELECT
+#if defined(HAVE_PSELECT) && !defined(HAVE_SEM_OPEN)
 
 /* Use pselect() to atomically wait for both a signal and a file descriptor.
    It also provides a timeout facility so we don't need to use SIGALRM.
@@ -365,63 +509,109 @@ job_noop (int sig UNUSED)
 static void
 set_child_handler_action_flags (int set_handler, int set_alarm)
 {
-  struct sigaction sa;
-
-#ifdef __EMX__
-  /* The child handler must be turned off here.  */
-  signal (SIGCHLD, SIG_DFL);
-#endif
-
-  memset (&sa, '\0', sizeof sa);
-  sa.sa_handler = child_handler;
-  sa.sa_flags = set_handler ? 0 : SA_RESTART;
-
-#if defined SIGCHLD
-  if (sigaction (SIGCHLD, &sa, NULL) < 0)
-    pfatal_with_name ("sigaction: SIGCHLD");
-#endif
-
-#if defined SIGCLD && SIGCLD != SIGCHLD
-  if (sigaction (SIGCLD, &sa, NULL) < 0)
-    pfatal_with_name ("sigaction: SIGCLD");
-#endif
-
-#if defined SIGALRM
-  if (set_alarm)
-    {
-      /* If we're about to enter the read(), set an alarm to wake up in a
-         second so we can check if the load has dropped and we can start more
-         work.  On the way out, turn off the alarm and set SIG_DFL.  */
-      if (set_handler)
-        {
-          sa.sa_handler = job_noop;
-          sa.sa_flags = 0;
-          if (sigaction (SIGALRM, &sa, NULL) < 0)
-            pfatal_with_name ("sigaction: SIGALRM");
-          alarm (1);
-        }
-      else
-        {
-          alarm (0);
-          sa.sa_handler = SIG_DFL;
-          sa.sa_flags = 0;
-          if (sigaction (SIGALRM, &sa, NULL) < 0)
-            pfatal_with_name ("sigaction: SIGALRM");
-        }
-    }
-#endif
+//  struct sigaction sa;
+//
+//#ifdef __EMX__
+//  /* The child handler must be turned off here.  */
+//  signal (SIGCHLD, SIG_DFL);
+//#endif
+//
+//  memset (&sa, '\0', sizeof sa);
+//  sa.sa_handler = child_handler;
+//  sa.sa_flags = set_handler ? 0 : SA_RESTART;
+//
+//#if defined SIGCHLD
+//  if (sigaction (SIGCHLD, &sa, NULL) < 0)
+//    pfatal_with_name ("sigaction: SIGCHLD");
+//#endif
+//
+//#if defined SIGCLD && SIGCLD != SIGCHLD
+//  if (sigaction (SIGCLD, &sa, NULL) < 0)
+//    pfatal_with_name ("sigaction: SIGCLD");
+//#endif
+//
+//#if defined SIGALRM
+//  if (set_alarm)
+//    {
+//      /* If we're about to enter the read(), set an alarm to wake up in a
+//         second so we can check if the load has dropped and we can start more
+//         work.  On the way out, turn off the alarm and set SIG_DFL.  */
+//      if (set_handler)
+//        {
+//          sa.sa_handler = job_noop;
+//          sa.sa_flags = 0;
+//          if (sigaction (SIGALRM, &sa, NULL) < 0)
+//            pfatal_with_name ("sigaction: SIGALRM");
+//          alarm (1);
+//        }
+//      else
+//        {
+//          alarm (0);
+//          sa.sa_handler = SIG_DFL;
+//          sa.sa_flags = 0;
+//          if (sigaction (SIGALRM, &sa, NULL) < 0)
+//            pfatal_with_name ("sigaction: SIGALRM");
+//        }
+//    }
+//#endif
 }
 
 unsigned int
 jobserver_acquire (int timeout)
 {
+#ifdef HAVE_SEM_OPEN
+  char intake;
+  int rc, count;
+  int saved_errno;
+
+  /* Set interruptible system calls, and read() for a job token.  */
+//  set_child_handler_action_flags (1, timeout);
+//  DB (DB_JOBS, (_("waiting on sem %s\n"), jobserver_auth));
+//  EINTRLOOP (rc, sem_wait (job_sem)); //TODO: sem_timedwait (job_sem, timeout);
+  for (;;)
+    {
+      static int ncalls = 0;
+      ++ncalls;
+      rc = sem_getvalue(job_sem, &count);
+      DB (DB_JOBS, (_("Waiting on sem %s with value %d, nposted = %d, nwaits = %d\n"), jobserver_auth, count, nposted, nwaits));
+      assert (rc == 0);
+      errno = 0;
+      rc = sem_wait (job_sem);
+printf("rc = %d: %s\n", rc, strerror (errno));
+      if (rc != EINTR)
+        break;
+    }
+
+  saved_errno = errno;
+  DB (DB_JOBS, (_("acquired %d tokens\n"), rc == 0));
+
+//  set_child_handler_action_flags (0, timeout);
+
+  if (rc == 0)
+      return 1;
+
+  /* If the error _wasn't_ expected (EINTR or EBADF), fatal.  Otherwise,
+     go back and reap_children(), and try again.  */
+  errno = saved_errno;
+
+  if (errno != EINTR && errno != EBADF)
+    pfatal_with_name (_("wait jobs sem"));
+
+  if (errno == EBADF)
+    {
+      DB (DB_JOBS, ("wait returned EBADF.\n"));
+      assert (jobserver_auth);
+      open_sem (jobserver_auth);
+    }
+
+  return 0;
+#else
   char intake;
   int got_token;
   int saved_errno;
 
   /* Set interruptible system calls, and read() for a job token.  */
   set_child_handler_action_flags (1, timeout);
-
   EINTRLOOP (got_token, read (job_rfd, &intake, 1));
   saved_errno = errno;
 
@@ -441,6 +631,7 @@ jobserver_acquire (int timeout)
     DB (DB_JOBS, ("Read returned EBADF.\n"));
 
   return 0;
+#endif
 }
 
 #endif /* HAVE_PSELECT */

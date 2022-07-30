@@ -1,3 +1,7 @@
+#define HAVE_SEM_OPEN 1
+#define HAVE_SEMAPHORE_H 1
+
+
 /* Declarations for operating system interfaces for GNU Make.
 Copyright (C) 2016-2022 Free Software Foundation, Inc.
 This file is part of GNU Make.
@@ -17,6 +21,11 @@ this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 /* This section provides OS-specific functions to support the jobserver.  */
 
+#ifdef HAVE_SEMAPHORE_H
+# include <semaphore.h>
+#endif
+
+
 #ifdef MAKE_JOBSERVER
 
 /* Returns 1 if the jobserver is enabled, else 0.  */
@@ -24,6 +33,9 @@ unsigned int jobserver_enabled (void);
 
 /* Called in the master instance to set up the jobserver initially.  */
 unsigned int jobserver_setup (int job_slots);
+
+/* Called in the master instance to unlink the jobserver.  */
+int jobserver_unlink ();
 
 /* Called in a child instance to connect to the jobserver.  */
 unsigned int jobserver_parse_auth (const char* auth);
@@ -41,8 +53,8 @@ unsigned int jobserver_acquire_all (void);
 void jobserver_release (int is_fatal);
 
 /* Notify the jobserver that a child exited.  */
-void jobserver_signal (void);
 
+void jobserver_signal (int signo, siginfo_t *siginfo, void *uctx);
 /* Get ready to start a non-recursive child.  */
 void jobserver_pre_child (int);
 
@@ -58,7 +70,9 @@ void jobserver_pre_acquire (void);
    Returns 1 if we got a token, or 0 if we stopped waiting due to a child
    exiting or a timeout.    */
 unsigned int jobserver_acquire (int timeout);
-
+#ifdef HAVE_SEM_OPEN
+extern sem_t *job_sem;
+#endif
 #else
 
 #define jobserver_enabled()         (0)

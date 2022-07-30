@@ -1,3 +1,5 @@
+#define HAVE_SEM_OPEN 1
+
 /* Argument parsing and main program of GNU Make.
 Copyright (C) 1988-2022 Free Software Foundation, Inc.
 This file is part of GNU Make.
@@ -232,7 +234,7 @@ static const int inf_jobs = 0;
 
 /* Authorization for the jobserver.  */
 
-static char *jobserver_auth = NULL;
+char *jobserver_auth = NULL;
 
 /* Shuffle mode for goals and prerequisites.  */
 
@@ -613,6 +615,7 @@ static bsd_signal_ret_t
 bsd_signal (int sig, bsd_signal_ret_t func)
 {
   struct sigaction act, oact;
+printf("signal = %d, func = %p\n", sig, func);
   act.sa_handler = func;
   act.sa_flags = SA_RESTART;
   sigemptyset (&act.sa_mask);
@@ -1906,15 +1909,25 @@ main (int argc, char **argv, char **envp)
 
      If none of these are true, we don't need a signal handler at all.  */
   {
+     int rc;
+     struct sigaction act = {0};
+     act.sa_sigaction = jobserver_signal;
+     act.sa_flags = SA_SIGINFO;
+//     act.sa_flags = SA_RESTART;
+     sigemptyset (&act.sa_mask);
+     sigaddset (&act.sa_mask, SIGCHLD);
+     rc = sigaction(SIGCHLD, &act, 0);
+     assert (rc == 0);
+
 # if defined SIGCHLD
-    bsd_signal (SIGCHLD, child_handler);
+//    bsd_signal (SIGCHLD, child_handler);
 # endif
 # if defined SIGCLD && SIGCLD != SIGCHLD
-    bsd_signal (SIGCLD, child_handler);
+//    bsd_signal (SIGCLD, child_handler);
 # endif
   }
 
-#ifdef HAVE_PSELECT
+#if defined(HAVE_PSELECT) && !defined(HAVE_SEM_OPEN)
   /* If we have pselect() then we need to block SIGCHLD so it's deferred.  */
   {
     sigset_t block;
@@ -2808,6 +2821,7 @@ main (int argc, char **argv, char **envp)
         makefile_status = MAKE_FAILURE;
         break;
     }
+printf("done updating goals\n");
 
     /* If we detected some clock skew, generate one last warning */
     if (clock_skew_detected)
@@ -3636,7 +3650,15 @@ clean_jobserver (int status)
      exit status is 2 that means some kind of syntax error; we might not
      have written all our tokens so do that now.  If tokens are left
      after any other error code, that's bad.  */
-
+//printf("blocking for 1s\n");
+{
+    sigset_t unblock;
+    sigemptyset (&unblock);
+    sigaddset (&unblock, SIGCHLD);
+    sigprocmask (SIG_UNBLOCK, &unblock, NULL);
+}
+//usleep (1000 * 1000 * 5);
+printf("cleaning jobserver, status = %d\n", status);
   if (jobserver_enabled() && jobserver_tokens)
     {
       if (status != 2)
@@ -3662,6 +3684,7 @@ clean_jobserver (int status)
              "INTERNAL: Exiting with %u jobserver tokens available; should be %u!",
              tokens, master_job_slots);
 
+      jobserver_unlink ();
       reset_jobserver ();
     }
 }

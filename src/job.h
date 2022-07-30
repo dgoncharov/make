@@ -90,3 +90,6 @@ void unblock_all_sigs (void);
 
 extern unsigned int job_slots_used;
 extern unsigned int jobserver_tokens;
+extern volatile sig_atomic_t nwaits;
+extern volatile sig_atomic_t nfree;
+extern volatile sig_atomic_t nposted;
