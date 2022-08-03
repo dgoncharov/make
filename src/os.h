@@ -72,6 +72,7 @@ void jobserver_pre_acquire (void);
 unsigned int jobserver_acquire (int timeout);
 #ifdef HAVE_SEM_OPEN
 extern sem_t *job_sem;
+extern int nslots;
 #endif
 #else
 

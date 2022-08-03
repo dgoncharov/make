@@ -3651,13 +3651,17 @@ clean_jobserver (int status)
      have written all our tokens so do that now.  If tokens are left
      after any other error code, that's bad.  */
 //printf("blocking for 1s\n");
-{
-    sigset_t unblock;
-    sigemptyset (&unblock);
-    sigaddset (&unblock, SIGCHLD);
-    sigprocmask (SIG_UNBLOCK, &unblock, NULL);
-}
+//{
+//    sigset_t unblock;
+//    sigemptyset (&unblock);
+//    sigaddset (&unblock, SIGCHLD);
+//    sigprocmask (SIG_UNBLOCK, &unblock, NULL);
+//}
 //usleep (1000 * 1000 * 5);
+
+printf("blocking sigchld\n");
+clearerr(stdout);
+  bsd_signal (SIGCHLD, SIG_DFL);
 printf("cleaning jobserver, status = %d\n", status);
   if (jobserver_enabled() && jobserver_tokens)
     {

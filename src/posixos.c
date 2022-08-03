@@ -54,6 +54,7 @@ this program.  If not, see <http://www.gnu.org/licenses/>.  */
 #ifdef HAVE_SEM_OPEN
 static const char job_sem_name[] = "gmake.fifo";
 sem_t *job_sem = SEM_FAILED;
+static volatile sig_atomic_t nacquired = 0;
 int nslots;
 #endif
 /* These track the state of the jobserver pipe.  Passed to child instances.  */
@@ -105,8 +106,8 @@ jobserver_setup (int slots)
 {
 #ifdef HAVE_SEM_OPEN
   int rc, count;
-printf("opening sem %s with %d tokens\n", job_sem_name, slots);
-  nslots = slots;
+  njob_slots = slots;
+printf("opening sem %s with njob_slots = %d tokens\n", job_sem_name, njob_slots);
   job_sem = sem_open (job_sem_name, O_RDWR|O_EXCL|O_CREAT, S_IRUSR|S_IWUSR, slots);
   rc = sem_getvalue(job_sem, &count);
   DB (DB_JOBS, (_("Opened semaphore %s with value %d\n"), job_sem_name, count));
@@ -364,6 +365,7 @@ jobserver_post_child (int recursive)
 void
 jobserver_signal (int signo, siginfo_t *siginfo, void *uctx)
 {
+  int saved_errno = errno;
 #ifdef HAVE_SEM_OPEN
   /* Close the semaphore, but keep job_sem value intact.
    * sem_wait will attempt to wait on job_sem and receive EBADF.  */
@@ -371,10 +373,11 @@ jobserver_signal (int signo, siginfo_t *siginfo, void *uctx)
 
   /* Search for a child matching the deceased one?  */
   rc = sem_getvalue(job_sem, &count);
-  printf("received sigchld, job_sem = %p, jobserver_tokens = %u, nposted = %d, nwaits = %d, nfree = %d, semvalue = %d\n", job_sem, jobserver_tokens, nposted, nwaits, nfree, count);
+  printf("received sigchld, job_sem = %p, jobserver_tokens = %u, nposted = %d, nwaits = %d, nfree = %d, semvalue = %d, nacquired = %d\n", job_sem, jobserver_tokens, nposted, nwaits, nfree, count, nacquired);
   assert (rc == 0);
   printf("pid = %d, code = %d\n", siginfo->si_pid, siginfo->si_code);
-  if (job_sem != SEM_FAILED && nposted + nfree < nwaits)
+//  while (job_sem != SEM_FAILED && nposted + nfree < nwaits)
+  if (job_sem != SEM_FAILED && nacquired > nposted)
     {
 printf("Posting sem %s with value %d\n", jobserver_auth, count);
       rc = sem_post (job_sem);
@@ -388,6 +391,7 @@ printf("Posting sem %s with value %d\n", jobserver_auth, count);
       job_rfd = -1;
     }
 #endif
+  errno = saved_errno;
 }
 
 void
@@ -562,47 +566,53 @@ jobserver_acquire (int timeout)
 #ifdef HAVE_SEM_OPEN
   char intake;
   int rc, count;
-  int saved_errno;
+//  int saved_errno;
 
   /* Set interruptible system calls, and read() for a job token.  */
 //  set_child_handler_action_flags (1, timeout);
 //  DB (DB_JOBS, (_("waiting on sem %s\n"), jobserver_auth));
 //  EINTRLOOP (rc, sem_wait (job_sem)); //TODO: sem_timedwait (job_sem, timeout);
-  for (;;)
-    {
+//  for (;;)
+//    {
       static int ncalls = 0;
+      int errno_sav;
       ++ncalls;
       rc = sem_getvalue(job_sem, &count);
       DB (DB_JOBS, (_("Waiting on sem %s with value %d, nposted = %d, nwaits = %d\n"), jobserver_auth, count, nposted, nwaits));
       assert (rc == 0);
       errno = 0;
       rc = sem_wait (job_sem);
+      errno_sav = errno;
 printf("rc = %d: %s\n", rc, strerror (errno));
-      if (rc != EINTR)
-        break;
-    }
+//      if (errno_sav != EINTR)
+//        break;
+//    }
 
-  saved_errno = errno;
+//  saved_errno = errno;
   DB (DB_JOBS, (_("acquired %d tokens\n"), rc == 0));
 
 //  set_child_handler_action_flags (0, timeout);
 
   if (rc == 0)
+    {
+      ++nacquired;
       return 1;
+    }
 
   /* If the error _wasn't_ expected (EINTR or EBADF), fatal.  Otherwise,
      go back and reap_children(), and try again.  */
-  errno = saved_errno;
+//  errno = saved_errno;
 
-  if (errno != EINTR && errno != EBADF)
+
+  if (errno_sav != EINTR)
     pfatal_with_name (_("wait jobs sem"));
 
-  if (errno == EBADF)
-    {
-      DB (DB_JOBS, ("wait returned EBADF.\n"));
-      assert (jobserver_auth);
-      open_sem (jobserver_auth);
-    }
+//  if (errno == EBADF)
+//    {
+//      DB (DB_JOBS, ("wait returned EBADF.\n"));
+//      assert (jobserver_auth);
+//      open_sem (jobserver_auth);
+//    }
 
   return 0;
 #else

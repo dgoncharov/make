@@ -264,6 +264,7 @@ volatile sig_atomic_t nfree = 0;
 
 /* Total number of times job_sem has been posted since startup.  */
 volatile sig_atomic_t nposted = 0;
+int njob_slots = 0;
 
 
 
@@ -957,12 +958,19 @@ reap_children (int block, int err)
       block_sigchld ();
       rc = sem_getvalue(job_sem, &semvalue);
       assert (rc == 0);
-printf("nwaits = %d, nposted = %d, nfree = %d, semvalue = %d\n", nwaits, nposted, nfree, semvalue);
-      for (; nwaits > nposted + nfree && job_sem != SEM_FAILED; ++nposted)
+printf("nwaits = %d, nposted = %d, nfree = %d, semvalue = %d, njob_slots = %d\n", nwaits, nposted, nfree, semvalue, njob_slots);
+      if (job_sem != SEM_FAILED)
         {
-printf("posting sem\n");
-          rc = sem_post (job_sem);
-          assert (rc == 0);
+          for (; nwaits > nposted + nfree; )
+    //        if (nwaits > nposted + nfree || )
+              {
+                printf("posting sem\n");
+                rc = sem_post (job_sem);
+                assert (rc == 0);
+                ++nposted;
+              }
+//        else
+//            printf("not posting sem\n");
         }
       unblock_sigchld ();
 

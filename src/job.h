@@ -93,3 +93,4 @@ extern unsigned int jobserver_tokens;
 extern volatile sig_atomic_t nwaits;
 extern volatile sig_atomic_t nfree;
 extern volatile sig_atomic_t nposted;
+extern int njob_slots;

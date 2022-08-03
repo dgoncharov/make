@@ -437,15 +437,24 @@ output_dump (struct output *out)
 static void
 close_stdout (void)
 {
-  int prev_fail = ferror (stdout);
-  int fclose_fail = fclose (stdout);
+  int prev_fail;
+  int fclose_fail;
+  errno = 0;
+  prev_fail = ferror (stdout);
+  fclose_fail = fclose (stdout);
 
   if (prev_fail || fclose_fail)
     {
       if (fclose_fail)
+{
+fprintf(stderr, "fclose failed to close stdout: %s\n", strerror (errno));
         perror_with_name (_("write error: stdout"), "");
+}
       else
+{
+fprintf(stderr, "error is set for stdout: %s\n", strerror (errno));
         O (error, NILF, _("write error: stdout"));
+}
       exit (MAKE_TROUBLE);
     }
 }
