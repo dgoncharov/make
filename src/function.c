@@ -328,12 +328,13 @@ find_next_argument (char startparen, char endparen,
                     const char *ptr, const char *end)
 {
   int count = 0;
+  const char *beg = ptr;
 
   for (; ptr < end; ++ptr)
     if (!STOP_SET (*ptr, MAP_VARSEP|MAP_COMMA))
       continue;
 
-    else if (*ptr == startparen)
+    else if (*ptr == startparen && ptr > beg && ptr[-1] == '$')
       ++count;
 
     else if (*ptr == endparen)

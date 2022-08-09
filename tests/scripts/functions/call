@@ -85,6 +85,22 @@ all: ; @echo "$${X123-not set}"
 ',
               '', "\n");
 
+# sv 62881.
+# Parentheses without a preceding $ do not mean a nested variable.
+
+run_make_test(q!
+msg = @echo "1='$(1)' 2='$(2)' 3='$(3)'"
+all:; $(call msg, foo (arg1, arg2, arg3))
+!, '', "1=' foo (arg1' 2=' arg2' 3=' arg3)'\n");
+
+# sv 62881.
+# Parentheses with a preceding $ mean a nested variable.
+#
+run_make_test(q!
+msg = @echo "1='$(1)' 2='$(2)' 3='$(3)'"
+all:; $(call msg, foo $(shell echo arg1, arg2, arg3))
+!, '', "1=' foo arg1, arg2, arg3' 2='' 3=''\n");
+
 1;
 
 ### Local Variables:
