@@ -5347,6 +5347,8 @@ they have particular specialized uses.  @xref{Automatic Variables}.
                                   to a group of targets that match a pattern.
 * Suppressing Inheritance::     Suppress inheritance of variables.
 * Special Variables::           Variables with special meaning or behavior.
+* Special Characters::          How to use variables to hide characters of
+                                special meaning.
 @end menu
 
 @node Reference, Flavors, Using Variables, Using Variables
@@ -6617,7 +6619,7 @@ Due to the @code{private} modifier, @code{a.o} and @code{b.o} will not
 inherit the @code{EXTRA_CFLAGS} variable assignment from the
 @code{prog} target.
 
-@node Special Variables,  , Suppressing Inheritance, Using Variables
+@node Special Variables, Special Characters, Suppressing Inheritance, Using Variables
 @comment  node-name,  next,  previous,  up
 @section Other Special Variables
 @cindex makefiles, and special variables
@@ -6917,6 +6919,34 @@ a prerequisite listed in @code{.EXTRA_PREREQS} as a prerequisite to
 itself.
 
 @end table
+
+@node Special Characters, , Special Variables, Using Variables
+@section Special Characters
+
+Certain characters, such as comma or parenthesis, have a special meaning to
+@code{make}, depending on the context.
+
+If you need to have such character somewhere in your makefile, where it has a
+special meaning, you can store this character in a variable.
+
+For example, you want to use function @code{subst} to substitute 'hello, world'
+with 'it works for me' in 'when do you say "hello, world"?'
+
+Comma has a special meaning for @code{make} inside @code{subst}.
+If you literally use this text in @code{subst} like
+
+@example
+$(subst hello, world,it works for me,when do you say "hello, world"?)
+@end example
+
+Then @code{make} will substitute 'hello' for 'world'.
+
+You can store 'hello, world' in a variable to hide the comma from @code{subst}.
+
+@example
+from:=hello, world
+$(subst $(from),it works for me,when do you say "hello, world"?)
+@end example
 
 @node Conditionals, Functions, Using Variables, Top
 @chapter Conditional Parts of Makefiles
