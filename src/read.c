@@ -2114,8 +2114,8 @@ record_files (struct nameseq *filenames, int are_also_makes,
          'targets: target%pattern: prereq%pattern; recipe',
          make sure the pattern matches this target name.  */
       if (pattern && !pattern_matches (pattern, pattern_percent, name))
-        OS (error, flocp,
-            _("target '%s' doesn't match the target pattern"), name);
+        OSS (error, flocp,
+            _("target '%s' doesn't match target pattern %s"), name, pattern);
       else if (deps)
         /* If there are multiple targets, copy the chain DEPS for all but the
            last one.  It is not safe for the same deps to go in more than one
@@ -3197,7 +3197,7 @@ parse_file_seq (char **stringp, size_t size, int stopmap,
       char *memname = 0;
 #endif
       char *s;
-      size_t nlen;
+      size_t nlen, slen;
       int tot, i;
 
       /* Skip whitespace; at the end of the string or STOPCHAR we're done.  */
@@ -3234,22 +3234,40 @@ parse_file_seq (char **stringp, size_t size, int stopmap,
 
       /* Strip leading "this directory" references.  */
       if (NONE_SET (flags, PARSEFS_NOSTRIP))
+        {
 #ifdef VMS
-        /* Skip leading '[]'s. should only be one set or bug somewhere else */
-        if (p - s > 2 && s[0] == '[' && s[1] == ']')
-            s += 2;
-        /* Skip leading '<>'s. should only be one set or bug somewhere else */
-        if (p - s > 2 && s[0] == '<' && s[1] == '>')
-            s += 2;
+          /* Skip leading '[]'s. should only be one set or bug somewhere else */
+          if (p - s > 2 && s[0] == '[' && s[1] == ']')
+              s += 2;
+          /* Skip leading '<>'s. should only be one set or bug somewhere else */
+          if (p - s > 2 && s[0] == '<' && s[1] == '>')
+              s += 2;
 #endif
-        /* Skip leading './'s.  */
-        while (p - s > 2 && s[0] == '.' && s[1] == '/')
-          {
-            /* Skip "./" and all following slashes.  */
-            s += 2;
-            while (*s == '/')
-              ++s;
-          }
+          /* Skip leading './'s.  */
+          while (p - s > 2 && s[0] == '.' && s[1] == '/')
+            {
+              /* Skip "./" and all following slashes.  */
+              s += 2;
+              while (*s == '/')
+                ++s;
+            }
+
+          /* Transform foo/./bar/ foo/bar/. */
+          slen = strlen (s);
+          for (;;)
+            {
+              char *u = strstr (s, "/./");
+              if (u)
+                {
+                  assert (slen > 2);
+                  memmove (u + 1, u + 3, slen - (u - s) - 3);
+                  s[slen - 2] = '\0';
+                  slen -= 2;
+                }
+              else
+                break;
+            }
+        }
 
       /* Extract the filename just found, and skip it.
          Set NAME to the string, and NLEN to its length.  */
