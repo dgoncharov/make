@@ -340,21 +340,45 @@ if ($port_type ne 'W32') {
                   '', "hi ho;ho foo bar\n");
 }
 
-# sv 62929.
-# Test that makes treats ./././foo as foo.
+
 run_make_test(q!
 all: ./././foo
 foo:; $(info $@)
 !, '', "foo\n#MAKE#: Nothing to be done for 'all'.");
 
+my @suf = ('/./././', '/.//.//.//', '/.///.///.///');
+for my $s (@suf) {
+
 # sv 62929.
 # Test that makes treats one/././two/././three/./././bar as
 # one/two/three/bar.
-run_make_test(q!
-all: one/././two/././three/./././bar
-one/two/three/bar:; $(info $@)
-!, '', "one/two/three/bar\n#MAKE#: Nothing to be done for 'all'.");
+run_make_test("
+all: one${s}two${s}three${s}bar
+one/two/three/bar:; \$(info \$@)
+", '', "one/two/three/bar\n#MAKE#: Nothing to be done for 'all'.");
 
+# sv 62929.
+# Corner cases.
+run_make_test("
+all: $s
+/:; \$(info \$@)
+", '', "#MAKE#: Nothing to be done for 'all'.");
+
+# sv 62929.
+# Corner cases.
+run_make_test("
+all: foo$s
+foo/:; \$(info \$@)
+", '-R', "foo/\n#MAKE#: Nothing to be done for 'all'.");
+
+# sv 62929.
+# Corner cases.
+run_make_test("
+all: foo/bar$s
+foo/bar/:; \$(info \$@)
+", '', "foo/bar/\n#MAKE#: Nothing to be done for 'all'.");
+
+}
 # sv 62929.
 # Corner cases.
 run_make_test(q!
@@ -369,26 +393,6 @@ all: ./
 .:; $(info $@)
 !, '-R', "#MAKE#: Nothing to be done for 'all'.");
 
-# sv 62929.
-# Corner cases.
-run_make_test(q!
-all: /./
-/:; $(info $@)
-!, '', "#MAKE#: Nothing to be done for 'all'.");
-
-# sv 62929.
-# Corner cases.
-run_make_test(q!
-all: foo/./
-foo/:; $(info $@)
-!, '-R', "foo/\n#MAKE#: Nothing to be done for 'all'.");
-
-# sv 62929.
-# Corner cases.
-run_make_test(q!
-all: foo/bar/./
-foo/bar/:; $(info $@)
-!, '', "foo/bar/\n#MAKE#: Nothing to be done for 'all'.");
 
 1;
 

@@ -3197,7 +3197,7 @@ parse_file_seq (char **stringp, size_t size, int stopmap,
       char *memname = 0;
 #endif
       char *s;
-      size_t nlen, slen;
+      size_t nlen;
       int tot, i;
 
       /* Skip whitespace; at the end of the string or STOPCHAR we're done.  */
@@ -3243,30 +3243,7 @@ parse_file_seq (char **stringp, size_t size, int stopmap,
           if (p - s > 2 && s[0] == '<' && s[1] == '>')
               s += 2;
 #endif
-          /* Skip leading './'s.  */
-          while (p - s > 2 && s[0] == '.' && s[1] == '/')
-            {
-              /* Skip "./" and all following slashes.  */
-              s += 2;
-              while (*s == '/')
-                ++s;
-            }
-
-          /* Transform foo/./bar/ foo/bar/. */
-          slen = strlen (s);
-          for (;;)
-            {
-              char *u = strstr (s, "/./");
-              if (u)
-                {
-                  assert (slen > 2);
-                  memmove (u + 1, u + 3, slen - (u - s) - 3);
-                  s[slen - 2] = '\0';
-                  slen -= 2;
-                }
-              else
-                break;
-            }
+          s = normalize (s);
         }
 
       /* Extract the filename just found, and skip it.

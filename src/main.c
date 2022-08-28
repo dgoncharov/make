@@ -706,14 +706,7 @@ expand_command_line_file (const char *name)
   /* This is also done in parse_file_seq, so this is redundant
      for names read from makefiles.  It is here for names passed
      on the command line.  */
-  while (name[0] == '.' && name[1] == '/')
-    {
-      name += 2;
-      while (name[0] == '/')
-        /* Skip following slashes: ".//foo" is "foo", not "/foo".  */
-        ++name;
-    }
-
+  name = normalize (name);
   if (name[0] == '\0')
     {
       /* Nothing else but one or more "./", maybe plus slashes!  */
@@ -2712,6 +2705,7 @@ main (int argc, char **argv, char **envp)
 
       if (*p != '\0')
         {
+          p = normalize (p);
           struct file *f = lookup_file (p);
 
           /* If .DEFAULT_GOAL is a non-existent target, enter it into the

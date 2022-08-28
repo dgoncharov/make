@@ -22,6 +22,7 @@ this program.  If not, see <http://www.gnu.org/licenses/>.  */
 /* GNU make no longer supports pre-ANSI89 environments.  */
 
 #include <stdarg.h>
+#include <assert.h>
 
 #ifdef WINDOWS32
 # include <windows.h>
@@ -134,6 +135,59 @@ collapse_continuations (char *line)
   while (q);
 
   memmove(out, in, strlen(in) + 1);
+}
+
+/* Return 1 if this character is a file path separator.
+ * Return 0 otherwise.  */
+static int
+pathsep (char c)
+{
+  if (c == '/')
+    return 1;
+#ifdef HAVE_DOS_PATHS
+  if (c == '\\')
+    return 1;
+#endif
+  return 0;
+}
+
+/* Normalize filepath by removing redundant ./ and collapsing successive
+ * slashes. */
+
+char *
+normalize (char *s)
+{
+  size_t slen = strlen (s);
+
+  while (slen > 2 && s[0] == '.' && pathsep (s[1]))
+    {
+      /* Skip "./" and all following slashes.  */
+      s += 2;
+      slen -= 2;
+      for (; pathsep (*s); --slen)
+        ++s;
+    }
+
+  /* Transform foo/.///.///bar/ foo/bar/.  */
+  for (;;)
+    {
+      char *u = strstr (s, "/./");
+      if (u)
+        {
+          /* n is the number of characters to remove.
+           * 2 for ./ plus all successive slashes.  */
+          size_t n = 2 + strspn (u + 3, "/");
+          assert (slen > n);
+          ++u;
+          memmove (u, u + n, slen - (u - s) - n);
+          s[slen - n] = '\0';
+          slen -= n;
+        }
+      else
+        break;
+    }
+
+    return s;
 }
 
 /* Print N spaces (used in debug for target-depth).  */
