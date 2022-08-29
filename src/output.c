@@ -461,13 +461,7 @@ output_init (struct output *out)
       return;
     }
 
-  /* Configure this instance of make.  Be sure stdout is line-buffered.  */
-
-#ifdef HAVE_SETVBUF
-  setvbuf (stdout, 0, _IOLBF, BUFSIZ);
-#elif HAVE_SETLINEBUF
-  setlinebuf (stdout);
-#endif  /* setlinebuf missing.  */
+  /* Configure this instance of make.  */
 
   /* Force stdout/stderr into append mode.  This ensures parallel jobs won't
      lose output due to overlapping writes.  */

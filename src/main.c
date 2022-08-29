@@ -1598,9 +1598,23 @@ main (int argc, char **argv, char **envp)
       die (MAKE_SUCCESS);
     }
 
-  if (ISDB (DB_BASIC))
-    print_version ();
+  /* Switch stdout to line buffering.
+   * This needs to take place after options --help and --version are processed,
+   * but before make begins reading makefiles.  */
 
+#ifdef HAVE_SETVBUF
+  setvbuf (stdout, 0, _IOLBF, BUFSIZ);
+#elif HAVE_SETLINEBUF
+  setlinebuf (stdout);
+#endif  /* setlinebuf missing.  */
+
+  if (ISDB (DB_BASIC))
+    {
+      print_version ();
+      /* Flush stdout so the user doesn't have to wait to see the
+         version information while make thinks about things.  */
+      fflush (stdout);
+    }
 #ifndef VMS
   /* Set the "MAKE_COMMAND" variable to the name we were invoked with.
      (If it is a relative pathname with a slash, prepend our directory name
@@ -3564,10 +3578,6 @@ print_version (void)
             precede, precede, precede);
 
   printed_version = 1;
-
-  /* Flush stdout so the user doesn't have to wait to see the
-     version information while make thinks about things.  */
-  fflush (stdout);
 }
 
 /* Print a bunch of information about this and that.  */
