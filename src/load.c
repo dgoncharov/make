@@ -23,6 +23,7 @@ this program.  If not, see <http://www.gnu.org/licenses/>.  */
 #include <stdlib.h>
 #include <dlfcn.h>
 #include <errno.h>
+#include <assert.h>
 
 #define SYMBOL_EXTENSION        "_gmk_setup"
 
@@ -40,6 +41,7 @@ struct load_list
     struct load_list *next;
     const char *name;
     void *dlp;
+    load_func_t close;
   };
 
 static struct load_list *loaded_syms = NULL;
@@ -107,8 +109,10 @@ load_object (const floc *flocp, int noerror, const char *ldname,
 
       /* Add this symbol to a trivial lookup table.  This is not efficient but
          it's highly unlikely we'll be loading lots of objects, and we only
-         need it to look them up on unload, if we rebuild them.  */
-      new = xmalloc (sizeof (struct load_list));
+         need it to look them up on unload, if we rebuild them.
+         The caller expects that loaded_syms points to the newly added symbol
+         on success.  */
+      new = xcalloc (sizeof (struct load_list));
       new->name = xstrdup (ldname);
       new->dlp = dlp;
       new->next = loaded_syms;
@@ -204,9 +208,10 @@ load_file (const floc *flocp, const char **ldname, int noerror)
   DB (DB_VERBOSE, (_("Loading symbol %s from %s\n"), symname, *ldname));
 
   /* Load it!  */
+  r = 0;
   symp = load_object (flocp, noerror, *ldname, symname);
   if (! symp)
-    return 0;
+    goto exit;
 
   /* Invoke the symbol.  */
   r = (*symp) (flocp);
@@ -226,6 +231,18 @@ load_file (const floc *flocp, const char **ldname, int noerror)
       do_variable_definition (flocp, ".LOADED", newval, o_default, f_simple, 0);
     }
 
+  /* At exit run $module_gmk_close whether $module_gmk_setup succeeded or not.
+     $module_gmk_close is optional, okay if not present.
+     loaded_syms->close relies that load_object sets loaded_syms to the current
+     sym.  */
+  new = strstr (symname, SYMBOL_EXTENSION);
+  assert (new);
+  memcpy (new, "_gmk_close", 10);
+  DB (DB_VERBOSE, (_("Loading symbol %s from %s\n"), symname, *ldname));
+  symp = (load_func_t) dlsym (loaded_syms->dlp, symname);
+  if (symp)
+    loaded_syms->close = symp;
+
  exit:
   free (loaded);
   return r;
@@ -239,11 +256,30 @@ unload_file (const char *name)
   for (d = loaded_syms; d != NULL; d = d->next)
     if (streq (d->name, name) && d->dlp)
       {
+        if (d->close)
+          (*d->close) (NULL);
+        d->close = NULL;
         if (dlclose (d->dlp))
           perror_with_name ("dlclose: ", d->name);
         d->dlp = NULL;
         break;
       }
+}
+
+void
+unload_all (void)
+{
+  struct load_list *d;
+
+  for (d = loaded_syms; d; d = d->next)
+    {
+      if (d->close)
+        (*d->close) (NULL);
+      d->close = NULL;
+      if (d->dlp && dlclose (d->dlp))
+        perror_with_name ("dlclose: ", d->name);
+      d->dlp = NULL;
+    }
 }
 
 #else
@@ -262,6 +298,12 @@ void
 unload_file (const char *name UNUSED)
 {
   O (fatal, NILF, "INTERNAL: Cannot unload when load is not supported");
+}
+
+void
+unload_all (void)
+{
+  /* Print no message. unload_all is called unconditionally from die.  */
 }
 
 #endif  /* MAKE_LOAD */

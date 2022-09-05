@@ -26,7 +26,7 @@ typedef struct
     unsigned long lineno;
   } gmk_floc;
 
-typedef char *(*gmk_func_ptr)(const char *nm, unsigned int argc, char **argv);
+typedef char *(*gmk_func_ptr)(const char *nm, int argc, char **argv);
 
 #ifdef _WIN32
 # ifdef GMK_BUILDING_MAKE

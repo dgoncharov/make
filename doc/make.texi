@@ -11870,7 +11870,7 @@ arguments.
 @item max_args
 The maximum number of arguments the function will accept.  Must be
 between 0 and 255.  GNU @code{make} will check this and fail before
-invoking @code{func_ptr} if the function was invoked with too few
+invoking @code{func_ptr} if the function was invoked with too many
 arguments.  If the value is 0, then any number of arguments is
 accepted.  If the value is greater than 0, then it must be greater
 than or equal to @code{min_args}.
@@ -11948,7 +11948,7 @@ needed) using @code{gmk_free}.
 @findex gmk_alloc
 Return a pointer to a newly-allocated buffer.  This function will
 always return a valid pointer; if not enough memory is available
-@code{make} will exit.
+@code{make} will exit.  @code{gmk_alloc} does not initialize allocated memory.
 
 @item gmk_free
 @findex gmk_free
@@ -11969,7 +11969,6 @@ function in a file @file{mk_temp.c}:
 @example
 @group
 #include <stdlib.h>
-#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -11979,8 +11978,14 @@ function in a file @file{mk_temp.c}:
 
 int plugin_is_GPL_compatible;
 
-char *
-gen_tmpfile(const char *nm, int argc, char **argv)
+struct file @{
+  struct file *next;
+  char *name;
+@};
+static struct file *files = NULL;
+
+static char *
+gen_tmpfile (const char *nm, int argc, char **argv)
 @{
   int fd;
 
@@ -11996,6 +12001,10 @@ gen_tmpfile(const char *nm, int argc, char **argv)
     @{
       /* Don't leak the file descriptor.  */
       close (fd);
+      struct file *new = (struct file *) malloc (sizeof *new);
+      new->name = strdup (buf);
+      new->next = files;
+      files = new;
       return buf;
     @}
 
@@ -12006,10 +12015,28 @@ gen_tmpfile(const char *nm, int argc, char **argv)
 @}
 
 int
-mk_temp_gmk_setup ()
+mk_temp_gmk_setup (const gmk_floc *floc)
 @{
+  printf ("mk_temp plugin loaded from %s:%ld\n", floc->filenm, floc->lineno);
   /* Register the function with make name "mk-temp".  */
   gmk_add_function ("mk-temp", gen_tmpfile, 1, 1, 1);
+  return 1;
+@}
+
+int
+mk_temp_gmk_close ()
+@{
+  while (files)
+    @{
+      struct file *f = files;
+      printf("unlinking %s\n", f->name);
+      unlink (f->name);
+      gmk_free (f->name);
+      files = f->next;
+      free (f);
+    @}
+  files = NULL;
+  printf ("mk_temp plugin unloaded\n");
   return 1;
 @}
 @end group
@@ -12020,13 +12047,14 @@ it, and use it:
 
 @example
 @group
+-load mk_temp.so
+$(info Temporary file $(mk-temp tmpfile.))
 all:
-        @@echo Temporary file: $(mk-temp tmpfile.)
+        @@echo Temporary file $(mk-temp tmpfile.)
 
-load mk_temp.so
 
 mk_temp.so: mk_temp.c
-        $(CC) -shared -fPIC -o $@ $<
+        $(CC) -shared -fPIC -o $@@ $<
 @end group
 @end example
 
@@ -12040,7 +12068,7 @@ object will look on Windows like this (assuming the API version is 1):
 @example
 @group
 mk_temp.dll: mk_temp.c
-        $(CC) -shared -o $@ $< -lgnumake-1
+        $(CC) -shared -o $@@ $< -lgnumake-1
 @end group
 @end example
 
@@ -12048,8 +12076,17 @@ Now when you run @code{make} you'll see something like:
 
 @example
 $ make
+mk_temp plugin loaded from makefile:1
+Temporary file tmpfile.O7vuwn
+unlinking tmpfile.O7vuwn
+mk_temp plugin unloaded
 cc -shared -fPIC -o mk_temp.so mk_temp.c
-Temporary filename: tmpfile.A7JEwd
+mk_temp plugin loaded from makefile:1
+Temporary file tmpfile.lpgecm
+Temporary file tmpfile.sIdBvo
+unlinking tmpfile.sIdBvo
+unlinking tmpfile.lpgecm
+mk_temp plugin unloaded
 @end example
 
 @node Integrating make, Features, Extending make, Top
