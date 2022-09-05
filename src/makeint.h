@@ -616,8 +616,8 @@ int guile_gmake_setup (const floc *flocp);
 
 /* Loadable object support.  Sets to the strcached name of the loaded file.  */
 typedef int (*load_func_t)(const floc *flocp);
-int load_file (const floc *flocp, const char **filename, int noerror);
-void unload_file (const char *name);
+int load_file (const floc *flocp, void *file, int noerror);
+int unload_file (const char *name);
 
 /* Maintainer mode support */
 #ifdef MAKE_MAINTAINER_MODE

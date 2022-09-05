@@ -954,12 +954,24 @@ eval (struct ebuffer *ebuf, int set_default)
               struct nameseq *next = files->next;
               const char *name = files->name;
               struct goaldep *deps;
+              struct file *f;
               int r;
 
-              /* Load the file.  0 means failure.  */
-              r = load_file (&ebuf->floc, &name, noerror);
-              if (! r && ! noerror)
-                OS (fatal, &ebuf->floc, _("%s: failed to load"), name);
+              {
+                struct file file = {0};
+                file.name = name;
+                /* Load the file.  0 means failure.  */
+                r = load_file (&ebuf->floc, &file, noerror);
+                if (! r && ! noerror)
+                  OS (fatal, &ebuf->floc, _("%s: failed to load"), name);
+                name = file.name;
+              }
+
+              f = lookup_file (name);
+              if (f == 0)
+                f = enter_file (name);
+              f->loaded = 1;
+              f->unloaded = 0;
 
               free_ns (files);
               files = next;
@@ -968,14 +980,11 @@ eval (struct ebuffer *ebuf, int set_default)
               if (r == -1)
                 continue;
 
-              /* It succeeded, so add it to the list "to be rebuilt".  */
+              /* Succeeded or failed, add it to the list "to be rebuilt".  */
               deps = alloc_goaldep ();
               deps->next = read_files;
               read_files = deps;
-              deps->file = lookup_file (name);
-              if (deps->file == 0)
-                deps->file = enter_file (name);
-              deps->file->loaded = 1;
+              deps->file = f;
             }
 
           continue;

@@ -463,9 +463,15 @@ execute_file_commands (struct file *file)
   set_file_variables (file, file->stem);
 
   /* If this is a loaded dynamic object, unload it before remaking.
-     Some systems don't support overwriting a loaded object.  */
-  if (file->loaded)
-    unload_file (file->name);
+     Some systems don't support overwriting a loaded object.
+     Keep its name is .LOADED. This object will be rebuilt and loaded again.
+     If rebuilding or loading again fail, then make will exit and it won't
+     matter that this name is present in .LOADED.  */
+  if (file->loaded && unload_file (file->name) == 0)
+    {
+      file->loaded = 0;
+      file->unloaded = 1;
+    }
 
   /* Start the commands running.  */
   new_job (file);
