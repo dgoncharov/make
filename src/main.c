@@ -2429,6 +2429,25 @@ main (int argc, char **argv, char **envp)
           break;
 
         case us_none:
+          {
+             /* Make has to exit if a loaded shared object was unloaded and
+              * make failed to update this shared object.
+              * Make cannot continue, because the makefile can access the
+              * facilities that this shared object provides and the shared
+              * object is not loaded.
+              * Make cannot load it back, because the shared object was not
+              * updated.
+              * Make cannot re-exec, because that would cause an infinite loop.
+              * */
+             struct goaldep *d;
+
+             for (d = read_files; d; d = d->next)
+               if (d->file->unloaded)
+                 OS (fatal, NILF,
+                    _("cannot update unloaded shared object \"%s\""),
+                    d->file->name);
+          }
+
           /* No makefiles needed to be updated.  If we couldn't read some
              included file that we care about, fail.  */
           if (0)

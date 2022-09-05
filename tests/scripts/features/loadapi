@@ -121,6 +121,18 @@ all:;@echo '$(test-noexpand $(TEST))'
 !,
               '', "\$(TEST)\n");
 
+# sv xxx.
+# Test that make exits, unless make can successfully update an unloaded shared
+# object.
+# testapi.so exists.
+run_make_test(q!
+load testapi.so
+all:; $(test-expand hello)
+testapi.so: force; :
+force:;
+.PHONY: force
+!, '', ":\n#MAKE#: *** cannot update unloaded shared object \"testapi.so\".  Stop.\n", 512);
+
 unlink(qw(testapi.c testapi.so)) unless $keep;
 
 # This tells the test driver that the perl test script executed properly.

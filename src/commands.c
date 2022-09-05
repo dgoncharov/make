@@ -465,7 +465,11 @@ execute_file_commands (struct file *file)
   /* If this is a loaded dynamic object, unload it before remaking.
      Some systems don't support overwriting a loaded object.  */
   if (file->loaded)
-    unload_file (file->name);
+    {
+      unload_file (file->name);
+      file->loaded = 0;
+      file->unloaded = 1;
+    }
 
   /* Start the commands running.  */
   new_job (file);

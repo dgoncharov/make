@@ -976,6 +976,7 @@ eval (struct ebuffer *ebuf, int set_default)
               if (deps->file == 0)
                 deps->file = enter_file (name);
               deps->file->loaded = 1;
+              deps->file->unloaded = 0;
             }
 
           continue;
