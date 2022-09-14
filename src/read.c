@@ -144,7 +144,8 @@ static void do_undefine (char *name, enum variable_origin origin,
 static struct variable *do_define (char *name, enum variable_origin origin,
                                    struct ebuffer *ebuf);
 static int conditional_line (char *line, size_t len, const floc *flocp);
-static void check_specials (const struct nameseq *file, int set_default);
+static void check_specials (struct nameseq *filep, int set_default);
+static void check_special_file (struct file *filep, const floc *flocp);
 static void record_files (struct nameseq *filenames, int are_also_makes,
                           const char *pattern,
                           const char *pattern_percent, char *depstr,
@@ -954,28 +955,37 @@ eval (struct ebuffer *ebuf, int set_default)
               struct nameseq *next = files->next;
               const char *name = files->name;
               struct goaldep *deps;
+              struct file *f;
               int r;
 
-              /* Load the file.  0 means failure.  */
-              r = load_file (&ebuf->floc, &name, noerror);
-              if (! r && ! noerror)
-                OS (fatal, &ebuf->floc, _("%s: failed to load"), name);
+              {
+                struct file file = {0};
+                file.name = name;
+                /* Load the file.  0 means failure.  */
+                r = load_file (&ebuf->floc, &file, noerror);
+                if (! r && ! noerror)
+                  OS (fatal, &ebuf->floc, _("%s: failed to load"), name);
+                name = file.name;
+              }
+
+              f = lookup_file (name);
+              if (!f)
+                f = enter_file (name);
+              f->loaded = 1;
+              f->unloaded = 0;
 
               free_ns (files);
               files = next;
 
-              /* Return of -1 means a special load: don't rebuild it.  */
+              /* Return of -1 means don't ever try to rebuild.  */
               if (r == -1)
                 continue;
 
-              /* It succeeded, so add it to the list "to be rebuilt".  */
+              /* Otherwise add it to the list to be rebuilt.  */
               deps = alloc_goaldep ();
               deps->next = read_files;
               read_files = deps;
-              deps->file = lookup_file (name);
-              if (deps->file == 0)
-                deps->file = enter_file (name);
-              deps->file->loaded = 1;
+              deps->file = f;
             }
 
           continue;
@@ -1874,16 +1884,12 @@ record_target_var (struct nameseq *filenames, char *defn,
    and it have been mis-parsed because these special targets haven't been
    considered yet.  */
 
-static void check_specials (const struct nameseq* files, int set_default)
+static void
+check_specials (struct nameseq *files, int set_default)
 {
-  const struct nameseq *t = files;
+  struct nameseq *t;
 
-  /* Unlikely but ...  */
-  if (posix_pedantic && second_expansion && one_shell
-      && (!set_default || default_goal_var->value[0] == '\0'))
-    return;
-
-  for (; t != 0; t = t->next)
+  for (t = files; t != NULL; t = t->next)
     {
       const char* nm = t->name;
 
@@ -1966,6 +1972,34 @@ static void check_specials (const struct nameseq* files, int set_default)
             define_variable_global (".DEFAULT_GOAL", 13, t->name,
                                     o_file, 0, NILF);
         }
+    }
+}
+
+/* Check for special targets.  We used to do this in record_files() but that's
+   too late: by the time we get there we'll have already parsed the next line
+   and it have been mis-parsed because these special targets haven't been
+   considered yet.  */
+
+static void
+check_special_file (struct file *file, const floc *flocp)
+{
+  if (streq (file->name, ".WAIT"))
+    {
+      static unsigned int wpre = 0, wcmd = 0;
+
+      if (!wpre && file->deps)
+        {
+          O (error, flocp, _(".WAIT should not have prerequisites"));
+          wpre = 1;
+        }
+
+      if (!wcmd && file->cmds)
+        {
+          O (error, flocp, _(".WAIT should not have commands"));
+          wcmd = 1;
+        }
+
+      return;
     }
 }
 
@@ -2255,6 +2289,8 @@ record_files (struct nameseq *filenames, int are_also_makes,
         }
 
       name = f->name;
+
+      check_special_file (f, flocp);
 
       /* All done!  Set up for the next one.  */
       if (nextf == 0)
@@ -3134,6 +3170,8 @@ tilde_expand (const char *name)
         PARSEFS_EXISTS  - Only return globbed files that actually exist
                           (cannot also set NOGLOB)
         PARSEFS_NOCACHE - Do not add filenames to the strcache (caller frees)
+        PARSEFS_ONEWORD - Don't break the sequence on whitespace
+        PARSEFS_WAIT    - Assume struct dep and handle .WAIT
   */
 
 void *
@@ -3149,16 +3187,22 @@ parse_file_seq (char **stringp, size_t size, int stopmap,
   struct nameseq *new = 0;
   struct nameseq **newp = &new;
 #define NEWELT(_n)  do { \
-                        const char *__n = (_n); \
-                        *newp = xcalloc (size); \
-                        (*newp)->name = (cachep ? strcache_add (__n) : xstrdup (__n)); \
-                        newp = &(*newp)->next; \
+                        struct nameseq *_ns = xcalloc (size);       \
+                        const char *__n = (_n);                     \
+                        _ns->name = (cachep ? strcache_add (__n) : xstrdup (__n)); \
+                        if (found_wait) {                           \
+                          ((struct dep*)_ns)->wait_here = 1;        \
+                          found_wait = 0;                           \
+                        }                                           \
+                        *newp = _ns;                                \
+                        newp = &_ns->next;                          \
                     } while(0)
 
   char *p;
   glob_t gl;
   char *tp;
   int findmap = stopmap|MAP_VMSCOMMA|MAP_NUL;
+  int found_wait = 0;
 
   if (NONE_SET (flags, PARSEFS_ONEWORD))
     findmap |= MAP_BLANK;
@@ -3231,6 +3275,14 @@ parse_file_seq (char **stringp, size_t size, int stopmap,
 
       if (!p)
         p = s + strlen (s);
+
+      if (ANY_SET (flags, PARSEFS_WAIT) && p - s == CSTRLEN (".WAIT")
+          && memcmp (s, ".WAIT", CSTRLEN (".WAIT")) == 0)
+        {
+          /* Note that we found a .WAIT for the next dep but skip it.  */
+          found_wait = 1;
+          continue;
+        }
 
       /* Strip leading "this directory" references.  */
       if (NONE_SET (flags, PARSEFS_NOSTRIP))

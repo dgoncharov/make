@@ -46,7 +46,7 @@ static struct
     enum shuffle_mode mode;
     unsigned int seed;
     void (*shuffler) (void **a, size_t len);
-    char strval[INTSTR_LENGTH];
+    char strval[INTSTR_LENGTH + 1];
   } config = { sm_none, 0, NULL, "" };
 
 /* Return string value of --shuffle= option passed.
@@ -55,55 +55,47 @@ static struct
 const char *
 shuffle_get_mode ()
 {
-  return config.strval[0] ? config.strval : NULL;
+  return config.strval[0] == '\0' ? NULL : config.strval;
 }
 
 void
 shuffle_set_mode (const char *cmdarg)
 {
   /* Parse supported '--shuffle' mode.  */
-  if (strcasecmp (cmdarg, "random") == 0)
+  if (strcasecmp (cmdarg, "reverse") == 0)
     {
-      config.mode = sm_random;
-      config.seed = (unsigned int) (time (NULL) ^ make_pid ());
-    }
-  else if (strcasecmp (cmdarg, "reverse") == 0)
-    config.mode = sm_reverse;
-  else if (strcasecmp (cmdarg, "identity") == 0)
-    config.mode = sm_identity;
-  else if (strcasecmp (cmdarg, "none") == 0)
-    config.mode = sm_none;
-  /* Assume explicit seed if starts from a digit.  */
-  else
-    {
-      const char *err;
-      config.mode = sm_random;
-      config.seed = make_toui (cmdarg, &err);
-
-      if (err)
-        {
-          OS (error, NILF, _("invalid shuffle mode: '%s'"), cmdarg);
-          die (MAKE_FAILURE);
-        }
-    }
-
-  switch (config.mode)
-    {
-    case sm_random:
-      config.shuffler = random_shuffle_array;
-      sprintf (config.strval, "%u", config.seed);
-      break;
-    case sm_reverse:
+      config.mode = sm_reverse;
       config.shuffler = reverse_shuffle_array;
       strcpy (config.strval, "reverse");
-      break;
-    case sm_identity:
+    }
+  else if (strcasecmp (cmdarg, "identity") == 0)
+    {
+      config.mode = sm_identity;
       config.shuffler = identity_shuffle_array;
       strcpy (config.strval, "identity");
-      break;
-    case sm_none:
+    }
+  else if (strcasecmp (cmdarg, "none") == 0)
+    {
+      config.mode = sm_none;
+      config.shuffler = NULL;
       config.strval[0] = '\0';
-      break;
+    }
+  else
+    {
+      if (strcasecmp (cmdarg, "random") == 0)
+        config.seed = (unsigned int) (time (NULL) ^ make_pid ());
+      else
+        {
+          /* Assume explicit seed.  */
+          const char *err;
+          config.seed = make_toui (cmdarg, &err);
+          if (err)
+            OSS (fatal, NILF, _("invalid shuffle mode: %s: '%s'"), err, cmdarg);
+        }
+
+      config.mode = sm_random;
+      config.shuffler = random_shuffle_array;
+      sprintf (config.strval, "%u", config.seed);
     }
 }
 
@@ -154,7 +146,7 @@ identity_shuffle_array (void **a UNUSED, size_t len UNUSED)
   /* No-op!  */
 }
 
-/* Shuffle list of dependencies by populating '->next'
+/* Shuffle list of dependencies by populating '->shuf'
    field in each 'struct dep'.  */
 static void
 shuffle_deps (struct dep *deps)
@@ -165,7 +157,13 @@ shuffle_deps (struct dep *deps)
   void **dp;
 
   for (dep = deps; dep; dep = dep->next)
-    ndeps++;
+    {
+      /* Do not reshuffle prerequisites if any .WAIT is present.  */
+      if (dep->wait_here)
+        return;
+
+      ndeps++;
+    }
 
   if (ndeps == 0)
     return;
@@ -223,8 +221,7 @@ shuffle_deps_recursive (struct dep *deps)
   if (config.mode == sm_none)
     return;
 
-  /* Do not reshuffle targets if Makefile is explicitly marked as
-     problematic for parallelism.  */
+  /* Do not reshuffle prerequisites if .NOTPARALLEL was specified.  */
   if (not_parallel)
     return;
 

@@ -86,11 +86,13 @@ load_object (const floc *flocp, int noerror, const char *ldname,
         {
           const char *err = dlerror ();
           if (noerror)
-            DB (DB_BASIC, ("%s", err));
+            DB (DB_BASIC, ("%s\n", err));
           else
             OS (error, flocp, "%s", err);
           return NULL;
         }
+
+      DB (DB_VERBOSE, (_("Loaded shared object %s\n"), ldname));
 
       /* Assert that the GPL license symbol is defined.  */
       symp = (load_func_t) dlsym (dlp, "plugin_is_GPL_compatible");
@@ -123,19 +125,19 @@ load_object (const floc *flocp, int noerror, const char *ldname,
 }
 
 int
-load_file (const floc *flocp, const char **ldname, int noerror)
+load_file (const floc *flocp, struct file *file, int noerror)
 {
-  size_t nmlen = strlen (*ldname);
+  const char *ldname = file->name;
+  size_t nmlen = strlen (ldname);
   char *new = alloca (nmlen + CSTRLEN (SYMBOL_EXTENSION) + 1);
   char *symname = NULL;
-  char *loaded;
   const char *fp;
   int r;
   load_func_t symp;
 
   /* Break the input into an object file name and a symbol name.  If no symbol
      name was provided, compute one from the object file name.  */
-  fp = strchr (*ldname, '(');
+  fp = strchr (ldname, '(');
   if (fp)
     {
       const char *ep;
@@ -146,16 +148,16 @@ load_file (const floc *flocp, const char **ldname, int noerror)
       ep = strchr (fp+1, ')');
       if (ep && ep[1] == '\0')
         {
-          size_t l = fp - *ldname;;
+          size_t l = fp - ldname;
 
           ++fp;
           if (fp == ep)
-            OS (fatal, flocp, _("Empty symbol name for load: %s"), *ldname);
+            OS (fatal, flocp, _("Empty symbol name for load: %s"), ldname);
 
           /* Make a copy of the ldname part.  */
-          memcpy (new, *ldname, l);
+          memcpy (new, ldname, l);
           new[l] = '\0';
-          *ldname = new;
+          ldname = new;
           nmlen = l;
 
           /* Make a copy of the symbol name part.  */
@@ -165,22 +167,22 @@ load_file (const floc *flocp, const char **ldname, int noerror)
         }
     }
 
-  /* Add this name to the string cache so it can be reused later.  */
-  *ldname = strcache_add (*ldname);
+  /* Make sure this name is in the string cache.  */
+  ldname = file->name = strcache_add (ldname);
 
-  /* If this object has been loaded, we're done.  */
-  loaded = allocated_variable_expand ("$(.LOADED)");
-  fp = strstr (loaded, *ldname);
-  r = fp && (fp==loaded || fp[-1]==' ') && (fp[nmlen]=='\0' || fp[nmlen]==' ');
-  if (r)
-    goto exit;
+  /* If this object has been loaded, we're done: return -1 to ensure make does
+     not rebuild again.  If a rebuild is allowed it was set up when this
+     object was initially loaded.  */
+  file = lookup_file (ldname);
+  if (file && file->loaded)
+    return -1;
 
   /* If we didn't find a symbol name yet, construct it from the ldname.  */
   if (! symname)
     {
       char *p = new;
 
-      fp = strrchr (*ldname, '/');
+      fp = strrchr (ldname, '/');
 #ifdef HAVE_DOS_PATHS
       if (fp)
         {
@@ -190,13 +192,13 @@ load_file (const floc *flocp, const char **ldname, int noerror)
             fp = fp2;
         }
       else
-        fp = strrchr (*ldname, '\\');
+        fp = strrchr (ldname, '\\');
       /* The (improbable) case of d:foo.  */
       if (fp && *fp && fp[1] == ':')
         fp++;
 #endif
       if (!fp)
-        fp = *ldname;
+        fp = ldname;
       else
         ++fp;
       while (isalnum ((unsigned char) *fp) || *fp == '_')
@@ -205,31 +207,19 @@ load_file (const floc *flocp, const char **ldname, int noerror)
       symname = new;
     }
 
-  DB (DB_VERBOSE, (_("Loading symbol %s from %s\n"), symname, *ldname));
+  DB (DB_VERBOSE, (_("Loading symbol %s from %s\n"), symname, ldname));
 
   /* Load it!  */
-  r = 0;
-  symp = load_object (flocp, noerror, *ldname, symname);
+  symp = load_object (flocp, noerror, ldname, symname);
   if (! symp)
-    goto exit;
+    return 0;
 
   /* Invoke the symbol.  */
   r = (*symp) (flocp);
 
-  /* If it succeeded, add the load file to the loaded variable.  */
-  if (r > 0)
-    {
-      size_t loadlen = strlen (loaded);
-      char *newval = alloca (loadlen + strlen (*ldname) + 2);
-      /* Don't add a space if it's empty.  */
-      if (loadlen)
-        {
-          memcpy (newval, loaded, loadlen);
-          newval[loadlen++] = ' ';
-        }
-      strcpy (&newval[loadlen], *ldname);
-      do_variable_definition (flocp, ".LOADED", newval, o_default, f_simple, 0);
-    }
+  /* If the load didn't fail, add the file to the .LOADED variable.  */
+  if (r)
+    do_variable_definition(flocp, ".LOADED", ldname, o_file, f_append_value, 0);
 
   /* At exit run $module_gmk_close whether $module_gmk_setup succeeded or not.
      $module_gmk_close is optional, okay if not present.
@@ -238,19 +228,18 @@ load_file (const floc *flocp, const char **ldname, int noerror)
   new = strstr (symname, SYMBOL_EXTENSION);
   assert (new);
   memcpy (new, "_gmk_close", 10);
-  DB (DB_VERBOSE, (_("Loading symbol %s from %s\n"), symname, *ldname));
+  DB (DB_VERBOSE, (_("Loading symbol %s from %s\n"), symname, ldname));
   symp = (load_func_t) dlsym (loaded_syms->dlp, symname);
   if (symp)
     loaded_syms->close = symp;
 
- exit:
-  free (loaded);
   return r;
 }
 
-void
+int
 unload_file (const char *name)
 {
+  int rc = 0;
   struct load_list *d;
 
   for (d = loaded_syms; d != NULL; d = d->next)
@@ -259,11 +248,16 @@ unload_file (const char *name)
         if (d->close)
           (*d->close) (NULL);
         d->close = NULL;
-        if (dlclose (d->dlp))
+        DB (DB_VERBOSE, (_("Unloading shared object %s\n"), name));
+        rc = dlclose (d->dlp);
+        if (rc)
           perror_with_name ("dlclose: ", d->name);
-        d->dlp = NULL;
+        else
+          d->dlp = NULL;
         break;
       }
+
+  return rc;
 }
 
 void
@@ -285,7 +279,7 @@ unload_all (void)
 #else
 
 int
-load_file (const floc *flocp, const char **ldname UNUSED, int noerror)
+load_file (const floc *flocp, struct file *file UNUSED, int noerror)
 {
   if (! noerror)
     O (fatal, flocp,
@@ -294,7 +288,7 @@ load_file (const floc *flocp, const char **ldname UNUSED, int noerror)
   return 0;
 }
 
-void
+int
 unload_file (const char *name UNUSED)
 {
   O (fatal, NILF, "INTERNAL: Cannot unload when load is not supported");
