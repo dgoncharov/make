@@ -23,9 +23,9 @@ this program.  If not, see <http://www.gnu.org/licenses/>.  */
 #include <stdlib.h>
 #include <dlfcn.h>
 #include <errno.h>
-#include <assert.h>
 
 #define SYMBOL_EXTENSION        "_gmk_setup"
+#define GMK_CLOSE               "_gmk_close"
 
 #include "debug.h"
 #include "filedef.h"
@@ -129,9 +129,13 @@ load_file (const floc *flocp, struct file *file, int noerror)
 {
   const char *ldname = file->name;
   size_t nmlen = strlen (ldname);
+  /* new is the buffer for the setup symbol.  */
   char *new = alloca (nmlen + CSTRLEN (SYMBOL_EXTENSION) + 1);
+  /* close is the buffer for the close symbol.  */
+  char *close = alloca (nmlen + CSTRLEN (GMK_CLOSE) + 1);
   char *symname = NULL;
   const char *fp;
+  char *p, *p2 = close;
   int r;
   load_func_t symp;
 
@@ -177,35 +181,37 @@ load_file (const floc *flocp, struct file *file, int noerror)
   if (file && file->loaded)
     return -1;
 
-  /* If we didn't find a symbol name yet, construct it from the ldname.  */
-  if (! symname)
-    {
-      char *p = new;
+  p = symname ? close : new;
 
-      fp = strrchr (ldname, '/');
+  fp = strrchr (ldname, '/');
 #ifdef HAVE_DOS_PATHS
-      if (fp)
-        {
-          const char *fp2 = strchr (fp, '\\');
+  if (fp)
+    {
+      const char *fp2 = strchr (fp, '\\');
 
-          if (fp2 > fp)
-            fp = fp2;
-        }
-      else
-        fp = strrchr (ldname, '\\');
-      /* The (improbable) case of d:foo.  */
-      if (fp && *fp && fp[1] == ':')
-        fp++;
+      if (fp2 > fp)
+        fp = fp2;
+    }
+  else
+    fp = strrchr (ldname, '\\');
+  /* The (improbable) case of d:foo.  */
+  if (fp && *fp && fp[1] == ':')
+    fp++;
 #endif
-      if (!fp)
-        fp = ldname;
-      else
-        ++fp;
-      while (isalnum ((unsigned char) *fp) || *fp == '_')
-        *(p++) = *(fp++);
+  if (!fp)
+    fp = ldname;
+  else
+    ++fp;
+  while (isalnum ((unsigned char) *fp) || *fp == '_')
+    *(p++) = *(p2++) = *(fp++);
+  if (!symname)
+    {
+      /* If we didn't find a symbol name yet, construct it from the ldname.
+       * */
       strcpy (p, SYMBOL_EXTENSION);
       symname = new;
     }
+  memcpy (p2, GMK_CLOSE, CSTRLEN (GMK_CLOSE) + 1 );
 
   DB (DB_VERBOSE, (_("Loading symbol %s from %s\n"), symname, ldname));
 
@@ -225,11 +231,9 @@ load_file (const floc *flocp, struct file *file, int noerror)
      $module_gmk_close is optional, okay if not present.
      loaded_syms->close relies that load_object sets loaded_syms to the current
      sym.  */
-  new = strstr (symname, SYMBOL_EXTENSION);
-  assert (new);
-  memcpy (new, "_gmk_close", 10);
-  DB (DB_VERBOSE, (_("Loading symbol %s from %s\n"), symname, ldname));
-  symp = (load_func_t) dlsym (loaded_syms->dlp, symname);
+
+  DB (DB_VERBOSE, (_("Loading symbol %s from %s\n"), close, ldname));
+  symp = (load_func_t) dlsym (loaded_syms->dlp, close);
   if (symp)
     loaded_syms->close = symp;
 
