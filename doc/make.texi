@@ -12114,6 +12114,7 @@ always return a valid pointer; if not enough memory is available
 @findex gmk_free
 Free a buffer returned to you by @code{make}.  Once the
 @code{gmk_free} function returns the string will no longer be valid.
+If null is passed to @code{gmk_free}, no operation is performed.
 @end table
 
 @node Loaded Object Example,  , Loaded Object API, Loading Objects
