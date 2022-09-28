@@ -24,7 +24,7 @@ print $F <<'EOF' ;
 
 #include "gnumake.h"
 
-char* getenv (const char*);
+char *getenv (const char*);
 
 int plugin_is_GPL_compatible;
 
@@ -71,15 +71,22 @@ func_test (const char *funcname, int argc, char **argv)
 }
 
 int
-testapi_gmk_setup ()
+testapi_gmk_setup (const gmk_floc *floc)
 {
+    const char *verbose = getenv ("TESTAPI_VERBOSE");
+
     gmk_add_function ("test-expand", func_test, 1, 1, GMK_FUNC_DEFAULT);
     gmk_add_function ("test-noexpand", func_test, 1, 1, GMK_FUNC_NOEXPAND);
     gmk_add_function ("test-eval", func_test, 1, 1, GMK_FUNC_DEFAULT);
     gmk_add_function ("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.", func_test, 0, 0, 0);
 
-    if (getenv ("TESTAPI_VERBOSE"))
-      printf ("testapi_gmk_setup\n");
+    if (verbose)
+      {
+        printf ("testapi_gmk_setup\n");
+
+        if (verbose[0] == '2')
+          printf ("%s:%lu\n", floc->filenm, floc->lineno);
+      }
 
     if (getenv ("TESTAPI_KEEP"))
       return -1;
@@ -108,7 +115,7 @@ void
 testapi_gmk_close ()
 {
     const char *s = getenv ("TESTAPI_VERBOSE");
-    if (s && *s == '2')
+    if (s && *s == '3')
       printf ("testapi_gmk_close\n");
 }
 
@@ -227,6 +234,18 @@ force:;
 .PHONY: force
 ", '', "testapi_gmk_setup\nhello\n#MAKE#: 'all' is up to date.\n");
 
+# sv 63100.
+# Test that make supplies the correct floc when the shared object is loaded
+# again.
+$ENV{TESTAPI_VERBOSE} = 2;
+run_make_test("
+load testapi.so
+$extra_loads
+all:; \$(info \$(test-expand hello))
+testapi.so: force; \$(info \$@)
+force:;
+.PHONY: force
+", '', "testapi_gmk_setup\n#MAKEFILE#:2\ntestapi.so\ntestapi_gmk_setup\n#MAKEFILE#:2\nhello\n#MAKE#: 'all' is up to date.\n");
 }
 
 my @names  = ('testapi.so', './testapi.so', '#PWD#/testapi.so');
@@ -235,7 +254,7 @@ for my $name (@names) {
 
 # Test the make correctly figures out the name of the close routine and runs
 # the close routine.
-$ENV{TESTAPI_VERBOSE} = 2;
+$ENV{TESTAPI_VERBOSE} = 3;
 run_make_test("
 load $name
 all:; \$(info \$(test-expand hello))
@@ -248,7 +267,7 @@ all:; \$(info \$(test-expand hello))
 for my $name (@names) {
 
 # Test the close routine.
-$ENV{TESTAPI_VERBOSE} = 2;
+$ENV{TESTAPI_VERBOSE} = 3;
 run_make_test("
 load $name
 all:; \$(info \$(test-expand hello))
@@ -256,7 +275,7 @@ all:; \$(info \$(test-expand hello))
 }
 
 # Test that makes runs the close routine on failure.
-$ENV{TESTAPI_VERBOSE} = 2;
+$ENV{TESTAPI_VERBOSE} = 3;
 run_make_test(q!
 load testapi.so
 all: bad_preqreq; :
@@ -265,7 +284,7 @@ all: bad_preqreq; :
 # Test that make unloads a shared object, calls the close routine, loads
 # the module again, and then calls the close routine again on exit.
 &utouch(-10, 'testapi.so');
-$ENV{TESTAPI_VERBOSE} = 2;
+$ENV{TESTAPI_VERBOSE} = 3;
 run_make_test("
 load testapi.so
 all:; \$(info \$(test-expand hello))
@@ -274,7 +293,7 @@ testapi.so: testapi.c; $sobuild
 
 # Test that make unloads a shared object, calls the close routine, loads
 # the module again, and then calls the close routine again on exit.
-$ENV{TESTAPI_VERBOSE} = 2;
+$ENV{TESTAPI_VERBOSE} = 3;
 run_make_test(q!
 load testapi.so
 all:; $(info $(test-expand hello))
@@ -288,11 +307,11 @@ unlink(qw(testapi.c testapi.so)) unless $keep;
 # Test that make does not run the close routine, unless the shared object
 # loaded successfully.
 unlink(testapi.so);
-$ENV{TESTAPI_VERBOSE} = 2;
+$ENV{TESTAPI_VERBOSE} = 3;
 run_make_test(q!
 load testapi.so
 all:; :
-!, '', "#MAKE#: testapi.so: cannot open shared object file: $ERR_no_such_file\n#MAKE#: *** testapi.so: failed to load.  Stop\n", 512);
+!, '', "#MAKEFILE#:2: testapi.so: cannot open shared object file: $ERR_no_such_file\n#MAKEFILE#:2: *** testapi.so: failed to load.  Stop.\n", 512);
 
 # This tells the test driver that the perl test script executed properly.
 1;

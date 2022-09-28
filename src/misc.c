@@ -54,6 +54,30 @@ make_toui (const char *str, const char **error)
   return val;
 }
 
+#if WINDOWS32
+  /* MSVCRT does not support the 'll' format specifier.  */
+# define LLFMT "I64"
+#else
+# define LLFMT "ll"
+#endif
+
+/* Convert val into a string, written to buf.  buf must be large enough
+   to hold the largest possible value, plus a nul byte.  Returns buf.  */
+
+char *
+make_lltoa (long long val, char *buf)
+{
+  sprintf (buf, "%" LLFMT "d", val);
+  return buf;
+}
+
+char *
+make_ulltoa (unsigned long long val, char *buf)
+{
+  sprintf (buf, "%" LLFMT "u", val);
+  return buf;
+}
+
 /* Compare strings *S1 and *S2.
    Return negative if the first is less, positive if it is greater,
    zero if they are equal.  */
@@ -688,7 +712,7 @@ strcasecmp (const char *s1, const char *s2)
    substitute for it, define our own version.  */
 
 int
-strncasecmp (const char *s1, const char *s2, int n)
+strncasecmp (const char *s1, const char *s2, size_t n)
 {
   while (n-- > 0)
     {

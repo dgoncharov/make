@@ -535,6 +535,8 @@ void pfatal_with_name (const char *) NORETURN;
 void perror_with_name (const char *, const char *);
 #define xstrlen(_s) ((_s)==NULL ? 0 : strlen (_s))
 unsigned int make_toui (const char*, const char**);
+char *make_lltoa (long long, char *);
+char *make_ulltoa (unsigned long long, char *);
 pid_t make_pid ();
 void *xmalloc (size_t);
 void *xcalloc (size_t);
@@ -668,7 +670,7 @@ int strcasecmp (const char *s1, const char *s2);
 #  define strncasecmp strncmpi
 # else
 /* Create our own, in misc.c */
-int strncasecmp (const char *s1, const char *s2, int n);
+int strncasecmp (const char *s1, const char *s2, size_t n);
 # endif
 #endif
 

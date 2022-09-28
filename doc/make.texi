@@ -3307,17 +3307,17 @@ can do it with a @dfn{static pattern rule}.  @xref{Static Pattern,
 @cindex grouped targets
 @cindex targets, grouped
 
-If instead of independent targets you have a recipe that generates
-multiple files from a single invocation, you can express that
-relationship by declaring your rule to use @emph{grouped targets}.  A
-grouped target rule uses the separator @code{&:} (the @samp{&} here is
-used to imply ``all'').
+If instead of independent targets you have a recipe that generates multiple
+files from a single invocation, you can express that relationship by declaring
+your rule to use @emph{grouped targets}.  A grouped target rule uses the
+separator @code{&:} (the @samp{&} here is used to imply ``all'').
 
-When @code{make} builds any one of the grouped targets, it understands
-that all the other targets in the group are also created as a result
-of the invocation of the recipe.  Furthermore, if only some of the
-grouped targets are out of date or missing @code{make} will realize
-that running the recipe will update all of the targets.
+When @code{make} builds any one of the grouped targets, it understands that
+all the other targets in the group are also updated as a result of the
+invocation of the recipe.  Furthermore, if only some of the grouped targets
+are out of date or missing @code{make} will realize that running the recipe
+will update all of the targets.  Finally, if any of the grouped targets are
+out of date, all the grouped targets are considered out of date.
 
 As an example, this rule defines a grouped target:
 
@@ -4478,12 +4478,13 @@ If parallel execution is enabled, @code{make} will try to build @file{one} and
 @file{two} in parallel but will not try to build @file{three} until both are
 complete.
 
-As with targets provided to @code{.NOTPARALLEL}, @code{.WAIT} has an effect
+As with targets provided to @code{.NOTPARALLEL}, @code{.WAIT} takes effect
 only when building the target in whose prerequisite list it appears.  If the
 same prerequisites are present in other targets, without @code{.WAIT}, then
-they may still be run in parallel.  Because of this, @code{.WAIT} is an
-unreliable way to impose ordering than defining a prerequisite relationship.
-However it is easy to use and may suffice for simple needs.
+they may still be run in parallel.  Because of this, neither
+@code{.NOTPARALLEL} with targets nor @code{.WAIT} are as reliable for
+controlling parallel execution as defining a prerequisite relationship.
+However they are easy to use and may be sufficient in less complex situations.
 
 The @code{.WAIT} prerequisite will not be present in any of the automatic
 variables for the rule.
@@ -10617,10 +10618,10 @@ More than one pattern rule may match a target.  In this case
 
 @cindex multiple targets, in pattern rule
 @cindex target, multiple in pattern rule
-Pattern rules may have more than one target; however, every target
-must contain a @code{%} character.  Pattern rules are always treated
-as grouped targets (@pxref{Multiple Targets, , Multiple Targets in a
-Rule}) regardless of whether they use the @code{:} or @code{&:}
+Pattern rules may have more than one target; however, every target must
+contain a @code{%} character.  Multiple target patterns in pattern rules are
+always treated as grouped targets (@pxref{Multiple Targets, , Multiple Targets
+in a Rule}) regardless of whether they use the @code{:} or @code{&:}
 separator.
 
 @node Pattern Examples, Automatic Variables, Pattern Intro, Pattern Rules

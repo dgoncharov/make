@@ -2499,6 +2499,7 @@ main (int argc, char **argv, char **envp)
                         any_remade |= (mtime != NONEXISTENT_MTIME
                                        && mtime != makefile_mtimes[i]);
                         makefile_status = MAKE_FAILURE;
+                        any_failed = 1;
                       }
                   }
 
@@ -2557,13 +2558,11 @@ main (int argc, char **argv, char **envp)
 
               for (; *av; ++av, ++nv)
                 {
-                  size_t len;
                   char *f;
                   char *a = *av;
                   const char *mf = makefiles->list[mfidx];
 
-                  len = strlen (a);
-                  assert (len > 0);
+                  assert (strlen (a) > 0);
 
                   *nv = a;
 
