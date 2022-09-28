@@ -206,8 +206,7 @@ load_file (const floc *flocp, struct file *file, int noerror)
     *(p++) = *(p2++) = *(fp++);
   if (!symname)
     {
-      /* If we didn't find a symbol name yet, construct it from the ldname.
-       * */
+      /* If we didn't find a symbol name yet, construct it from the ldname.  */
       strcpy (p, SYMBOL_EXTENSION);
       symname = new;
     }
