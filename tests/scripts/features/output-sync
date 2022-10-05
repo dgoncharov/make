@@ -338,5 +338,17 @@ all:: ; @./foo bar baz
               '-O', "#MAKE#: ./foo: $ERR_no_such_file\n#MAKE#: *** [#MAKEFILE#:2: all] Error 127\n", 512);
 }
 
+if ($port_type eq 'UNIX') {
+use POSIX ();
+# sv 63157.
+# Test that make removes temporary files, even when a signal is received.
+# This test fails, unless the temporary file used to synchronize output
+# and the jobserver fifo are both removed.
+run_make_test(q!
+pid:=$(shell echo $$PPID)
+all:; @kill -TERM $(pid)
+!, '-O -j2', "", POSIX::SIGTERM);
+}
+
 # This tells the test driver that the perl test script executed properly.
 1;

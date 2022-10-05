@@ -327,6 +327,16 @@ jobserver_clear ()
 }
 
 void
+jobserver_unlink ()
+{
+  /* This function is called from a signal handler.
+   * Keep async-signal-safe.  */
+  int r;
+  if (fifo_name)
+    EINTRLOOP (r, unlink (fifo_name));
+}
+
+void
 jobserver_release (int is_fatal)
 {
   int r;
@@ -666,6 +676,9 @@ osync_parse_mutex (const char *mutex)
 void
 osync_clear ()
 {
+  /* This function is called from a signal handler.
+   * Keep async-signal-safe.  */
+
   if (osync_handle >= 0)
     {
       close (osync_handle);

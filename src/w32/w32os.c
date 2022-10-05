@@ -295,6 +295,11 @@ jobserver_clear ()
 }
 
 void
+jobserver_unlink ()
+{
+}
+
+void
 jobserver_release (int is_fatal)
 {
   if (! ReleaseSemaphore (

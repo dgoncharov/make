@@ -70,6 +70,9 @@ const char *jobserver_get_invalid_auth ();
 /* Clear this instance's jobserver configuration.  */
 void jobserver_clear ();
 
+/* Unlink the jobserver fifo.  */
+void jobserver_unlink ();
+
 /* Recover all the jobserver tokens and return the number we got.  */
 unsigned int jobserver_acquire_all ();
 
@@ -103,6 +106,7 @@ unsigned int jobserver_acquire (int timeout);
 #define jobserver_get_auth()            (NULL)
 #define jobserver_get_invalid_auth()    (NULL)
 #define jobserver_clear()               (void)(0)
+#define jobserver_unlink()              (void)(0)
 #define jobserver_release(_fatal)       (void)(0)
 #define jobserver_acquire_all()         (0)
 #define jobserver_signal()              (void)(0)

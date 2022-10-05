@@ -3713,6 +3713,17 @@ clean_jobserver (int status)
       reset_jobserver ();
     }
 }
+
+void
+temp_stdin_unlink ()
+{
+  /* This function is called from a signal handler.
+   * Keep async-signal-safe.  */
+  /* Get rid of a temp file from reading a makefile from stdin.  */
+  if (stdin_offset >= 0 && unlink (makefiles->list[stdin_offset]) == 0)
+    stdin_offset = -1;
+}
+
 
 /* Exit with STATUS, cleaning up as necessary.  */
 
