@@ -11874,6 +11874,9 @@ or a directory path is included, then system-specific paths will be
 searched.  If the load fails for any reason, @code{make} will print a
 message and exit.
 
+If the load succeeds, @code{make} will search for two symbols, an initializing
+function and a close function.
+
 If the load succeeds @code{make} will invoke an initializing function.
 
 If @var{symbol-name} is provided, it will be used as the name of the
@@ -11884,6 +11887,17 @@ created by taking the base file name of @var{object-file}, up to the
 first character which is not a valid symbol name character
 (alphanumerics and underscores are valid symbol name characters).  To
 this prefix will be appended the suffix @code{_gmk_setup}.
+
+The name of the close function is created by taking the base file name of
+@var{object-file}, up to the first character which is not a valid symbol name
+character (alphanumerics and underscores are valid symbol name characters).  To
+this prefix will be appended the suffix @code{_gmk_close}. The close function
+is optional. If the plugin provides a close function, @code{make} will call the
+provided close function before unloading @var{object-file}, either at exit or
+in order to rebuild @var{object-file}. If the plugin provides a close function,
+@code{make} will call the provided close function, whether the initializing
+function succeeded or not. @code{make} will pass no arguments to the close
+function and will ignore its return value.
 
 More than one object file may be loaded with a single @code{load}
 directive, and both forms of @code{load} arguments may be used in the
@@ -12148,8 +12162,14 @@ function in a file @file{mk_temp.c}:
 
 int plugin_is_GPL_compatible;
 
-char *
-gen_tmpfile(const char *nm, int argc, char **argv)
+struct file @{
+  struct file *next;
+  char *name;
+@};
+static struct file *files = NULL;
+
+static char *
+gen_tmpfile (const char *nm, int argc, char **argv)
 @{
   int fd;
 
@@ -12163,6 +12183,10 @@ gen_tmpfile(const char *nm, int argc, char **argv)
   fd = mkstemp(buf);
   if (fd >= 0)
     @{
+      struct file *new = (struct file *) malloc (sizeof *new);
+      new->name = strdup (buf);
+      new->next = files;
+      files = new;
       /* Don't leak the file descriptor.  */
       close (fd);
       return buf;
@@ -12182,6 +12206,22 @@ mk_temp_gmk_setup (const gmk_floc *floc)
   gmk_add_function ("mk-temp", gen_tmpfile, 1, 1, 1);
   return 1;
 @}
+
+void
+mk_temp_gmk_close ()
+@{
+  while (files)
+    @{
+      struct file *f = files;
+      printf ("unlinking %s\n", f->name);
+      unlink (f->name);
+      free (f->name);
+      files = f->next;
+      free (f);
+    @}
+  files = NULL;
+  printf ("mk_temp plugin unloaded\n");
+@}
 @end group
 @end example
 
@@ -12190,10 +12230,11 @@ it, and use it:
 
 @example
 @group
+-load mk_temp.so
+$(info Temporary file $(mk-temp tmpfile.))
 all:
-        @@echo Temporary file: $(mk-temp tmpfile.)
+        @@echo Temporary file $(mk-temp tmpfile.)
 
-load mk_temp.so
 
 mk_temp.so: mk_temp.c
         $(CC) -shared -fPIC -o $@@ $<
@@ -12218,9 +12259,17 @@ Now when you run @code{make} you'll see something like:
 
 @example
 $ make
-mk_temp plugin loaded from Makefile:4
+mk_temp plugin loaded from makefile:1
+Temporary file tmpfile.O7vuwn
+unlinking tmpfile.O7vuwn
+mk_temp plugin unloaded
 cc -shared -fPIC -o mk_temp.so mk_temp.c
-Temporary filename: tmpfile.A7JEwd
+mk_temp plugin loaded from makefile:1
+Temporary file tmpfile.lpgecm
+Temporary file tmpfile.sIdBvo
+unlinking tmpfile.sIdBvo
+unlinking tmpfile.lpgecm
+mk_temp plugin unloaded
 @end example
 
 @node Integrating make, Features, Extending make, Top

@@ -640,6 +640,7 @@ int guile_gmake_setup (const floc *flocp);
 typedef int (*load_func_t)(const floc *flocp);
 int load_file (const floc *flocp, struct file *file, int noerror);
 int unload_file (const char *name);
+void unload_all (void);
 
 /* Maintainer mode support */
 #ifdef MAKE_MAINTAINER_MODE
