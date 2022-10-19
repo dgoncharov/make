@@ -127,6 +127,10 @@ static void vmsWaitForChildren (int *);
 # include <fcntl.h>
 #endif
 
+#ifdef HAVE_SYS_LOADAVG_H
+# include <sys/loadavg.h>
+#endif
+
 #if defined (HAVE_SYS_WAIT_H) || defined (HAVE_UNION_WAIT)
 # include <sys/wait.h>
 #endif
@@ -220,7 +224,7 @@ pid2str (pid_t pid)
   return pidstring;
 }
 
-#ifndef HAVE_DECL_GETLOADAVG
+#if HAVE_DECL_GETLOADAVG == 0 && !defined(HAVE_SYS_LOADAVG_H)
 int getloadavg (double loadavg[], int nelem);
 #endif
 
