@@ -1296,6 +1296,10 @@ main (int argc, char **argv, char **envp)
 # endif
 #endif
 
+#ifdef SIGPIPE
+  (void) bsd_signal (SIGPIPE, SIG_IGN);
+#endif
+
   output_init (NULL);
 
   /* Figure out where this program lives.  */
