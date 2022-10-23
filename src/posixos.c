@@ -839,16 +839,26 @@ int
 os_anontmp ()
 {
   int fd = -1;
+  const char *tmpdir = get_tmpdir ();
 
 #ifdef O_TMPFILE
-  EINTRLOOP (fd, open (get_tmpdir (), O_RDWR | O_TMPFILE | O_EXCL, 0600));
+  EINTRLOOP (fd, open (tmpdir, O_RDWR | O_TMPFILE | O_EXCL, 0600));
   if (fd < 0)
-    pfatal_with_name ("open(O_TMPFILE)");
-#elif HAVE_DUP
+    {
+#ifndef HAVE_DUP
+      pfatal_with_name ("open(O_TMPFILE)");
+#endif
+      DB (DB_BASIC, (_("Cannot open '%s' with O_TMPFILE: %s.\n"),
+                     tmpdir, strerror (errno)));
+    }
+#endif /* O_TMPFILE */
+
+#if HAVE_DUP
   /* We don't have O_TMPFILE but we can dup: if we are creating temp files in
      the default location then try tmpfile() + dup() + fclose() to avoid ever
      having a name for a file.  */
-  if (streq (get_tmpdir (), DEFAULT_TMPDIR))
+
+  if (fd < 0 && streq (tmpdir, DEFAULT_TMPDIR))
     {
       mode_t mask = umask (0077);
       FILE *tfile;
