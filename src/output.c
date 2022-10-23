@@ -345,7 +345,12 @@ output_start (void)
   /* If we're syncing output make sure the temporary file is set up.  */
   if (output_context && output_context->syncout)
     if (! OUTPUT_ISSET(output_context))
-      setup_tmpfile (output_context);
+      {
+        struct output *sav = output_context;
+        output_context = 0;
+        setup_tmpfile (sav);
+        output_context = sav;
+      }
 #endif
 
   /* If we're not syncing this output per-line or per-target, make sure we emit
