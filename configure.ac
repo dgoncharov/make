@@ -405,6 +405,34 @@ AS_CASE([/$user_posix_spawn/$make_cv_posix_spawn/$make_cv_synchronous_posix_spaw
   [AC_DEFINE(USE_POSIX_SPAWN, 1, [Define to 1 to use posix_spawn().])
   ])
 
+AC_CACHE_CHECK([test that O_TMPFILE is supported],
+  [make_cv_o_tmpfile],
+  [make_cv_o_tmpfile=no
+  AC_RUN_IFELSE([AC_LANG_SOURCE([[
+      #include <fcntl.h>
+      #include <stdlib.h>
+      int main ()
+      {
+#ifdef O_TMPFILE
+        const char *tdir;
+        int fd;
+
+        tdir = getenv ("TMPDIR");
+        if (!tdir)
+          tdir = "/tmp";
+        fd = open (tdir, O_RDWR|O_TMPFILE|O_EXCL, 0600);
+        if (fd >= 0)
+          return 0;
+#endif
+        return 1;
+      }]])],
+      [make_cv_o_tmpfile=yes],
+      [make_cv_o_tmpfile=no],
+      [make_cv_o_tmpfile="yes (cross-compiling)"])])
+AS_IF([test "$make_cv_o_tmpfile" = yes],
+      [AC_DEFINE([HAVE_O_TMPFILE], [1], [Define to 1 to use O_TMPFILE flag.])])
+
+
 # Find the SCCS commands, so we can include them in our default rules.
 
 AC_CACHE_CHECK([for location of SCCS get command], [make_cv_path_sccs_get], [

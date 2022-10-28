@@ -842,7 +842,7 @@ os_anontmp ()
   const char *tdir = get_tmpdir ();
   int fd = -1;
 
-#ifdef O_TMPFILE
+#ifdef HAVE_O_TMPFILE
   EINTRLOOP (fd, open (tdir, O_RDWR | O_TMPFILE | O_EXCL, 0600));
   if (fd >= 0)
     return fd;
