@@ -1215,7 +1215,7 @@ target_environment (struct file *file, int recursive)
 }
 
 static struct variable *
-set_special_var (struct variable *var)
+set_special_var (struct variable *var, enum variable_origin origin)
 {
   if (streq (var->name, RECIPEPREFIX_NAME))
     {
@@ -1225,7 +1225,10 @@ set_special_var (struct variable *var)
       cmd_prefix = var->value[0]=='\0' ? RECIPEPREFIX_DEFAULT : var->value[0];
     }
   else if (streq (var->name, MAKEFLAGS_NAME))
-    decode_env_switches (STRING_SIZE_TUPLE(MAKEFLAGS_NAME));
+    {
+      decode_env_switches (STRING_SIZE_TUPLE(MAKEFLAGS_NAME), origin);
+      define_makeflags (rebuilding_makefiles);
+    }
 
   return var;
 }
@@ -1352,7 +1355,7 @@ do_variable_definition (const floc *flocp, const char *varname,
           {
             /* Paste the old and new values together in VALUE.  */
 
-            size_t oldlen, vallen;
+            size_t oldlen, vallen, alloclen;
             const char *val;
             char *tp = NULL;
 
@@ -1378,13 +1381,34 @@ do_variable_definition (const floc *flocp, const char *varname,
               }
 
             oldlen = strlen (v->value);
-            p = alloc_value = xmalloc (oldlen + 1 + vallen + 1);
+            alloclen = oldlen + 1 + vallen + 1;
+            p = alloc_value = xmalloc (alloclen);
 
             if (oldlen)
               {
                 memcpy (alloc_value, v->value, oldlen);
                 alloc_value[oldlen] = ' ';
                 ++oldlen;
+                if (streq (varname, MAKEFLAGS_NAME))
+                  {
+                    /* If appending to MAKEFLAGS, ensure command line variable
+                     * definitions are listed after all switches.  */
+                    char *a;
+                    alloc_value[oldlen] = '\0';
+                    a = strstr (alloc_value, " -- ");
+                    if (a)
+                      {
+                        /* Found command line variable definitions.
+                         * Copy the new value before -- and copy cli
+                         * definitions after the new value.  */
+                        const char *b = strdupa (a);
+                        const size_t blen = oldlen - (a - alloc_value);
+                        memcpy (mempcpy (a + 1, val, vallen), b, blen);
+                        alloc_value[alloclen - 1] = '\0';
+                        free (tp);
+                        break;
+                      }
+                  }
               }
 
             memcpy (&alloc_value[oldlen], val, vallen + 1);
@@ -1546,7 +1570,7 @@ do_variable_definition (const floc *flocp, const char *varname,
 
  done:
   free (alloc_value);
-  return v->special ? set_special_var (v) : v;
+  return v->special ? set_special_var (v, origin) : v;
 }
 
 /* Parse P (a null-terminated string) as a variable definition.
