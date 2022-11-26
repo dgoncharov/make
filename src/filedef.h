@@ -227,3 +227,6 @@ FILE_TIMESTAMP f_mtime (struct file *file, int search);
 
 /* Have we snapped deps yet?  */
 extern int snapped_deps;
+
+/* Whether or not .NOTINTERMEDIATE with no prerequisites was given.  */
+extern int no_intermediates;

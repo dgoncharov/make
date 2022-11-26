@@ -36,7 +36,7 @@ hello.z:
 
 # Test 4. .NOTINTERMEDIATE without prerequisites makes everything
 # notintermediate.
-unlink('hello.z');
+touch('hello.z');
 run_make_test(q!
 hello.z:
 %.z: %.x; touch $@
