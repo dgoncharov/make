@@ -1,9 +1,9 @@
-#                                                                    -*-perl-*-
-
-$description = "Test proper behavior of MAKEFLAGS";
-
-$details = "DETAILS";
-
+##                                                                    -*-perl-*-
+#
+#$description = "Test proper behavior of MAKEFLAGS";
+#
+#$details = "DETAILS";
+#
 # Normal flags aren't prefixed with "-"
 run_make_test(q!
 all: ; @echo /$(MAKEFLAGS)/
@@ -368,4 +368,277 @@ all:; $(info good)
 !, 'hello=\'$(world\'', "good\n#MAKE#: 'all' is up to date.\n");
 
 
+
+my @flavors = ('=', ':=', ':::=', '+=');
+
+# sv xxx
+# -w vs --no-print-directory
+# Test that setting -w in makefile has desired effect.
+for my $fl (@flavors) {
+run_make_test("
+MAKEFLAGS${fl}-w
+all:
+", '',
+"#MAKE#: Entering directory '#PWD#'
+#MAKE#: Nothing to be done for 'all'.
+#MAKE#: Leaving directory '#PWD#'\n");
+}
+
+# sv xxx
+# -w in makefile, --no-print-directory on the command line.
+for my $fl (@flavors) {
+run_make_test("
+MAKEFLAGS${fl}-w
+all:
+", '--no-print-directory', "#MAKE#: Nothing to be done for 'all'.\n");
+}
+
+mkdir('lib2', 0777);
+create_file('lib2/makefile', 'all:');
+
+# Default, no -w or --no-print-directory is specified.
+run_make_test(q!
+all:; $(MAKE) -C lib2
+!, '',
+"#MAKEPATH# -C lib2
+#MAKE#[1]: Entering directory '#PWD#/lib2'
+#MAKE#[1]: Nothing to be done for 'all'.
+#MAKE#[1]: Leaving directory '#PWD#/lib2'\n");
+
+# sv xxx
+# --no-print-directory in makefile, -w on the command line.
+for my $fl (@flavors) {
+run_make_test("
+MAKEFLAGS${fl}--no-print-directory
+all:; \$(MAKE) -C lib2
+", '-w',
+"#MAKE#: Entering directory '#PWD#'
+#MAKEPATH# -C lib2
+#MAKE#[1]: Entering directory '#PWD#/lib2'
+#MAKE#[1]: Nothing to be done for 'all'.
+#MAKE#[1]: Leaving directory '#PWD#/lib2'
+#MAKE#: Leaving directory '#PWD#'\n");
+}
+
+# sv xxx
+# --no-print-directory in makefile, -w in the env.
+for my $fl (@flavors) {
+$ENV{'MAKEFLAGS'} = '-w';
+run_make_test("
+MAKEFLAGS${fl}--no-print-directory
+all:; \$(MAKE) -C lib2
+", '',
+"#MAKE#: Entering directory '#PWD#'
+#MAKEPATH# -C lib2
+#MAKE#[1]: Entering directory '#PWD#/lib2'
+#MAKE#[1]: Nothing to be done for 'all'.
+#MAKE#[1]: Leaving directory '#PWD#/lib2'
+#MAKE#: Leaving directory '#PWD#'\n");
+}
+
+unlink('lib2/makefile');
+rmdir('lib2');
+
+# sv xxx
+# -k vs -S.
+#
+# -k in makefile.
+for my $fl (@flavors) {
+run_make_test("
+MAKEFLAGS${fl}-k
+all: one two
+one:; false
+two:; \$(info \$@)
+", '',
+"false
+#MAKE#: *** [#MAKEFILE#:4: one] Error 1
+two
+#MAKE#: Target 'all' not remade because of errors.", 512);
+}
+
+# -k in makefile and -S on the command line.
+for my $fl (@flavors) {
+run_make_test("
+MAKEFLAGS${fl}-k
+all: one two
+one:; false
+two:; \$(info \$@)
+", '-S',
+"false
+#MAKE#: *** [#MAKEFILE#:4: one] Error 1", 512);
+}
+
+# -k in makefile and -S in the env.
+for my $fl (@flavors) {
+$ENV{'MAKEFLAGS'} = '-S';
+run_make_test("
+MAKEFLAGS${fl}-k
+all: one two
+one:; false
+two:; \$(info \$@)
+", '-S',
+"false
+#MAKE#: *** [#MAKEFILE#:4: one] Error 1", 512);
+}
+
+# -S in makefile.
+for my $fl (@flavors) {
+run_make_test("
+MAKEFLAGS${fl}-S
+all: one two
+one:; false
+two:; \$(info \$@)
+", '',
+"false
+#MAKE#: *** [#MAKEFILE#:4: one] Error 1", 512);
+}
+
+# -S in makefile and -k on the command line.
+for my $fl (@flavors) {
+run_make_test("
+MAKEFLAGS${fl}-S
+all: one two
+one:; false
+two:; \$(info \$@)
+", '-k',
+"false
+#MAKE#: *** [#MAKEFILE#:4: one] Error 1
+two
+#MAKE#: Target 'all' not remade because of errors.", 512);
+}
+
+# -S in makefile and -k in the env.
+for my $fl (@flavors) {
+$ENV{'MAKEFLAGS'} = '-k';
+run_make_test("
+MAKEFLAGS${fl}-k
+all: one two
+one:; false
+two:; \$(info \$@)
+", '',
+"false
+#MAKE#: *** [#MAKEFILE#:4: one] Error 1
+two
+#MAKE#: Target 'all' not remade because of errors.", 512);
+}
+
+
+# sv xxx
+# -s vs --no-silent.
+# -s in the makefile.
+for my $fl (@flavors) {
+run_make_test("
+MAKEFLAGS${fl}-s
+all:
+", '', '');
+}
+
+# sv xxx
+# -s in makefile and --no-silent on the command line.
+for my $fl (@flavors) {
+run_make_test("
+MAKEFLAGS${fl}-s
+all:
+", '--no-silent', "#MAKE#: Nothing to be done for 'all'.\n");
+}
+
+# sv xxx
+# -s in makefile and --no-silent in the env.
+for my $fl (@flavors) {
+$ENV{'MAKEFLAGS'} = '--no-silent';
+run_make_test("
+MAKEFLAGS${fl}-s
+all:
+", '', "#MAKE#: Nothing to be done for 'all'.\n");
+}
+
+# --no-silent in makefile.
+for my $fl (@flavors) {
+run_make_test("
+MAKEFLAGS${fl}--no-silent
+all:
+", '', "#MAKE#: Nothing to be done for 'all'.\n");
+}
+
+# sv xxx
+# --no-silent in makefile and -s on the command line.
+for my $fl (@flavors) {
+run_make_test("
+MAKEFLAGS${fl}--no-silent
+all:
+", '-s', "");
+}
+
+# sv xxx
+# --no-silent in makefile and -s in the env.
+for my $fl (@flavors) {
+$ENV{'MAKEFLAGS'} = '-s';
+run_make_test("
+MAKEFLAGS${fl}--no-silent
+all:
+", '', "");
+}
+
+
+
+# sv xxx
+# Multiple --debug switches from various origins are all combined.
+# Because run_make_test regex matching facility does not allow to match against
+# multiple lines, run the test twice. During the first run match the output of
+# --debug=b, during the second run match the output of --debug=-j.
+#
+# --debug=b in makefile.
+for my $fl (@flavors) {
+run_make_test("
+MAKEFLAGS${fl}--debug=b
+hello:; touch \$@
+.PHONY: hello
+", '', "/Updating makefiles/");
+}
+
+# --debug=b in makefile, --debug=j on the command line.
+# Test for --debug=j output.
+for my $fl (@flavors) {
+run_make_test("
+MAKEFLAGS${fl}--debug=b
+hello:; touch \$@
+.PHONY: hello
+", '--debug=j', "/Putting child/");
+}
+
+# --debug=b in makefile, --debug=j on the command line.
+# Test for --debug=b output.
+for my $fl (@flavors) {
+run_make_test("
+MAKEFLAGS${fl}--debug=b
+hello:; touch \$@
+.PHONY: hello
+", '--debug=j', "/Updating makefiles/");
+}
+
+# --debug=b in makefile, --debug=j in the env.
+# Test for --debug=j output.
+for my $fl (@flavors) {
+$ENV{'MAKEFLAGS'} = '--debug=j';
+run_make_test("
+MAKEFLAGS${fl}--debug=b
+hello:; touch \$@
+.PHONY: hello
+", '', "/Putting child/");
+}
+
+# --debug=b in makefile, --debug=j in the env.
+# Test for --debug=b output.
+for my $fl (@flavors) {
+$ENV{'MAKEFLAGS'} = '--debug=j';
+run_make_test("
+MAKEFLAGS${fl}--debug=b
+hello:; touch \$@
+.PHONY: hello
+", '', "/Updating makefiles/");
+}
+
+unlink('hello');
+
+# This tells the test driver that the perl test script executed properly.
 1;
