@@ -136,6 +136,7 @@ int verify_flag;
 
 static int silent_flag;
 static const int default_silent_flag = 0;
+static enum variable_origin silent_origin = o_default;
 
 /* Nonzero means either -s was given, or .SILENT-with-no-deps was seen.  */
 
@@ -190,6 +191,7 @@ int no_builtin_variables_flag = 0;
 
 int keep_going_flag;
 static const int default_keep_going_flag = 0;
+static enum variable_origin keep_going_origin = o_default;
 
 /* Nonzero means check symlink mtimes.  */
 
@@ -197,6 +199,7 @@ int check_symlink_flag = 0;
 
 static int print_directory_flag = -1;
 static const int default_print_directory_flag = -1;
+static enum variable_origin print_directory_origin = o_default;
 
 /* Nonzero means print version information.  */
 
@@ -429,6 +432,8 @@ struct command_switch
     const void *default_value;  /* Pointer to default value.  */
 
     const char *long_name;      /* Long option name.  */
+    enum variable_origin *origin; /* Optional origin of the value of the
+                                     switch.  */
   };
 
 /* The table of command switches.
@@ -437,63 +442,64 @@ struct command_switch
 
 #define TEMP_STDIN_OPT (CHAR_MAX+10)
 
-static const struct command_switch switches[] =
+static struct command_switch switches[] =
   {
-    { 'b', ignore, 0, 0, 0, 0, 0, 0, 0 },
-    { 'B', flag, &always_make_set, 1, 1, 0, 0, 0, "always-make" },
-    { 'd', flag, &debug_flag, 1, 1, 0, 0, 0, 0 },
-    { 'e', flag, &env_overrides, 1, 1, 0, 0, 0, "environment-overrides", },
-    { 'E', strlist, &eval_strings, 1, 0, 0, 0, 0, "eval" },
-    { 'h', flag, &print_usage_flag, 0, 0, 0, 0, 0, "help" },
-    { 'i', flag, &ignore_errors_flag, 1, 1, 0, 0, 0, "ignore-errors" },
+    { 'b', ignore, 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 'B', flag, &always_make_set, 1, 1, 0, 0, 0, "always-make", 0 },
+    { 'd', flag, &debug_flag, 1, 1, 0, 0, 0, 0, 0 },
+    { 'e', flag, &env_overrides, 1, 1, 0, 0, 0, "environment-overrides", 0 },
+    { 'E', strlist, &eval_strings, 1, 0, 0, 0, 0, "eval", 0 },
+    { 'h', flag, &print_usage_flag, 0, 0, 0, 0, 0, "help", 0 },
+    { 'i', flag, &ignore_errors_flag, 1, 1, 0, 0, 0, "ignore-errors", 0 },
     { 'k', flag, &keep_going_flag, 1, 1, 0, 0, &default_keep_going_flag,
-      "keep-going" },
-    { 'L', flag, &check_symlink_flag, 1, 1, 0, 0, 0, "check-symlink-times" },
-    { 'm', ignore, 0, 0, 0, 0, 0, 0, 0 },
-    { 'n', flag, &just_print_flag, 1, 1, 1, 0, 0, "just-print" },
-    { 'p', flag, &print_data_base_flag, 1, 1, 0, 0, 0, "print-data-base" },
-    { 'q', flag, &question_flag, 1, 1, 1, 0, 0, "question" },
-    { 'r', flag, &no_builtin_rules_flag, 1, 1, 0, 0, 0, "no-builtin-rules" },
+      "keep-going", &keep_going_origin },
+    { 'L', flag, &check_symlink_flag, 1, 1, 0, 0, 0, "check-symlink-times", 0 },
+    { 'm', ignore, 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 'n', flag, &just_print_flag, 1, 1, 1, 0, 0, "just-print", 0 },
+    { 'p', flag, &print_data_base_flag, 1, 1, 0, 0, 0, "print-data-base", 0 },
+    { 'q', flag, &question_flag, 1, 1, 1, 0, 0, "question", 0 },
+    { 'r', flag, &no_builtin_rules_flag, 1, 1, 0, 0, 0, "no-builtin-rules", 0 },
     { 'R', flag, &no_builtin_variables_flag, 1, 1, 0, 0, 0,
-      "no-builtin-variables" },
-    { 's', flag, &silent_flag, 1, 1, 0, 0, &default_silent_flag, "silent" },
+      "no-builtin-variables", 0 },
+    { 's', flag, &silent_flag, 1, 1, 0, 0, &default_silent_flag, "silent",
+      &silent_origin },
     { 'S', flag_off, &keep_going_flag, 1, 1, 0, 0, &default_keep_going_flag,
-      "no-keep-going" },
-    { 't', flag, &touch_flag, 1, 1, 1, 0, 0, "touch" },
-    { 'v', flag, &print_version_flag, 1, 0, 0, 0, 0, "version" },
+      "no-keep-going", &keep_going_origin },
+    { 't', flag, &touch_flag, 1, 1, 1, 0, 0, "touch", 0 },
+    { 'v', flag, &print_version_flag, 1, 0, 0, 0, 0, "version", 0 },
     { 'w', flag, &print_directory_flag, 1, 1, 0, 0,
-      &default_print_directory_flag, "print-directory" },
+      &default_print_directory_flag, "print-directory", &print_directory_origin },
 
     /* These options take arguments.  */
-    { 'C', filename, &directories, 0, 0, 0, 0, 0, "directory" },
-    { 'f', filename, &makefiles, 0, 0, 0, 0, 0, "file" },
+    { 'C', filename, &directories, 0, 0, 0, 0, 0, "directory", 0 },
+    { 'f', filename, &makefiles, 0, 0, 0, 0, 0, "file", 0 },
     { 'I', filename, &include_dirs, 1, 1, 0, 0, 0,
-      "include-dir" },
+      "include-dir", 0 },
     { 'j', positive_int, &arg_job_slots, 1, 1, 0, &inf_jobs, &default_job_slots,
-      "jobs" },
+      "jobs", 0 },
     { 'l', floating, &max_load_average, 1, 1, 0, &default_load_average,
-      &default_load_average, "load-average" },
-    { 'o', filename, &old_files, 0, 0, 0, 0, 0, "old-file" },
-    { 'O', string, &output_sync_option, 1, 1, 0, "target", 0, "output-sync" },
-    { 'W', filename, &new_files, 0, 0, 0, 0, 0, "what-if" },
+      &default_load_average, "load-average", 0 },
+    { 'o', filename, &old_files, 0, 0, 0, 0, 0, "old-file", 0 },
+    { 'O', string, &output_sync_option, 1, 1, 0, "target", 0, "output-sync", 0 },
+    { 'W', filename, &new_files, 0, 0, 0, 0, 0, "what-if", 0 },
 
     /* These are long-style options.  */
-    { CHAR_MAX+1, strlist, &db_flags, 1, 1, 0, "basic", 0, "debug" },
-    { CHAR_MAX+2, string, &jobserver_auth, 1, 1, 0, 0, 0, JOBSERVER_AUTH_OPT },
-    { CHAR_MAX+3, flag, &trace_flag, 1, 1, 0, 0, 0, "trace" },
+    { CHAR_MAX+1, strlist, &db_flags, 1, 1, 0, "basic", 0, "debug", 0 },
+    { CHAR_MAX+2, string, &jobserver_auth, 1, 1, 0, 0, 0, JOBSERVER_AUTH_OPT, 0 },
+    { CHAR_MAX+3, flag, &trace_flag, 1, 1, 0, 0, 0, "trace", 0 },
     { CHAR_MAX+4, flag_off, &print_directory_flag, 1, 1, 0, 0,
-      &default_print_directory_flag, "no-print-directory" },
+      &default_print_directory_flag, "no-print-directory", &print_directory_origin },
     { CHAR_MAX+5, flag, &warn_undefined_variables_flag, 1, 1, 0, 0, 0,
-      "warn-undefined-variables" },
-    { CHAR_MAX+7, string, &sync_mutex, 1, 1, 0, 0, 0, "sync-mutex" },
+      "warn-undefined-variables", 0 },
+    { CHAR_MAX+7, string, &sync_mutex, 1, 1, 0, 0, 0, "sync-mutex", 0 },
     { CHAR_MAX+8, flag_off, &silent_flag, 1, 1, 0, 0, &default_silent_flag,
-      "no-silent" },
-    { CHAR_MAX+9, string, &jobserver_auth, 1, 0, 0, 0, 0, "jobserver-fds" },
+      "no-silent", &silent_origin },
+    { CHAR_MAX+9, string, &jobserver_auth, 1, 0, 0, 0, 0, "jobserver-fds", 0 },
     /* There is special-case handling for this in decode_switches() as well.  */
-    { TEMP_STDIN_OPT, filename, &makefiles, 0, 0, 0, 0, 0, "temp-stdin" },
-    { CHAR_MAX+11, string, &shuffle_mode, 1, 1, 0, "random", 0, "shuffle" },
-    { CHAR_MAX+12, string, &jobserver_style, 1, 0, 0, 0, 0, "jobserver-style" },
-    { 0, 0, 0, 0, 0, 0, 0, 0, 0 }
+    { TEMP_STDIN_OPT, filename, &makefiles, 0, 0, 0, 0, 0, "temp-stdin", 0 },
+    { CHAR_MAX+11, string, &shuffle_mode, 1, 1, 0, "random", 0, "shuffle", 0 },
+    { CHAR_MAX+12, string, &jobserver_style, 1, 0, 0, 0, 0, "jobserver-style", 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }
   };
 
 /* Secondary long names for options.  */
@@ -3105,7 +3111,7 @@ static void
 decode_switches (int argc, const char **argv, enum variable_origin origin)
 {
   int bad = 0;
-  const struct command_switch *cs;
+  struct command_switch *cs;
   struct stringlist *sl;
   int c;
 
@@ -3146,7 +3152,9 @@ decode_switches (int argc, const char **argv, enum variable_origin origin)
                  this switch.  We test this individually inside the
                  switch below rather than just once outside it, so that
                  options which are to be ignored still consume args.  */
-              int doit = origin == o_command || cs->env;
+              int doit = origin == o_command ||
+                        (cs->env &&
+                        (cs->origin == NULL || origin >= *cs->origin));
 
               switch (cs->type)
                 {
@@ -3159,7 +3167,11 @@ decode_switches (int argc, const char **argv, enum variable_origin origin)
                 case flag:
                 case flag_off:
                   if (doit)
-                    *(int *) cs->value_ptr = cs->type == flag;
+                    {
+                      *(int *) cs->value_ptr = cs->type == flag;
+                      if (cs->origin)
+                        *cs->origin = origin;
+                    }
                   break;
 
                 case string:
@@ -3192,6 +3204,8 @@ decode_switches (int argc, const char **argv, enum variable_origin origin)
                       char **val = (char **)cs->value_ptr;
                       free (*val);
                       *val = xstrdup (coptarg);
+                      if (cs->origin)
+                        *cs->origin = origin;
                       break;
                     }
 
@@ -3225,7 +3239,11 @@ decode_switches (int argc, const char **argv, enum variable_origin origin)
                     }
 
                   if (cs->type == strlist)
-                    sl->list[sl->idx++] = xstrdup (coptarg);
+                    {
+                      sl->list[sl->idx++] = xstrdup (coptarg);
+                      if (cs->origin)
+                        *cs->origin = origin;
+                    }
                   else if (cs->c == TEMP_STDIN_OPT)
                     {
                       if (stdin_offset > 0)
@@ -3233,9 +3251,15 @@ decode_switches (int argc, const char **argv, enum variable_origin origin)
                       /* We don't need to expand the temp file.  */
                       stdin_offset = sl->idx;
                       sl->list[sl->idx++] = strcache_add (coptarg);
+                      if (cs->origin)
+                        *cs->origin = origin;
                     }
                   else
-                    sl->list[sl->idx++] = expand_command_line_file (coptarg);
+                    {
+                      sl->list[sl->idx++] = expand_command_line_file (coptarg);
+                      if (cs->origin)
+                        *cs->origin = origin;
+                    }
                   sl->list[sl->idx] = 0;
                   break;
 
@@ -3267,11 +3291,19 @@ decode_switches (int argc, const char **argv, enum variable_origin origin)
                           bad = 1;
                         }
                       else
-                        *(unsigned int *) cs->value_ptr = i;
+                        {
+                          *(unsigned int *) cs->value_ptr = i;
+                          if (cs->origin)
+                            *cs->origin = origin;
+                        }
                     }
                   else
-                    *(unsigned int *) cs->value_ptr
-                      = *(unsigned int *) cs->noarg_value;
+                    {
+                      *(unsigned int *) cs->value_ptr
+                        = *(unsigned int *) cs->noarg_value;
+                      if (cs->origin)
+                        *cs->origin = origin;
+                    }
                   break;
 
                 case floating:
@@ -3280,8 +3312,12 @@ decode_switches (int argc, const char **argv, enum variable_origin origin)
                     coptarg = argv[optind++];
 
                   if (doit)
-                    *(double *) cs->value_ptr = (coptarg != 0 ? atof (coptarg)
-                                                 : *(double *) cs->noarg_value);
+                    {
+                      *(double *) cs->value_ptr = (coptarg != 0 ? atof (coptarg)
+                                                   : *(double *) cs->noarg_value);
+                      if (cs->origin)
+                        *cs->origin = origin;
+                    }
 
                   break;
                 }
