@@ -427,6 +427,11 @@ struct command_switch
     unsigned int env:1;         /* Can come from MAKEFLAGS.  */
     unsigned int toenv:1;       /* Should be put in MAKEFLAGS.  */
     unsigned int no_makefile:1; /* Don't propagate when remaking makefiles.  */
+    unsigned int specified:1;   /* True if the switch is specified on the
+                                   command line, in makefile or env. Needed in
+                                   order to have in MAKEFLAGS those switches
+                                   turn on behavior enabled by default.
+                                   E.g. -S or --no-silent.  */
 
     const void *noarg_value;    /* Pointer to value used if no arg given.  */
     const void *default_value;  /* Pointer to default value.  */
@@ -444,62 +449,62 @@ struct command_switch
 
 static struct command_switch switches[] =
   {
-    { 'b', ignore, 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 'B', flag, &always_make_set, 1, 1, 0, 0, 0, "always-make", 0 },
-    { 'd', flag, &debug_flag, 1, 1, 0, 0, 0, 0, 0 },
-    { 'e', flag, &env_overrides, 1, 1, 0, 0, 0, "environment-overrides", 0 },
-    { 'E', strlist, &eval_strings, 1, 0, 0, 0, 0, "eval", 0 },
-    { 'h', flag, &print_usage_flag, 0, 0, 0, 0, 0, "help", 0 },
-    { 'i', flag, &ignore_errors_flag, 1, 1, 0, 0, 0, "ignore-errors", 0 },
-    { 'k', flag, &keep_going_flag, 1, 1, 0, 0, &default_keep_going_flag,
+    { 'b', ignore, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 'B', flag, &always_make_set, 1, 1, 0, 0, 0, 0, "always-make", 0 },
+    { 'd', flag, &debug_flag, 1, 1, 0, 0, 0, 0, 0, 0 },
+    { 'e', flag, &env_overrides, 1, 1, 0, 0, 0, 0, "environment-overrides", 0 },
+    { 'E', strlist, &eval_strings, 1, 0, 0, 0, 0, 0, "eval", 0 },
+    { 'h', flag, &print_usage_flag, 0, 0, 0, 0, 0, 0, "help", 0 },
+    { 'i', flag, &ignore_errors_flag, 1, 1, 0, 0, 0, 0, "ignore-errors", 0 },
+    { 'k', flag, &keep_going_flag, 1, 1, 0, 0, 0, &default_keep_going_flag,
       "keep-going", &keep_going_origin },
-    { 'L', flag, &check_symlink_flag, 1, 1, 0, 0, 0, "check-symlink-times", 0 },
-    { 'm', ignore, 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 'n', flag, &just_print_flag, 1, 1, 1, 0, 0, "just-print", 0 },
-    { 'p', flag, &print_data_base_flag, 1, 1, 0, 0, 0, "print-data-base", 0 },
-    { 'q', flag, &question_flag, 1, 1, 1, 0, 0, "question", 0 },
-    { 'r', flag, &no_builtin_rules_flag, 1, 1, 0, 0, 0, "no-builtin-rules", 0 },
-    { 'R', flag, &no_builtin_variables_flag, 1, 1, 0, 0, 0,
+    { 'L', flag, &check_symlink_flag, 1, 1, 0, 0, 0, 0, "check-symlink-times", 0 },
+    { 'm', ignore, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 'n', flag, &just_print_flag, 1, 1, 1, 0, 0, 0, "just-print", 0 },
+    { 'p', flag, &print_data_base_flag, 1, 1, 0, 0, 0, 0, "print-data-base", 0 },
+    { 'q', flag, &question_flag, 1, 1, 1, 0, 0, 0, "question", 0 },
+    { 'r', flag, &no_builtin_rules_flag, 1, 1, 0, 0, 0, 0, "no-builtin-rules", 0 },
+    { 'R', flag, &no_builtin_variables_flag, 1, 1, 0, 0, 0, 0,
       "no-builtin-variables", 0 },
-    { 's', flag, &silent_flag, 1, 1, 0, 0, &default_silent_flag, "silent",
+    { 's', flag, &silent_flag, 1, 1, 0, 0, 0, &default_silent_flag, "silent",
       &silent_origin },
-    { 'S', flag_off, &keep_going_flag, 1, 1, 0, 0, &default_keep_going_flag,
+    { 'S', flag_off, &keep_going_flag, 1, 1, 0, 0, 0, &default_keep_going_flag,
       "no-keep-going", &keep_going_origin },
-    { 't', flag, &touch_flag, 1, 1, 1, 0, 0, "touch", 0 },
-    { 'v', flag, &print_version_flag, 1, 0, 0, 0, 0, "version", 0 },
-    { 'w', flag, &print_directory_flag, 1, 1, 0, 0,
+    { 't', flag, &touch_flag, 1, 1, 1, 0, 0, 0, "touch", 0 },
+    { 'v', flag, &print_version_flag, 1, 0, 0, 0, 0, 0, "version", 0 },
+    { 'w', flag, &print_directory_flag, 1, 1, 0, 0, 0,
       &default_print_directory_flag, "print-directory", &print_directory_origin },
 
     /* These options take arguments.  */
-    { 'C', filename, &directories, 0, 0, 0, 0, 0, "directory", 0 },
-    { 'f', filename, &makefiles, 0, 0, 0, 0, 0, "file", 0 },
-    { 'I', filename, &include_dirs, 1, 1, 0, 0, 0,
+    { 'C', filename, &directories, 0, 0, 0, 0, 0, 0, "directory", 0 },
+    { 'f', filename, &makefiles, 0, 0, 0, 0, 0, 0, "file", 0 },
+    { 'I', filename, &include_dirs, 1, 1, 0, 0, 0, 0,
       "include-dir", 0 },
-    { 'j', positive_int, &arg_job_slots, 1, 1, 0, &inf_jobs, &default_job_slots,
+    { 'j', positive_int, &arg_job_slots, 1, 1, 0, 0, &inf_jobs, &default_job_slots,
       "jobs", 0 },
-    { 'l', floating, &max_load_average, 1, 1, 0, &default_load_average,
+    { 'l', floating, &max_load_average, 1, 1, 0, 0, &default_load_average,
       &default_load_average, "load-average", 0 },
-    { 'o', filename, &old_files, 0, 0, 0, 0, 0, "old-file", 0 },
-    { 'O', string, &output_sync_option, 1, 1, 0, "target", 0, "output-sync", 0 },
-    { 'W', filename, &new_files, 0, 0, 0, 0, 0, "what-if", 0 },
+    { 'o', filename, &old_files, 0, 0, 0, 0, 0, 0, "old-file", 0 },
+    { 'O', string, &output_sync_option, 1, 1, 0, 0, "target", 0, "output-sync", 0 },
+    { 'W', filename, &new_files, 0, 0, 0, 0, 0, 0, "what-if", 0 },
 
     /* These are long-style options.  */
-    { CHAR_MAX+1, strlist, &db_flags, 1, 1, 0, "basic", 0, "debug", 0 },
-    { CHAR_MAX+2, string, &jobserver_auth, 1, 1, 0, 0, 0, JOBSERVER_AUTH_OPT, 0 },
-    { CHAR_MAX+3, flag, &trace_flag, 1, 1, 0, 0, 0, "trace", 0 },
-    { CHAR_MAX+4, flag_off, &print_directory_flag, 1, 1, 0, 0,
+    { CHAR_MAX+1, strlist, &db_flags, 1, 1, 0, 0, "basic", 0, "debug", 0 },
+    { CHAR_MAX+2, string, &jobserver_auth, 1, 1, 0, 0, 0, 0, JOBSERVER_AUTH_OPT, 0 },
+    { CHAR_MAX+3, flag, &trace_flag, 1, 1, 0, 0, 0, 0, "trace", 0 },
+    { CHAR_MAX+4, flag_off, &print_directory_flag, 1, 1, 0, 0, 0,
       &default_print_directory_flag, "no-print-directory", &print_directory_origin },
-    { CHAR_MAX+5, flag, &warn_undefined_variables_flag, 1, 1, 0, 0, 0,
+    { CHAR_MAX+5, flag, &warn_undefined_variables_flag, 1, 1, 0, 0, 0, 0,
       "warn-undefined-variables", 0 },
-    { CHAR_MAX+7, string, &sync_mutex, 1, 1, 0, 0, 0, "sync-mutex", 0 },
-    { CHAR_MAX+8, flag_off, &silent_flag, 1, 1, 0, 0, &default_silent_flag,
+    { CHAR_MAX+7, string, &sync_mutex, 1, 1, 0, 0, 0, 0, "sync-mutex", 0 },
+    { CHAR_MAX+8, flag_off, &silent_flag, 1, 1, 0, 0, 0, &default_silent_flag,
       "no-silent", &silent_origin },
-    { CHAR_MAX+9, string, &jobserver_auth, 1, 0, 0, 0, 0, "jobserver-fds", 0 },
+    { CHAR_MAX+9, string, &jobserver_auth, 1, 0, 0, 0, 0, 0, "jobserver-fds", 0 },
     /* There is special-case handling for this in decode_switches() as well.  */
-    { TEMP_STDIN_OPT, filename, &makefiles, 0, 0, 0, 0, 0, "temp-stdin", 0 },
-    { CHAR_MAX+11, string, &shuffle_mode, 1, 1, 0, "random", 0, "shuffle", 0 },
-    { CHAR_MAX+12, string, &jobserver_style, 1, 0, 0, 0, 0, "jobserver-style", 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }
+    { TEMP_STDIN_OPT, filename, &makefiles, 0, 0, 0, 0, 0, 0, "temp-stdin", 0 },
+    { CHAR_MAX+11, string, &shuffle_mode, 1, 1, 0, 0, "random", 0, "shuffle", 0 },
+    { CHAR_MAX+12, string, &jobserver_style, 1, 0, 0, 0, 0, 0, "jobserver-style", 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }
   };
 
 /* Secondary long names for options.  */
@@ -3154,12 +3159,11 @@ decode_switches (int argc, const char **argv, enum variable_origin origin)
                  switch below rather than just once outside it, so that
                  options which are to be ignored still consume args.  */
               int doit = origin == o_command ||
-//                        (cs->env && origin >= *cs->origin) ||
-//                         cs->c == 'I';
-//TODO: checking 'I' here is ugly.
-// do something like
-                        (cs->env && (cs->origin == NULL || origin >= *cs->origin));
-// and set origin only for select options, -w and --no-print-directory and maybe -k, -S.
+                        (cs->env &&
+                        (cs->origin == NULL || origin >= *cs->origin));
+
+              if (doit)
+                cs->specified = 1;
 
               switch (cs->type)
                 {
@@ -3507,6 +3511,7 @@ define_makeflags (int makefile)
         case flag_off:
           if ((!*(int *) cs->value_ptr) == (cs->type == flag_off)
               && (cs->default_value == 0
+                  || cs->specified
                   || *(int *) cs->value_ptr != *(int *) cs->default_value))
             ADD_FLAG (0, 0);
           break;
