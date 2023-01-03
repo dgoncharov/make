@@ -1799,7 +1799,7 @@ warn_undefined (const char *name, size_t len)
     {
       const char *const *cp;
       for (cp = defined_vars; *cp != NULL; ++cp)
-        if (memcmp (*cp, name, len) == 0 && (*cp)[len] == '\0')
+        if (strlen (*cp) == len && memcmp (*cp, name, len) == 0)
           return;
 
       error (reading_file, len, _("warning: undefined variable '%.*s'"),
