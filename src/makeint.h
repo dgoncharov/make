@@ -627,7 +627,9 @@ void hash_init_directories (void);
 void define_default_variables (void);
 void undefine_default_variables (void);
 void set_default_suffixes (void);
+void unset_default_suffixes (void);
 void install_default_suffix_rules (void);
+void uninstall_default_suffix_rules (void);
 void install_default_implicit_rules (void);
 
 void build_vpath_lists (void);

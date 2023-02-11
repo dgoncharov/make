@@ -186,8 +186,10 @@ enter_file (const char *name)
 
   if (HASH_VACANT (f))
     {
+      void *slot;
       new->last = new;
-      hash_insert_at (&files, new, file_slot);
+      slot = hash_insert_at (&files, new, file_slot);
+      new->hash_slot = slot;
     }
   else
     {
@@ -198,6 +200,21 @@ enter_file (const char *name)
     }
 
   return new;
+}
+
+struct file *
+erase_file (struct file *file)
+{
+  struct file *deleted_file;
+  if (file->hash_slot)
+    {
+      deleted_file = hash_delete_at (&files, file->hash_slot);
+      file->hash_slot = 0;
+      assert (deleted_file == file);
+    }
+//  else
+//    deleted_file = hash_delete (&files, file);
+  return file;
 }
 
 /* Rehash FILE to NAME.  This is not as simple as resetting
@@ -1065,8 +1082,8 @@ print_file (const void *item)
 
      Ideally we'd be able to delete them altogether but currently there's no
      facility to ever delete a file once it's been added.  */
-  if (no_builtin_rules_flag && f->builtin)
-    return;
+//  if (no_builtin_rules_flag && f->builtin)
+//    return;
 
   putchar ('\n');
 

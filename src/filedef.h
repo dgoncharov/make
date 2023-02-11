@@ -66,6 +66,8 @@ struct file
     unsigned int considered;    /* equal to 'considered' if file has been
                                    considered on current scan of goal chain */
     int command_flags;          /* Flags OR'd in for cmds; see commands.h.  */
+    void *hash_slot;            /* If set points to the slot in the hash table
+                                   hosting this file.  */
     enum update_status          /* Status of the last attempt to update.  */
       {
         us_success = 0,         /* Successfully updated.  Must be 0!  */
@@ -121,6 +123,7 @@ extern struct file *default_file;
 
 struct file *lookup_file (const char *name);
 struct file *enter_file (const char *name);
+struct file *erase_file (struct file *file);
 struct dep *split_prereqs (char *prereqstr);
 struct dep *enter_prereqs (struct dep *prereqs, const char *stem);
 void expand_deps (struct file *f);

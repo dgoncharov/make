@@ -2136,10 +2136,12 @@ main (int argc, char **argv, char **envp)
       {
         if (suffix_file->builtin)
           {
+            unset_default_suffixes ();
             free_dep_chain (suffix_file->deps);
             suffix_file->deps = 0;
           }
         define_variable_cname ("SUFFIXES", "", o_default, 0);
+        uninstall_default_suffix_rules ();
       }
 
     /* If we've disabled builtin variables, get rid of them.  */

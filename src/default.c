@@ -128,274 +128,281 @@ static struct pspec default_terminal_rules[] =
     { 0, 0, 0 }
   };
 
-static const char *default_suffix_rules[] =
+struct default_sufrules
+  {
+    const char *suffix;
+    const char *defn;
+    struct file *file;
+  };
+
+static struct default_sufrules default_suffix_rules[] =
   {
 #ifdef VMS
-    ".o",
-    "$(LINK.obj) $^ $(LOADLIBES) $(LDLIBS) -o $@",
-    ".obj",
-    "$(LINK.obj) $^ $(LOADLIBES) $(LDLIBS) -o $@",
-    ".s",
-    "$(LINK.s) $^ $(LOADLIBES) $(LDLIBS) -o $@",
-    ".S",
-    "$(LINK.S) $^ $(LOADLIBES) $(LDLIBS) -o $@",
-    ".c",
-    "$(LINK.c) $^ $(LOADLIBES) $(LDLIBS) -o $@",
-    ".cc",
-    "$(LINK.cc) $^ $(LOADLIBES) $(LDLIBS) -o $@",
-    ".C",
-    "$(LINK.C) $^ $(LOADLIBES) $(LDLIBS) -o $@",
-    ".cpp",
-    "$(LINK.cpp) $^ $(LOADLIBES) $(LDLIBS) -o $@",
-    ".f",
-    "$(LINK.f) $^ $(LOADLIBES) $(LDLIBS) -o $@",
-    ".m",
-    "$(LINK.m) $^ $(LOADLIBES) $(LDLIBS) -o $@",
-    ".p",
-    "$(LINK.p) $^ $(LOADLIBES) $(LDLIBS) -o $@",
-    ".F",
-    "$(LINK.F) $^ $(LOADLIBES) $(LDLIBS) -o $@",
-    ".r",
-    "$(LINK.r) $^ $(LOADLIBES) $(LDLIBS) -o $@",
-    ".mod",
-    "$(COMPILE.mod) -o $@ -e $@ $^",
+    { ".o",
+    "$(LINK.obj) $^ $(LOADLIBES) $(LDLIBS) -o $@", NULL },
+    { ".obj",
+    "$(LINK.obj) $^ $(LOADLIBES) $(LDLIBS) -o $@", NULL },
+    { ".s",
+    "$(LINK.s) $^ $(LOADLIBES) $(LDLIBS) -o $@", NULL },
+    { ".S",
+    "$(LINK.S) $^ $(LOADLIBES) $(LDLIBS) -o $@", NULL },
+    { ".c",
+    "$(LINK.c) $^ $(LOADLIBES) $(LDLIBS) -o $@", NULL },
+    { ".cc",
+    "$(LINK.cc) $^ $(LOADLIBES) $(LDLIBS) -o $@", NULL },
+    { ".C",
+    "$(LINK.C) $^ $(LOADLIBES) $(LDLIBS) -o $@", NULL },
+    { ".cpp",
+    "$(LINK.cpp) $^ $(LOADLIBES) $(LDLIBS) -o $@", NULL },
+    { ".f",
+    "$(LINK.f) $^ $(LOADLIBES) $(LDLIBS) -o $@", NULL },
+    { ".m",
+    "$(LINK.m) $^ $(LOADLIBES) $(LDLIBS) -o $@", NULL },
+    { ".p",
+    "$(LINK.p) $^ $(LOADLIBES) $(LDLIBS) -o $@", NULL },
+    { ".F",
+    "$(LINK.F) $^ $(LOADLIBES) $(LDLIBS) -o $@", NULL },
+    { ".r",
+    "$(LINK.r) $^ $(LOADLIBES) $(LDLIBS) -o $@", NULL },
+    { ".mod",
+    "$(COMPILE.mod) -o $@ -e $@ $^", NULL },
 
-    ".def.sym",
-    "$(COMPILE.def) -o $@ $<",
+    { ".def.sym",
+    "$(COMPILE.def) -o $@ $<", NULL },
 
-    ".sh",
-    "copy $< >$@",
+    { ".sh",
+    "copy $< >$@", NULL },
 
-    ".obj.exe",
-    "$(LINK.obj) $^ $(LOADLIBES) $(LDLIBS) $(CRT0) /exe=$@",
-    ".mar.exe",
-    "$(COMPILE.mar) $^ \n $(LINK.obj) $(subst .mar,.obj,$^) $(LOADLIBES) $(LDLIBS) $(CRT0) /exe=$@",
-    ".s.o",
-    "$(COMPILE.s) -o $@ $<",
-    ".s.exe",
-    "$(COMPILE.s) $^ \n $(LINK.obj) $(subst .s,.obj,$^) $(LOADLIBES) $(LDLIBS) $(CRT0) /exe=$@",
-    ".c.exe",
-    "$(COMPILE.c) $^ \n $(LINK.obj) $(subst .c,.obj,$^) $(LOADLIBES) $(LDLIBS) $(CRT0) /exe=$@",
-    ".cc.exe",
+    { ".obj.exe",
+    "$(LINK.obj) $^ $(LOADLIBES) $(LDLIBS) $(CRT0) /exe=$@", NULL },
+    { ".mar.exe",
+    "$(COMPILE.mar) $^ \n $(LINK.obj) $(subst .mar, NULL },.obj,$^) $(LOADLIBES) $(LDLIBS) $(CRT0) /exe=$@",
+    { ".s.o",
+    "$(COMPILE.s) -o $@ $<", NULL },
+    { ".s.exe",
+    "$(COMPILE.s) $^ \n $(LINK.obj) $(subst .s, NULL },.obj,$^) $(LOADLIBES) $(LDLIBS) $(CRT0) /exe=$@",
+    { ".c.exe",
+    "$(COMPILE.c) $^ \n $(LINK.obj) $(subst .c, NULL },.obj,$^) $(LOADLIBES) $(LDLIBS) $(CRT0) /exe=$@",
+    { ".cc.exe",
 #ifdef GCC_IS_NATIVE
-    "$(COMPILE.cc) $^ \n $(LINK.obj) $(CXXSTARTUP),sys$$disk:[]$(subst .cc,.obj,$^) $(LOADLIBES) $(LXLIBS) $(LDLIBS) $(CXXRT0) /exe=$@",
+    "$(COMPILE.cc) $^ \n $(LINK.obj) $(CXXSTARTUP), NULL },sys$$disk:[]$(subst .cc,.obj,$^) $(LOADLIBES) $(LXLIBS) $(LDLIBS) $(CXXRT0) /exe=$@",
 #else
-    "$(COMPILE.cc) $^ \n $(CXXLINK.obj) $(subst .cc,.obj,$^) $(LOADLIBES) $(LXLIBS) $(LDLIBS) $(CXXRT0) /exe=$@",
-    ".cxx.exe",
-    "$(COMPILE.cxx) $^ \n $(CXXLINK.obj) $(subst .cxx,.obj,$^) $(LOADLIBES) $(LXLIBS) $(LDLIBS) $(CXXRT0) /exe=$@",
+    "$(COMPILE.cc) $^ \n $(CXXLINK.obj) $(subst .cc, NULL },.obj,$^) $(LOADLIBES) $(LXLIBS) $(LDLIBS) $(CXXRT0) /exe=$@",
+    { ".cxx.exe",
+    "$(COMPILE.cxx) $^ \n $(CXXLINK.obj) $(subst .cxx, NULL },.obj,$^) $(LOADLIBES) $(LXLIBS) $(LDLIBS) $(CXXRT0) /exe=$@",
 #endif
-    ".for.exe",
-    "$(COMPILE.for) $^ \n $(LINK.obj) $(subst .for,.obj,$^) $(LOADLIBES) $(LDLIBS) /exe=$@",
-    ".pas.exe",
-    "$(COMPILE.pas) $^ \n $(LINK.obj) $(subst .pas,.obj,$^) $(LOADLIBES) $(LDLIBS) /exe=$@",
+    { ".for.exe",
+    "$(COMPILE.for) $^ \n $(LINK.obj) $(subst .for, NULL },.obj,$^) $(LOADLIBES) $(LDLIBS) /exe=$@",
+    { ".pas.exe",
+    "$(COMPILE.pas) $^ \n $(LINK.obj) $(subst .pas, NULL },.obj,$^) $(LOADLIBES) $(LDLIBS) /exe=$@",
 
-    ".com",
-    "copy $< >$@",
+    { ".com",
+    "copy $< >$@", NULL },
 
-    ".mar.obj",
-    "$(COMPILE.mar) /obj=$@ $<",
-    ".s.obj",
-    "$(COMPILE.s) /obj=$@ $<",
-    ".ss.obj",
-    "$(COMPILE.s) /obj=$@ $<",
-    ".c.i",
-    "$(COMPILE.c)/prep /list=$@ $<",
-    ".c.s",
-    "$(COMPILE.c)/noobj/machine /list=$@ $<",
-    ".i.s",
-    "$(COMPILE.c)/noprep/noobj/machine /list=$@ $<",
-    ".c.obj",
-    "$(COMPILE.c) /obj=$@ $<",
-    ".c.o",
-    "$(COMPILE.c) /obj=$@ $<",
-    ".cc.ii",
-    "$(COMPILE.cc)/prep /list=$@ $<",
-    ".cc.ss",
-    "$(COMPILE.cc)/noobj/machine /list=$@ $<",
-    ".ii.ss",
-    "$(COMPILE.cc)/noprep/noobj/machine /list=$@ $<",
-    ".cc.obj",
-    "$(COMPILE.cc) /obj=$@ $<",
-    ".cc.o",
-    "$(COMPILE.cc) /obj=$@ $<",
-    ".cxx.obj",
-    "$(COMPILE.cxx) /obj=$@ $<",
-    ".cxx.o",
-    "$(COMPILE.cxx) /obj=$@ $<",
-    ".for.obj",
-    "$(COMPILE.for) /obj=$@ $<",
-    ".for.o",
-    "$(COMPILE.for) /obj=$@ $<",
-    ".pas.obj",
-    "$(COMPILE.pas) /obj=$@ $<",
-    ".pas.o",
-    "$(COMPILE.pas) /obj=$@ $<",
+    { ".mar.obj",
+    "$(COMPILE.mar) /obj=$@ $<", NULL },
+    { ".s.obj",
+    "$(COMPILE.s) /obj=$@ $<", NULL },
+    { ".ss.obj",
+    "$(COMPILE.s) /obj=$@ $<", NULL },
+    { ".c.i",
+    "$(COMPILE.c)/prep /list=$@ $<", NULL },
+    { ".c.s",
+    "$(COMPILE.c)/noobj/machine /list=$@ $<", NULL },
+    { ".i.s",
+    "$(COMPILE.c)/noprep/noobj/machine /list=$@ $<", NULL },
+    { ".c.obj",
+    "$(COMPILE.c) /obj=$@ $<", NULL },
+    { ".c.o",
+    "$(COMPILE.c) /obj=$@ $<", NULL },
+    { ".cc.ii",
+    "$(COMPILE.cc)/prep /list=$@ $<", NULL },
+    { ".cc.ss",
+    "$(COMPILE.cc)/noobj/machine /list=$@ $<", NULL },
+    { ".ii.ss",
+    "$(COMPILE.cc)/noprep/noobj/machine /list=$@ $<", NULL },
+    { ".cc.obj",
+    "$(COMPILE.cc) /obj=$@ $<", NULL },
+    { ".cc.o",
+    "$(COMPILE.cc) /obj=$@ $<", NULL },
+    { ".cxx.obj",
+    "$(COMPILE.cxx) /obj=$@ $<", NULL },
+    { ".cxx.o",
+    "$(COMPILE.cxx) /obj=$@ $<", NULL },
+    { ".for.obj",
+    "$(COMPILE.for) /obj=$@ $<", NULL },
+    { ".for.o",
+    "$(COMPILE.for) /obj=$@ $<", NULL },
+    { ".pas.obj",
+    "$(COMPILE.pas) /obj=$@ $<", NULL },
+    { ".pas.o",
+    "$(COMPILE.pas) /obj=$@ $<", NULL },
 
-    ".y.c",
-    "$(YACC.y) $< \n rename y_tab.c $@",
-    ".l.c",
-    "$(LEX.l) $< \n rename lexyy.c $@",
+    { ".y.c",
+    "$(YACC.y) $< \n rename y_tab.c $@", NULL },
+    { ".l.c",
+    "$(LEX.l) $< \n rename lexyy.c $@", NULL },
 
-    ".texinfo.info",
-    "$(MAKEINFO) $<",
+    { ".texinfo.info",
+    "$(MAKEINFO) $<", NULL },
 
-    ".tex.dvi",
-    "$(TEX) $<",
+    { ".tex.dvi",
+    "$(TEX) $<", NULL },
 
-    ".cpp.o",
-    "$(COMPILE.cpp) $(OUTPUT_OPTION) $<",
-    ".f.o",
-    "$(COMPILE.f) $(OUTPUT_OPTION) $<",
-    ".m.o",
-    "$(COMPILE.m) $(OUTPUT_OPTION) $<",
-    ".p.o",
-    "$(COMPILE.p) $(OUTPUT_OPTION) $<",
-    ".r.o",
-    "$(COMPILE.r) $(OUTPUT_OPTION) $<",
-    ".mod.o",
-    "$(COMPILE.mod) -o $@ $<",
+    { ".cpp.o",
+    "$(COMPILE.cpp) $(OUTPUT_OPTION) $<", NULL },
+    { ".f.o",
+    "$(COMPILE.f) $(OUTPUT_OPTION) $<", NULL },
+    { ".m.o",
+    "$(COMPILE.m) $(OUTPUT_OPTION) $<", NULL },
+    { ".p.o",
+    "$(COMPILE.p) $(OUTPUT_OPTION) $<", NULL },
+    { ".r.o",
+    "$(COMPILE.r) $(OUTPUT_OPTION) $<", NULL },
+    { ".mod.o",
+    "$(COMPILE.mod) -o $@ $<", NULL },
 
-    ".c.ln",
-    "$(LINT.c) -C$* $<",
-    ".y.ln",
-    "$(YACC.y) $< \n rename y_tab.c $@",
+    { ".c.ln",
+    "$(LINT.c) -C$* $<", NULL },
+    { ".y.ln",
+    "$(YACC.y) $< \n rename y_tab.c $@", NULL },
 
-    ".l.ln",
-    "@$(RM) $*.c\n $(LEX.l) $< > $*.c\n$(LINT.c) -i $*.c -o $@\n $(RM) $*.c",
+    { ".l.ln",
+    "@$(RM) $*.c\n $(LEX.l) $< > $*.c\n$(LINT.c) -i $*.c -o $@\n $(RM) $*.c", NULL },
 
 #else /* ! VMS */
 
-    ".o",
-    "$(LINK.o) $^ $(LOADLIBES) $(LDLIBS) -o $@",
-    ".s",
-    "$(LINK.s) $^ $(LOADLIBES) $(LDLIBS) -o $@",
-    ".S",
-    "$(LINK.S) $^ $(LOADLIBES) $(LDLIBS) -o $@",
-    ".c",
-    "$(LINK.c) $^ $(LOADLIBES) $(LDLIBS) -o $@",
-    ".cc",
-    "$(LINK.cc) $^ $(LOADLIBES) $(LDLIBS) -o $@",
-    ".C",
-    "$(LINK.C) $^ $(LOADLIBES) $(LDLIBS) -o $@",
-    ".cpp",
-    "$(LINK.cpp) $^ $(LOADLIBES) $(LDLIBS) -o $@",
-    ".f",
-    "$(LINK.f) $^ $(LOADLIBES) $(LDLIBS) -o $@",
-    ".m",
-    "$(LINK.m) $^ $(LOADLIBES) $(LDLIBS) -o $@",
-    ".p",
-    "$(LINK.p) $^ $(LOADLIBES) $(LDLIBS) -o $@",
-    ".F",
-    "$(LINK.F) $^ $(LOADLIBES) $(LDLIBS) -o $@",
-    ".r",
-    "$(LINK.r) $^ $(LOADLIBES) $(LDLIBS) -o $@",
-    ".mod",
-    "$(COMPILE.mod) -o $@ -e $@ $^",
+    { ".o",
+    "$(LINK.o) $^ $(LOADLIBES) $(LDLIBS) -o $@", NULL },
+    { ".s",
+    "$(LINK.s) $^ $(LOADLIBES) $(LDLIBS) -o $@", NULL },
+    { ".S",
+    "$(LINK.S) $^ $(LOADLIBES) $(LDLIBS) -o $@", NULL },
+    { ".c",
+    "$(LINK.c) $^ $(LOADLIBES) $(LDLIBS) -o $@", NULL },
+    { ".cc",
+    "$(LINK.cc) $^ $(LOADLIBES) $(LDLIBS) -o $@", NULL },
+    { ".C",
+    "$(LINK.C) $^ $(LOADLIBES) $(LDLIBS) -o $@", NULL },
+    { ".cpp",
+    "$(LINK.cpp) $^ $(LOADLIBES) $(LDLIBS) -o $@", NULL },
+    { ".f",
+    "$(LINK.f) $^ $(LOADLIBES) $(LDLIBS) -o $@", NULL },
+    { ".m",
+    "$(LINK.m) $^ $(LOADLIBES) $(LDLIBS) -o $@", NULL },
+    { ".p",
+    "$(LINK.p) $^ $(LOADLIBES) $(LDLIBS) -o $@", NULL },
+    { ".F",
+    "$(LINK.F) $^ $(LOADLIBES) $(LDLIBS) -o $@", NULL },
+    { ".r",
+    "$(LINK.r) $^ $(LOADLIBES) $(LDLIBS) -o $@", NULL },
+    { ".mod",
+    "$(COMPILE.mod) -o $@ -e $@ $^", NULL },
 
-    ".def.sym",
-    "$(COMPILE.def) -o $@ $<",
+    { ".def.sym",
+    "$(COMPILE.def) -o $@ $<", NULL },
 
-    ".sh",
-    "cat $< >$@ \n chmod a+x $@",
+    { ".sh",
+    "cat $< >$@ \n chmod a+x $@", NULL },
 
-    ".s.o",
-    "$(COMPILE.s) -o $@ $<",
-    ".S.o",
-    "$(COMPILE.S) -o $@ $<",
-    ".c.o",
-    "$(COMPILE.c) $(OUTPUT_OPTION) $<",
-    ".cc.o",
-    "$(COMPILE.cc) $(OUTPUT_OPTION) $<",
-    ".C.o",
-    "$(COMPILE.C) $(OUTPUT_OPTION) $<",
-    ".cpp.o",
-    "$(COMPILE.cpp) $(OUTPUT_OPTION) $<",
-    ".f.o",
-    "$(COMPILE.f) $(OUTPUT_OPTION) $<",
-    ".m.o",
-    "$(COMPILE.m) $(OUTPUT_OPTION) $<",
-    ".p.o",
-    "$(COMPILE.p) $(OUTPUT_OPTION) $<",
-    ".F.o",
-    "$(COMPILE.F) $(OUTPUT_OPTION) $<",
-    ".r.o",
-    "$(COMPILE.r) $(OUTPUT_OPTION) $<",
-    ".mod.o",
-    "$(COMPILE.mod) -o $@ $<",
+    { ".s.o",
+    "$(COMPILE.s) -o $@ $<", NULL },
+    { ".S.o",
+    "$(COMPILE.S) -o $@ $<", NULL },
+    { ".c.o",
+    "$(COMPILE.c) $(OUTPUT_OPTION) $<", NULL },
+    { ".cc.o",
+    "$(COMPILE.cc) $(OUTPUT_OPTION) $<", NULL },
+    { ".C.o",
+    "$(COMPILE.C) $(OUTPUT_OPTION) $<", NULL },
+    { ".cpp.o",
+    "$(COMPILE.cpp) $(OUTPUT_OPTION) $<", NULL },
+    { ".f.o",
+    "$(COMPILE.f) $(OUTPUT_OPTION) $<", NULL },
+    { ".m.o",
+    "$(COMPILE.m) $(OUTPUT_OPTION) $<", NULL },
+    { ".p.o",
+    "$(COMPILE.p) $(OUTPUT_OPTION) $<", NULL },
+    { ".F.o",
+    "$(COMPILE.F) $(OUTPUT_OPTION) $<", NULL },
+    { ".r.o",
+    "$(COMPILE.r) $(OUTPUT_OPTION) $<", NULL },
+    { ".mod.o",
+    "$(COMPILE.mod) -o $@ $<", NULL },
 
-    ".c.ln",
-    "$(LINT.c) -C$* $<",
-    ".y.ln",
+    { ".c.ln",
+    "$(LINT.c) -C$* $<", NULL },
+    { ".y.ln",
 #ifndef __MSDOS__
-    "$(YACC.y) $< \n $(LINT.c) -C$* y.tab.c \n $(RM) y.tab.c",
+    "$(YACC.y) $< \n $(LINT.c) -C$* y.tab.c \n $(RM) y.tab.c", NULL },
 #else
-    "$(YACC.y) $< \n $(LINT.c) -C$* y_tab.c \n $(RM) y_tab.c",
+    "$(YACC.y) $< \n $(LINT.c) -C$* y_tab.c \n $(RM) y_tab.c", NULL },
 #endif
-    ".l.ln",
-    "@$(RM) $*.c\n $(LEX.l) $< > $*.c\n$(LINT.c) -i $*.c -o $@\n $(RM) $*.c",
+    { ".l.ln",
+    "@$(RM) $*.c\n $(LEX.l) $< > $*.c\n$(LINT.c) -i $*.c -o $@\n $(RM) $*.c", NULL },
 
-    ".y.c",
+    { ".y.c",
 #ifndef __MSDOS__
-    "$(YACC.y) $< \n mv -f y.tab.c $@",
+    "$(YACC.y) $< \n mv -f y.tab.c $@", NULL },
 #else
-    "$(YACC.y) $< \n mv -f y_tab.c $@",
+    "$(YACC.y) $< \n mv -f y_tab.c $@", NULL },
 #endif
-    ".l.c",
-    "@$(RM) $@ \n $(LEX.l) $< > $@",
-    ".ym.m",
-    "$(YACC.m) $< \n mv -f y.tab.c $@",
-    ".lm.m",
-    "@$(RM) $@ \n $(LEX.m) $< > $@",
+    { ".l.c",
+    "@$(RM) $@ \n $(LEX.l) $< > $@", NULL },
+    { ".ym.m",
+    "$(YACC.m) $< \n mv -f y.tab.c $@", NULL },
+    { ".lm.m",
+    "@$(RM) $@ \n $(LEX.m) $< > $@", NULL },
 
-    ".F.f",
-    "$(PREPROCESS.F) $(OUTPUT_OPTION) $<",
-    ".r.f",
-    "$(PREPROCESS.r) $(OUTPUT_OPTION) $<",
+    { ".F.f",
+    "$(PREPROCESS.F) $(OUTPUT_OPTION) $<", NULL },
+    { ".r.f",
+    "$(PREPROCESS.r) $(OUTPUT_OPTION) $<", NULL },
 
-    /* This might actually make lex.yy.c if there's no %R% directive in $*.l,
+    /* This might actually make lex.yy.c if there's no %R% directive in $*.l, NULL },
        but in that case why were you trying to make $*.r anyway?  */
-    ".l.r",
-    "$(LEX.l) $< > $@ \n mv -f lex.yy.r $@",
+    { ".l.r",
+    "$(LEX.l) $< > $@ \n mv -f lex.yy.r $@", NULL },
 
-    ".S.s",
-    "$(PREPROCESS.S) $< > $@",
+    { ".S.s",
+    "$(PREPROCESS.S) $< > $@", NULL },
 
-    ".texinfo.info",
-    "$(MAKEINFO) $(MAKEINFO_FLAGS) $< -o $@",
+    { ".texinfo.info",
+    "$(MAKEINFO) $(MAKEINFO_FLAGS) $< -o $@", NULL },
 
-    ".texi.info",
-    "$(MAKEINFO) $(MAKEINFO_FLAGS) $< -o $@",
+    { ".texi.info",
+    "$(MAKEINFO) $(MAKEINFO_FLAGS) $< -o $@", NULL },
 
-    ".txinfo.info",
-    "$(MAKEINFO) $(MAKEINFO_FLAGS) $< -o $@",
+    { ".txinfo.info",
+    "$(MAKEINFO) $(MAKEINFO_FLAGS) $< -o $@", NULL },
 
-    ".tex.dvi",
-    "$(TEX) $<",
+    { ".tex.dvi",
+    "$(TEX) $<", NULL },
 
-    ".texinfo.dvi",
-    "$(TEXI2DVI) $(TEXI2DVI_FLAGS) $<",
+    { ".texinfo.dvi",
+    "$(TEXI2DVI) $(TEXI2DVI_FLAGS) $<", NULL },
 
-    ".texi.dvi",
-    "$(TEXI2DVI) $(TEXI2DVI_FLAGS) $<",
+    { ".texi.dvi",
+    "$(TEXI2DVI) $(TEXI2DVI_FLAGS) $<", NULL },
 
-    ".txinfo.dvi",
-    "$(TEXI2DVI) $(TEXI2DVI_FLAGS) $<",
+    { ".txinfo.dvi",
+    "$(TEXI2DVI) $(TEXI2DVI_FLAGS) $<", NULL },
 
-    ".w.c",
-    "$(CTANGLE) $< - $@",       /* The '-' says there is no '.ch' file.  */
+    { ".w.c",
+    "$(CTANGLE) $< - $@", NULL },       /* The '-' says there is no '.ch' file.  */
 
-    ".web.p",
-    "$(TANGLE) $<",
+    { ".web.p",
+    "$(TANGLE) $<", NULL },
 
-    ".w.tex",
-    "$(CWEAVE) $< - $@",        /* The '-' says there is no '.ch' file.  */
+    { ".w.tex",
+    "$(CWEAVE) $< - $@", NULL },        /* The '-' says there is no '.ch' file.  */
 
-    ".web.tex",
-    "$(WEAVE) $<",
+    { ".web.tex",
+    "$(WEAVE) $<", NULL },
 
 #endif /* !VMS */
 
-    0, 0,
+    { 0, 0, NULL }
   };
 
 static const char *default_variables[] =
@@ -689,7 +696,10 @@ set_default_suffixes (void)
       suffix_file->deps = enter_prereqs (PARSE_SIMPLE_SEQ ((char **)&p, struct dep),
                                          NULL);
       for (d = suffix_file->deps; d; d = d->next)
+{
+printf("added builtin rule %s\n", d->file->name);
         d->file->builtin = 1;
+}
 
       define_variable_cname ("SUFFIXES", default_suffixes, o_default, 0);
     }
@@ -703,25 +713,54 @@ set_default_suffixes (void)
 void
 install_default_suffix_rules (void)
 {
-  const char **s;
+  struct default_sufrules *s;
 
   if (no_builtin_rules_flag)
     return;
 
-  for (s = default_suffix_rules; *s != 0; s += 2)
+  for (s = default_suffix_rules; s->suffix != 0; ++s)
     {
-      struct file *f = enter_file (strcache_add (s[0]));
+      struct file *f = enter_file (strcache_add (s->suffix));
       /* This function should run before any makefile is parsed.  */
       assert (f->cmds == 0);
       f->cmds = xmalloc (sizeof (struct commands));
       f->cmds->fileinfo.filenm = 0;
-      f->cmds->commands = xstrdup (s[1]);
+//TODO: do we really have to strdup?
+      f->cmds->commands = xstrdup (s->defn);
       f->cmds->command_lines = 0;
       f->cmds->recipe_prefix = RECIPEPREFIX_DEFAULT;
       f->builtin = 1;
+      s->file = f;
     }
 }
 
+void unset_default_suffixes (void)
+{
+  struct dep *d;
+
+  for (d = suffix_file->deps; d; d = d->next)
+    {
+printf("removing builtin rule %s at %p\n", d->file->name, d->file);
+      erase_file (d->file);
+    }
+}
+
+void
+uninstall_default_suffix_rules (void)
+{
+  struct default_sufrules *s;
+
+  for (s = default_suffix_rules; s->file != 0; ++s)
+    {
+printf("removing def sufrule %s at %p\n", s->file->name, s->file);
+      erase_file (s->file);
+      /* Leak s->file->cmds and s->file->cmds->commands.  */
+      free (s->file);
+//TODO: free s->file->name?
+      s->file = 0;
+    }
+
+}
 
 /* Install the default pattern rules.  */
 
