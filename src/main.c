@@ -2027,13 +2027,6 @@ main (int argc, char **argv, char **envp)
   /* Define the initial list of suffixes for old-style rules.  */
   set_default_suffixes ();
 
-  /* Define the file rules for the built-in suffix rules.  These will later
-     be converted into pattern rules.  We used to do this in
-     install_default_implicit_rules, but since that happens after reading
-     makefiles, it results in the built-in pattern rules taking precedence
-     over makefile-specified suffix rules, which is wrong.  */
-  install_default_suffix_rules ();
-
   /* Define some internal and special variables.  */
   define_automatic_variables ();
 
@@ -2283,6 +2276,10 @@ main (int argc, char **argv, char **envp)
      depended on.  Also do magic for special targets.  */
 
   snap_deps ();
+
+  /* Define the file rules for the built-in suffix rules.  These will later
+     be converted into pattern rules.  */
+  install_default_suffix_rules ();
 
   /* Convert old-style suffix rules to pattern rules.  It is important to
      do this before installing the built-in pattern rules below, so that
