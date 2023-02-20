@@ -36,7 +36,7 @@ this program.  If not, see <https://www.gnu.org/licenses/>.  */
    '.s' must come last, so that a '.o' file will be made from
    a '.c' or '.p' or ... file rather than from a .s file.  */
 
-static char default_suffixes[]
+static const char *default_suffixes
 #ifdef VMS
   /* VMS should include all UNIX/POSIX + some VMS extensions */
   = ".out .exe .a .olb .hlb .tlb .mlb .ln .o .obj .c .cxx .cc .cpp .pas .p \
@@ -672,10 +672,9 @@ static const char *default_variables[] =
     0, 0
   };
 
-/* Set up the default .SUFFIXES list.  */
 
 void
-set_default_suffixes (void)
+enter_suffix_file (void)
 {
   suffix_file = enter_file (strcache_add (".SUFFIXES"));
   suffix_file->builtin = 1;
@@ -683,16 +682,51 @@ set_default_suffixes (void)
   if (no_builtin_rules_flag)
     define_variable_cname ("SUFFIXES", "", o_default, 0);
   else
-    {
-      struct dep *d;
-      const char *p = default_suffixes;
-      suffix_file->deps = enter_prereqs (PARSE_SIMPLE_SEQ ((char **)&p, struct dep),
-                                         NULL);
-      for (d = suffix_file->deps; d; d = d->next)
-        d->file->builtin = 1;
+    define_variable_cname ("SUFFIXES", default_suffixes, o_default, 0);
+}
 
-      define_variable_cname ("SUFFIXES", default_suffixes, o_default, 0);
+/* Set up the default .SUFFIXES list.  */
+
+void
+set_default_suffixes (void)
+{
+  struct dep *d, *defsuf;
+  const char *p = default_suffixes;
+
+  if (no_builtin_rules_flag)
+    {
+      define_variable_cname ("SUFFIXES", "", o_default, 0);
+      return;
     }
+
+  if (*default_suffixes == '\0')
+    /* The list of default suffixes was cleared in the makefile.  */
+    return;
+
+  defsuf = enter_prereqs (PARSE_SIMPLE_SEQ ((char **)&p, struct dep), NULL);
+  for (d = defsuf; d; d = d->next)
+    d->file->builtin = 1;
+
+  if (suffix_file->deps == 0)
+    /* There are no suffixes defined in the makefile.  */
+    suffix_file->deps = defsuf;
+  else
+    {
+      /* Append the default suffixes after the suffixes defined in the
+       * makefile.  */
+      d = suffix_file->deps;
+      while (d->next)
+        d = d->next;
+      d->next = defsuf;
+    }
+}
+
+/* Clear the list of default suffixes.  */
+void
+reset_default_suffixes (void)
+{
+  default_suffixes = "";
+  /* Keep variable SUFFIXES intact, because the manual says so.  */
 }
 
 /* Enter the default suffix rules as file rules.  This used to be done in

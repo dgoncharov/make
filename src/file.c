@@ -1061,13 +1061,6 @@ print_file (const void *item)
 {
   const struct file *f = item;
 
-  /* If we're not using builtin targets, don't show them.
-
-     Ideally we'd be able to delete them altogether but currently there's no
-     facility to ever delete a file once it's been added.  */
-  if (no_builtin_rules_flag && f->builtin)
-    return;
-
   putchar ('\n');
 
   if (f->cmds && f->cmds->recipe_prefix != cmd_prefix)

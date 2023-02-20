@@ -2205,6 +2205,7 @@ record_files (struct nameseq *filenames, int are_also_makes,
             {
               free_dep_chain (f->deps);
               f->deps = 0;
+              reset_default_suffixes ();
             }
           /* This file is explicitly mentioned as a target.  There is no need
              to set is_explicit in the case of double colon below, because an

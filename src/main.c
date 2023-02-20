@@ -2024,8 +2024,7 @@ main (int argc, char **argv, char **envp)
   bsd_signal (SIGUSR1, debug_signal_handler);
 #endif
 
-  /* Define the initial list of suffixes for old-style rules.  */
-  set_default_suffixes ();
+  enter_suffix_file ();
 
   /* Define some internal and special variables.  */
   define_automatic_variables ();
@@ -2072,7 +2071,6 @@ main (int argc, char **argv, char **envp)
     }
 
   {
-    int old_builtin_rules_flag = no_builtin_rules_flag;
     int old_builtin_variables_flag = no_builtin_variables_flag;
     int old_arg_job_slots = arg_job_slots;
 
@@ -2123,17 +2121,6 @@ main (int argc, char **argv, char **envp)
     /* If -R was given, set -r too (doesn't make sense otherwise!)  */
     if (no_builtin_variables_flag)
       no_builtin_rules_flag = 1;
-
-    /* If we've disabled builtin rules, get rid of them.  */
-    if (no_builtin_rules_flag && ! old_builtin_rules_flag)
-      {
-        if (suffix_file->builtin)
-          {
-            free_dep_chain (suffix_file->deps);
-            suffix_file->deps = 0;
-          }
-        define_variable_cname ("SUFFIXES", "", o_default, 0);
-      }
 
     /* If we've disabled builtin variables, get rid of them.  */
     if (no_builtin_variables_flag && ! old_builtin_variables_flag)
@@ -2276,6 +2263,9 @@ main (int argc, char **argv, char **envp)
      depended on.  Also do magic for special targets.  */
 
   snap_deps ();
+
+  /* Define the initial list of suffixes for old-style rules.  */
+  set_default_suffixes ();
 
   /* Define the file rules for the built-in suffix rules.  These will later
      be converted into pattern rules.  */
