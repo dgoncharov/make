@@ -154,11 +154,159 @@ all: hello.o
 run_make_test(q!
 all: hello.o
 MAKEFLAGS += -r
+.SUFFIXES:
 .SUFFIXES: .c .o
 .c.o:; $(info $@ user defined .c.o rule)
 !, '', "hello.o user defined .c.o rule\n#MAKE#: Nothing to be done for 'all'.\n");
 
-unlink('hello.c', 'hello.o');
+# Both .c and .o suffixes have to be defined.
+
+run_make_test(q!
+all: hello.o
+.SUFFIXES: .c
+.c.o:; $(info $@ user defined .c.o rule)
+!, '-r', "#MAKE#: *** No rule to make target 'hello.o', needed by 'all'.  Stop.\n", 512);
+
+# Both .c and .o suffixes have to be defined.
+
+run_make_test(q!
+MAKEFLAGS += -r
+all: hello.o
+.SUFFIXES: .c
+.c.o:; $(info $@ user defined .c.o rule)
+!, '', "#MAKE#: *** No rule to make target 'hello.o', needed by 'all'.  Stop.\n", 512);
+
+# Both .c and .o suffixes have to be defined.
+
+run_make_test(q!
+all: hello.o
+.SUFFIXES: .o
+.c.o:; $(info $@ user defined .c.o rule)
+!, '-r', "#MAKE#: *** No rule to make target 'hello.o', needed by 'all'.  Stop.\n", 512);
+
+# Both .c and .o suffixes have to be defined.
+
+run_make_test(q!
+MAKEFLAGS += -r
+all: hello.o
+.SUFFIXES: .o
+.c.o:; $(info $@ user defined .c.o rule)
+!, '', "#MAKE#: *** No rule to make target 'hello.o', needed by 'all'.  Stop.\n", 512);
+
+# When -r is specified a user defined suffix rule won't apply, unless the user
+# also defined the suffixes.
+
+run_make_test(q!
+all: hello.o
+.c.o:; $(info $@ user defined .c.o rule)
+!, '-r', "#MAKE#: *** No rule to make target 'hello.o', needed by 'all'.  Stop.\n", 512);
+
+# When -r is specified a user defined suffix rule won't apply, unless the user
+# also defined the suffixes.
+
+run_make_test(q!
+all: hello.o
+MAKEFLAGS += -r
+.c.o:; $(info $@ user defined .c.o rule)
+!, '', "#MAKE#: *** No rule to make target 'hello.o', needed by 'all'.  Stop.\n", 512);
+
+
+# Single suffix rules are converted to match-anything rules.
+# Therefore, single suffix rules don't apply to files with known suffixes.
+
+# Good match.
+touch('hello.c');
+unlink('hello.o');
+run_make_test('all: hello.o', 'COMPILE.c=@echo OUTPUT_OPTION=', 'hello.c');
+
+# The built-in double suffix rule beats this user defined single suffix rule, because
+# a single suffix rule is a match-anything rule.
+
+run_make_test(q!
+all: hello.o
+.c:; $(info $@ user defined .c rule)
+!, 'COMPILE.c=@echo OUTPUT_OPTION=', 'hello.c');
+
+# No match, because the list of default suffixes is cleared.
+
+run_make_test(q!
+all: hello.o
+.c:; $(info $@ user defined .c rule)
+!, '-r', "#MAKE#: *** No rule to make target 'hello.o', needed by 'all'.  Stop.\n", 512);
+
+# No match, because the list of default suffixes is cleared.
+
+run_make_test(q!
+all: hello.o
+MAKEFLAGS += -r
+.c.o:; $(info $@ user defined .c rule)
+!, '', "#MAKE#: *** No rule to make target 'hello.o', needed by 'all'.  Stop.\n", 512);
+
+# No match, because the list of default suffixes is cleared.
+
+run_make_test(q!
+.SUFFIXES:
+all: hello.o
+.c:; $(info $@ user defined .c rule)
+!, '', "#MAKE#: *** No rule to make target 'hello.o', needed by 'all'.  Stop.\n", 512);
+
+# User defined single suffix rule does not apply to hello.c, because .c is a
+# known suffix.
+
+touch('hello.c.o');
+unlink('hello.c');
+run_make_test(q!
+.SUFFIXES:
+.SUFFIXES: .o
+all: hello.c
+.o:; $(info $@ user defined .o rule)
+!, '-r', "#MAKE#: *** No rule to make target 'hello.c', needed by 'all'.  Stop.\n", 512);
+
+# User defined single suffix rule.
+
+touch('hello.c');
+run_make_test(q!
+.SUFFIXES:
+.SUFFIXES: .c
+all: hello
+.c:; $(info $@ user defined .c rule)
+!, '-r', "hello user defined .c rule\n#MAKE#: Nothing to be done for 'all'.\n");
+
+
+unlink('hello.c', 'hello.o', 'hello.c.o');
+
+# A user defined single suffix rule and new suffixes.
+
+touch('hello.q.x');
+
+run_make_test(q!
+.SUFFIXES:
+.SUFFIXES: .x
+all: hello.q
+.x:; $(info $@ user defined .x rule)
+!, '-r', "hello.q user defined .x rule\n#MAKE#: Nothing to be done for 'all'.\n");
+
+# This time single suffix .x rule does not apply, because .q is a known suffix.
+
+run_make_test(q!
+.SUFFIXES:
+.SUFFIXES: .x .q
+all: hello.q
+.x:; $(info $@ user defined .x rule)
+!, '-r', "#MAKE#: *** No rule to make target 'hello.q', needed by 'all'.  Stop.\n", 512);
+
+# A user defined single suffix rule and a new suffix.
+
+touch('hello.x');
+
+run_make_test(q!
+.SUFFIXES:
+.SUFFIXES: .x
+all: hello
+.x:; $(info $@ user defined .x rule)
+!, '-r', "hello user defined .x rule\n#MAKE#: Nothing to be done for 'all'.\n");
+
+unlink('hello', 'hello.x', 'hello.q.x');
 
 # Complete
 1;

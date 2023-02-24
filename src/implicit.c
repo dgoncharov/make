@@ -314,7 +314,7 @@ pattern_search (struct file *file, int archive,
   for (rule = pattern_rules; rule != 0; rule = rule->next)
     {
       unsigned int ti;
-
+//printf("\n\n\nrule %s, target = %s, suffix = %s, file = %s\n", get_rule_defn (rule), rule->targets[0], rule->suffixes[0], filename);
       /* If the pattern rule has deps but no commands, ignore it.
          Users cancel built-in rules by redefining them without commands.  */
       if (rule->deps != 0 && rule->cmds == 0)
@@ -340,7 +340,11 @@ pattern_search (struct file *file, int archive,
              are ignored if we're recursing, so that they cannot be
              intermediate files.  */
           if (recursions > 0 && target[1] == '\0' && !rule->terminal)
+{
+
+//printf("ignoring not terminal rule %s\n", get_rule_defn (rule));
             continue;
+}
 
           if (rule->lens[ti] > namelen)
             /* It can't possibly match.  */
@@ -402,12 +406,20 @@ pattern_search (struct file *file, int archive,
 
           /* Record if we match a rule that not all filenames will match.  */
           if (target[1] != '\0')
+{
+//printf("found specific rule %s\n", get_rule_defn (rule));
             specific_rule_matched = 1;
+}
 
           /* A rule with no dependencies and no commands exists solely to set
              specific_rule_matched when it matches.  Don't try to use it.  */
           if (rule->deps == 0 && rule->cmds == 0)
+{
+//printf("ignoring dummy rule %s\n", get_rule_defn (rule));
             continue;
+}
+
+//printf("adding rule %s\n", get_rule_defn (rule));
 
           /* Record this rule in TRYRULES and the index of the matching
              target in MATCHES.  If several targets of the same rule match,
@@ -420,6 +432,12 @@ pattern_search (struct file *file, int archive,
           ++nrules;
         }
     }
+
+//printf("specific_rule_matched = %d\n", specific_rule_matched);
+  if (specific_rule_matched == 0)
+    specific_rule_matched = match_default_suffixes (filename);
+
+//printf("specific_rule_matched = %d\n", specific_rule_matched);
 
   /* Bail out early if we haven't found any rules. */
   if (nrules == 0)
@@ -440,6 +458,7 @@ pattern_search (struct file *file, int archive,
           for (j = 0; j < tryrules[ri].rule->num; ++j)
             if (tryrules[ri].rule->targets[j][1] == '\0')
               {
+//printf ("erasing matchany rule %s\n", get_rule_defn (tryrules[ri].rule));
                 tryrules[ri].rule = 0;
                 break;
               }

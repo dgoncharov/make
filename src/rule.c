@@ -315,7 +315,8 @@ convert_to_pattern (void)
 
       /* Make a rule that is just the suffix, with no deps or commands.
          This rule exists solely to disqualify match-anything rules.  */
-      convert_suffix_rule (dep_name (d), 0, 0);
+      if (d->file->builtin == 0)
+        convert_suffix_rule (dep_name (d), 0, 0);
 
       if (d->file->cmds != 0)
         /* Record a pattern for this suffix's null-suffix rule.  */

@@ -36,7 +36,7 @@ this program.  If not, see <https://www.gnu.org/licenses/>.  */
    '.s' must come last, so that a '.o' file will be made from
    a '.c' or '.p' or ... file rather than from a .s file.  */
 
-static char default_suffixes[]
+static const char default_suffixes[]
 #ifdef VMS
   /* VMS should include all UNIX/POSIX + some VMS extensions */
   = ".out .exe .a .olb .hlb .tlb .mlb .ln .o .obj .c .cxx .cc .cpp .pas .p \
@@ -699,6 +699,39 @@ set_default_suffixes (void)
 
       define_variable_cname ("SUFFIXES", default_suffixes, o_default, 0);
     }
+}
+
+/* Go through the list of the default suffixes and see if NAME ends with one of
+ * the default suffixes.  If NAME ends with one of the default suffixes, this
+ * means this file contains specific data and match-anything rules should not
+ * be used to build this file.
+ * If NAME ends with one of the default suffixes, return 1.
+ * Otherwise, return 0.  */
+
+int
+match_default_suffixes (const char *name)
+{
+
+  const char *s = default_suffixes;
+  const char *end = s + sizeof (default_suffixes) - 1;
+  const size_t namelen = strlen (name);
+  const char *fend = name + namelen;
+  size_t n;
+  for (; s < end; s += n)
+    {
+      s += strspn (s, " "); /* Skip space.  */
+      n = strcspn (s, " "); /* The length of this suffix.  */
+      assert (s + n <= end);
+      if (n > namelen)
+        continue; /* Suffix is longer than NAME.  */
+      assert (fend - n >= name);
+      if (memcmp (fend - n, s, n) == 0)
+{
+//printf("found specific rule match %.*s, name = %s\n", (int) n, s, name);
+        return 1;
+}
+    }
+    return 0;
 }
 
 /* Enter the default suffix rules as file rules.  This used to be done in

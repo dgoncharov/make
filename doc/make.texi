@@ -11053,11 +11053,17 @@ rules are used for making files containing specific types of data (such as
 executable files) and a file name with a recognized suffix indicates some
 other specific type of data (such as a C source file).
 
-Special built-in dummy pattern rules are provided solely to recognize
+Special dummy pattern rules are provided solely to recognize
 certain file names so that non-terminal match-anything rules will not be
 considered.  These dummy rules have no prerequisites and no recipes, and
-they are ignored for all other purposes.  For example, the built-in
-implicit rule
+they are ignored for all other purposes.  For example, if the makefile
+contains this suffix definition
+
+@example
+.SUFFIXES: .p
+@end example
+
+then the following dummy pattern rule
 
 @example
 %.p :
@@ -11069,7 +11075,8 @@ specific target pattern and thereby prevent time from being wasted looking
 for @file{foo.p.o} or @file{foo.p.c}.
 
 Dummy pattern rules such as the one for @samp{%.p} are made for every
-suffix listed as valid for use in suffix rules (@pxref{Suffix Rules, ,Old-Fashioned Suffix Rules}).
+suffix defined in the makefile.
+Make does not create such dummy pattern rules for default suffixes.
 
 @node Canceling Rules,  , Match-Anything Rules, Pattern Rules
 @subsection Canceling Implicit Rules
