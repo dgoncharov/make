@@ -2268,6 +2268,20 @@ record_files (struct nameseq *filenames, int are_also_makes,
       /* Add the dependencies to this file entry.  */
       if (this != 0)
         {
+          if (f == suffix_file)
+            {
+              /* f->deps are the suffixes defined in the makefile.
+                 These suffixes need to be converted to dummy pattern rules.
+                 The default suffixes, were already entered in
+                 set_default_suffixes and have file->builtin == 1.  If these
+                 suffixes match the default suffixes, then need to reset
+                 file->builtin, because convert_to_pattern skips builtin
+                 suffixes.  */
+              struct dep *d;
+              for (d = this; d && d->file; d = d->next)
+                d->file->builtin = 0;
+            }
+
           /* Add the file's old deps and the new ones in THIS together.  */
           if (f->deps == 0)
             f->deps = this;

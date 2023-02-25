@@ -284,6 +284,33 @@ convert_suffix_rule (const char *target, const char *source,
   create_pattern_rule (names, percents, 1, 0, deps, cmds, 0);
 }
 
+/* Convert each default suffix to a dummy pattern rule that is just the
+   suffix, with no deps or commands.  This rule exists solely to disqualify
+   match-anything rules.
+   It is necessary to use array default_suffixes, rather than suffix_file, to
+   convert all default suffixes, in case the makefile clears the suffixes.  */
+
+static void
+convert_default_suffixes (void)
+{
+  extern const char default_suffixes[];
+  const char *s = default_suffixes;
+  const char *end = s + strlen (default_suffixes);
+  size_t n;
+  char buf[32];
+  for (; s < end; s += n)
+    {
+      s += strspn (s, " "); /* Skip space.  */
+      n = strcspn (s, " "); /* The length of this suffix.  */
+      assert (s + n <= end);
+      assert (n < 32);
+      memcpy (buf, s, n);
+      buf[n] = '\0';
+      convert_suffix_rule (buf, 0, 0);
+    }
+}
+
+
 /* Convert old-style suffix rules to pattern rules.
    All rules for the suffixes on the .SUFFIXES list are converted and added to
    the chain of pattern rules.  */
@@ -293,6 +320,8 @@ convert_to_pattern (void)
 {
   struct dep *d, *d2;
   char *rulename;
+
+  convert_default_suffixes ();
 
   /* We will compute every potential suffix rule (.x.y) from the list of
      suffixes in the .SUFFIXES target's dependencies and see if it exists.
@@ -312,10 +341,16 @@ convert_to_pattern (void)
   for (d = suffix_file->deps; d != 0; d = d->next)
     {
       size_t slen;
-
       /* Make a rule that is just the suffix, with no deps or commands.
-         This rule exists solely to disqualify match-anything rules.  */
-      convert_suffix_rule (dep_name (d), 0, 0);
+         This rule exists solely to disqualify match-anything rules.
+         Built-in suffixes were converted in convert_default_suffixes.  */
+      if (d->file->builtin == 0)
+        convert_suffix_rule (dep_name (d), 0, 0);
+
+      /* When built-in rules are disabled, convert suffix rules only for the
+         suffixes defined in the makefile.  */
+      if (d->file->builtin && no_builtin_rules_flag)
+        continue;
 
       if (d->file->cmds != 0)
         /* Record a pattern for this suffix's null-suffix rule.  */
@@ -335,6 +370,12 @@ convert_to_pattern (void)
 
           /* Can't build something from itself.  */
           if (slen == s2len && streq (dep_name (d), dep_name (d2)))
+            continue;
+
+          /* When built-in rules are disabled, convert suffix rules only for
+             the suffixes defined in the makefile.
+             Both suffixes have to be defined.  */
+          if (d2->file->builtin && no_builtin_rules_flag)
             continue;
 
           memcpy (rulename + slen, dep_name (d2), s2len + 1);

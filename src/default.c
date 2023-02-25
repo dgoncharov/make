@@ -36,7 +36,7 @@ this program.  If not, see <https://www.gnu.org/licenses/>.  */
    '.s' must come last, so that a '.o' file will be made from
    a '.c' or '.p' or ... file rather than from a .s file.  */
 
-static char default_suffixes[]
+const char default_suffixes[]
 #ifdef VMS
   /* VMS should include all UNIX/POSIX + some VMS extensions */
   = ".out .exe .a .olb .hlb .tlb .mlb .ln .o .obj .c .cxx .cc .cpp .pas .p \
@@ -683,22 +683,24 @@ static const char *default_variables[] =
 void
 set_default_suffixes (void)
 {
+  struct dep *d;
+  const char *p = default_suffixes;
+
+  /* Enter the default suffixes whether the builtin rules are enabled or not.
+     When the builtin rules are disabled, the default suffixes are still needed to
+     disqualify match-anything rules.  */
+
   suffix_file = enter_file (strcache_add (".SUFFIXES"));
   suffix_file->builtin = 1;
+  suffix_file->deps = enter_prereqs (PARSE_SIMPLE_SEQ ((char **)&p, struct dep),
+                                     NULL);
+  for (d = suffix_file->deps; d; d = d->next)
+    d->file->builtin = 1;
 
   if (no_builtin_rules_flag)
     define_variable_cname ("SUFFIXES", "", o_default, 0);
   else
-    {
-      struct dep *d;
-      const char *p = default_suffixes;
-      suffix_file->deps = enter_prereqs (PARSE_SIMPLE_SEQ ((char **)&p, struct dep),
-                                         NULL);
-      for (d = suffix_file->deps; d; d = d->next)
-        d->file->builtin = 1;
-
-      define_variable_cname ("SUFFIXES", default_suffixes, o_default, 0);
-    }
+    define_variable_cname ("SUFFIXES", default_suffixes, o_default, 0);
 }
 
 /* Enter the default suffix rules as file rules.  This used to be done in

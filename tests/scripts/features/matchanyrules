@@ -1,0 +1,143 @@
+#                                                                    -*-perl-*-
+
+$description = "Test match anything rules.";
+
+$details = "";
+
+touch('hello.o');
+
+# Good match.
+run_make_test(q!
+hello:
+%: %.o; $(info $@ from $<)
+!, '', "hello from hello.o\n#MAKE#: 'hello' is up to date.\n");
+
+# Good match when the default rules are disabled.
+run_make_test(q!
+hello:
+%: %.o; $(info $@ from $<)
+!, '-r', "hello from hello.o\n#MAKE#: 'hello' is up to date.\n");
+
+# Good match when the default rules are disabled in the makefile.
+run_make_test(q!
+MAKEFLAGS=+-r
+hello:
+%: %.o; $(info $@ from $<)
+!, '', "hello from hello.o\n#MAKE#: 'hello' is up to date.\n");
+
+# Good match when the list of default suffixes is cleared.
+run_make_test(q!
+.SUFFIXES:
+hello:
+%: %.o; $(info $@ from $<)
+!, '', "hello from hello.o\n#MAKE#: 'hello' is up to date.\n");
+
+unlink('hello.o');
+
+
+# .out is at the beginning of the list of the default suffixes.
+# .el is at the end of the list.
+# .c is in the middle.
+# a.c is the shortest name that matches.
+
+my @files = ('hello.out', 'hello.c', 'hello.el', 'a.c');
+for my $f (@files) {
+touch("$f.o");
+
+# Match anything rules do not apply to files with specific data, such as .c.
+run_make_test("
+$f:
+%: %.o; \$(info \$@ from \$<)
+", '', "#MAKE#: Nothing to be done for '$f'.\n");
+
+# Match anything rules do not apply to files with specific data, such as .c,
+# when the default rules are disabled.
+run_make_test("
+$f:
+%: %.o; \$(info \$@ from \$<)
+", '-r', "#MAKE#: Nothing to be done for '$f'.\n");
+
+# Match anything rules do not apply to files with specific data, such as .c,
+# when the default rules are disabled in the makefile.
+run_make_test("
+MAKEFLAGS+=-r
+$f:
+%: %.o; \$(info \$@ from \$<)
+", '', "#MAKE#: Nothing to be done for '$f'.\n");
+
+# Match anything rules do not apply to files with specific data, such as .c,
+# when the list of default suffixes is cleared.
+run_make_test("
+.SUFFIXES:
+$f:
+%: %.o; \$(info \$@ from \$<)
+", '', "#MAKE#: Nothing to be done for '$f'.\n");
+
+# Match anything rules do not apply to files with specific data, such as .c,
+# when the list of default suffixes is cleared and the suffixes are defined by
+# the user.
+run_make_test("
+.SUFFIXES:
+.SUFFIXES: .c .o .out .a .el
+$f:
+%: %.o; \$(info \$@ from \$<)
+", '', "#MAKE#: Nothing to be done for '$f'.\n");
+
+unlink("$f.o");
+}
+
+touch('hello.x.o');
+
+# A user defined match-anything rule matches a file with an unknown suffix.
+
+run_make_test(q!
+hello.x:
+%: %.o; $(info $@ from $<)
+!, '', "hello.x from hello.x.o\n#MAKE#: 'hello.x' is up to date.\n");
+
+# A user defined match-anything rule matches a file with an unknown suffix
+# when built-in rules are disabled.
+
+run_make_test(q!
+hello.x:
+%: %.o; $(info $@ from $<)
+!, '-r', "hello.x from hello.x.o\n#MAKE#: 'hello.x' is up to date.\n");
+
+# A user defined match-anything rule matches a file with an unknown suffix
+# when built-in rules are disabled in the makefile.
+
+run_make_test(q!
+MAKEFLAGS+=-r
+hello.x:
+%: %.o; $(info $@ from $<)
+!, '', "hello.x from hello.x.o\n#MAKE#: 'hello.x' is up to date.\n");
+
+# A user defined match-anything rule matches a file with an unknown suffix
+# when the default suffixes are cleared.
+
+run_make_test(q!
+.SUFFIXES:
+hello.x:
+%: %.o; $(info $@ from $<)
+!, '', "hello.x from hello.x.o\n#MAKE#: 'hello.x' is up to date.\n");
+
+# Once the user adds the new suffix, match-anything rules no longer match.
+
+run_make_test(q!
+.SUFFIXES:
+.SUFFIXES: .x
+hello.x:
+%: %.o; $(info $@ from $<)
+!, '', "#MAKE#: Nothing to be done for 'hello.x'.\n");
+
+# Once the user adds the new suffix, match-anything rules no longer match.
+# This time built-in rules are disabled.
+
+run_make_test(q!
+.SUFFIXES:
+.SUFFIXES: .x
+hello.x:
+%: %.o; $(info $@ from $<)
+!, '-r', "#MAKE#: Nothing to be done for 'hello.x'.\n");
+
+1;
