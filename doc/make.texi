@@ -5074,15 +5074,25 @@ As a consequence, every sub-@code{make} gets a value for @code{MAKEFLAGS} in
 its environment.  In response, it takes the flags from that value and
 processes them as if they had been given as arguments.  @xref{Options Summary,
 ,Summary of Options}.  This means that, unlike other environment variables,
-@code{MAKEFLAGS} specified in the environment take precedence over
-@code{MAKEFLAGS} specified in the makefile.
+@code{MAKEFLAGS} specified in the environment takes precedence over
+@code{MAKEFLAGS} specified in the makefile. This ensures that in
+sub-@code{make} the flags specified on the command line and then passed down to
+sub-@code{make} through environment variable @code{MAKEFLAGS} take precedence
+over flags specified in the makefile.
 
-The value of @code{MAKEFLAGS} is a possibly empty group of characters
+Well defined @code{MAKEFLAGS} has the following format
+
+@example
+[shortoptions] [-option with arg]... [--long option]... [ -- cli variable definitions]
+@end example
+
+This format is a possibly empty group of characters
 representing single-letter options that take no argument, followed by a space
-and any options that take arguments or which have long option names.  If an
-option has both single-letter and long options, the single-letter option is
-always preferred.  If there are no single-letter options on the command line,
-then the value of @code{MAKEFLAGS} starts with a space.
+and any options that take arguments, followed by long options, followed by
+command line variable definitions.  If an option has both single-letter and
+long options, the single-letter option is always preferred.  If there are no
+single-letter options on the command line, then the value of @code{MAKEFLAGS}
+starts with a space.
 
 @cindex command line variable definitions, and recursion
 @cindex variables, command line, and recursion
@@ -5138,6 +5148,52 @@ value of @code{MAKEFLAGS}, for example like this:
 @example
 subsystem:
         cd subdir && $(MAKE) MAKEFLAGS=
+@end example
+
+Note, it is not safe to modify the value of environment variable
+@code{MAKEFLAGS}, because such modifications result in a malformed
+@code{MAKEFLAGS} and prevent switches and definitions specified on the command
+line to correctly propagate to sub-@code{make}.
+
+For example, let's say you want to pass @samp{-j1} to sub-@code{make} and decide to
+prepend @samp{-j1} to environment variable @code{MAKEFLAGS} (Do not actually do this!):
+
+@example
+all:; MAKEFLAGS="-j1 $(MAKEFLAGS)" $(MAKE)
+@end example
+
+Then, if the user passes flags to @code{MAKE}, e.g. @w{@samp{make -w}},
+sub-@code{make} will inherit @code{MAKEFLAGS} with value @samp{-j1 w} and treat
+@samp{w} as a target.
+
+Similary, if you decide to append to environment variable @code{MAKEFLAGS} (Do
+not actually do this!):
+
+@example
+all:; MAKEFLAGS="$(MAKEFLAGS) -j1" $(MAKE)
+@end example
+
+and the user passes a command line variable definition to @code{MAKE}, e.g.
+@w{@samp{make v=1}}, then sub-@code{make} will inherit @code{MAKEFLAGS} with
+value @samp{-- v=1 -j1} and treat @samp{-j1} as a target.
+
+On the other hand, it is safe to modify make variable @code{MAKEFLAGS}.
+Make assignment operators recognize @code{MAKEFLAGS} and ensure its value is
+well defined.  For example:
+
+@example
+MAKEFLAGS+=-r
+@end example
+
+disables built-in rules in the current make and sub-@code{make} and allows
+switches and definitions specified on the command line to correctly propagate
+to sub-@code{make}.
+
+If you want to only affect sub-@code{make}, but keep the current @code{make} intact,
+then you can specify the related switch for sub-@code{make}:
+
+@example
+all:; $(MAKE) -j1
 @end example
 
 @vindex MAKEOVERRIDES
