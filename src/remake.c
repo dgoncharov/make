@@ -112,6 +112,7 @@ update_goal_chain (struct goaldep *goaldeps)
   unsigned long last_cmd_count = 0;
   int t = touch_flag, q = question_flag, n = just_print_flag;
   enum update_status status = us_none;
+  const unsigned int depth = rebuilding_makefiles ? 1 : 0;
 
   /* Duplicate the chain so we can remove things from it.  */
   struct dep *goals_orig = copy_dep_chain ((struct dep *)goaldeps);
@@ -130,6 +131,7 @@ update_goal_chain (struct goaldep *goaldeps)
   while (goals != 0)
     {
       struct dep *gu, *g, *lastgoal;
+      int running = 0, wait = 0;
 
       /* Start jobs that are waiting for the load to go down.  */
 
@@ -138,7 +140,6 @@ update_goal_chain (struct goaldep *goaldeps)
       /* Check for exited children.  If no children have finished since the
          last time we looked, then block until one exits.  If some have
          exited don't block, so we can possibly do more work.  */
-
       reap_children (last_cmd_count == command_count, 0);
       last_cmd_count = command_count;
 
@@ -147,16 +148,14 @@ update_goal_chain (struct goaldep *goaldeps)
       while (gu != 0)
         {
           /* Iterate over all double-colon entries for this file.  */
-          struct file *file;
+          struct file *file, *headfile;
           int stop = 0, any_not_updated = 0;
 
           g = gu->shuf ? gu->shuf : gu;
 
           goal_dep = g;
-
-          for (file = g->file->double_colon ? g->file->double_colon : g->file;
-               file != NULL;
-               file = file->prev)
+          headfile = g->file->double_colon ? g->file->double_colon : g->file;
+          for (file = headfile; file != NULL; file = file->prev)
             {
               unsigned int ocommands_started;
               enum update_status fail;
@@ -181,8 +180,24 @@ update_goal_chain (struct goaldep *goaldeps)
                  actually run.  */
               ocommands_started = commands_started;
 
-              fail = update_file (file, rebuilding_makefiles ? 1 : 0);
+              stop = 0;
+
+              /* In the case of double colon rules, only the recipe of the 1st
+               * rule should be blocked by .WAIT. The recipes of all subsequent
+               * rules for the same file will execute sequentially in order
+               * after the 1st.  */
+              wait = file == headfile && g->wait_here && running;
+              if (wait)
+                {
+                  DBF (DB_VERBOSE, _(".WAIT is blocking '%s'.\n"));
+                  break;
+                }
+
+              fail = update_file (file, depth);
               check_renamed (file);
+              running |= (file->command_state == cs_running
+                          || file->command_state == cs_deps_running);
+
 
               /* Set the goal's 'changed' flag if any commands were started
                  by calling update_file above.  We check this flag below to
@@ -190,7 +205,6 @@ update_goal_chain (struct goaldep *goaldeps)
               if (commands_started > ocommands_started)
                 g->changed = 1;
 
-              stop = 0;
               if ((fail || file->updated) && status < us_question)
                 {
                   /* We updated this goal.  Update STATUS and decide whether
@@ -242,6 +256,9 @@ update_goal_chain (struct goaldep *goaldeps)
           /* Reset FILE since it is null at the end of the loop.  */
           file = g->file;
 
+          if (wait)
+            break;
+
           if (stop || !any_not_updated)
             {
               /* If we have found nothing whatever to do for the goal,
@@ -278,8 +295,10 @@ update_goal_chain (struct goaldep *goaldeps)
         }
 
       /* If we reached the end of the dependency graph update CONSIDERED
-         for the next pass.  */
-      if (gu == 0)
+         for the next pass.
+         In the case of waiting, increment CONSIDERED to prevent the same file
+         from getting pruned over and over again.  */
+      if (gu == 0 || wait)
         ++considered;
     }
 
@@ -377,7 +396,8 @@ update_file (struct file *file, unsigned int depth)
       if (f->command_state == cs_running
           || f->command_state == cs_deps_running)
         /* Don't run other :: rules for this target until
-           this rule is finished.  */
+           this rule is finished.  Multiple recipes running in parallel and
+           updating the same target will corrupt the target.  */
         return us_success;
 
       if (new > status)

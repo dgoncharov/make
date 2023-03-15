@@ -3015,14 +3015,14 @@ init_switches (void)
 
 
 /* Non-option argument.  It might be a variable definition.  */
-static void
+static int
 handle_non_switch_argument (const char *arg, enum variable_origin origin)
 {
   struct variable *v;
 
   if (arg[0] == '-' && arg[1] == '\0')
     /* Ignore plain '-' for compatibility.  */
-    return;
+    return 0;
 
 #ifdef VMS
   {
@@ -3075,7 +3075,12 @@ handle_non_switch_argument (const char *arg, enum variable_origin origin)
          Enter it as a file and add it to the dep chain of goals.
          Check ARG[0] because if the top makefile resets MAKEOVERRIDES
          then ARG points to an empty string in the submake.  */
-      struct file *f = enter_file (strcache_add (expand_command_line_file (arg)));
+      struct file *f;
+
+      if (strcmp (arg, ".WAIT") == 0)
+        return 1;
+
+      f = enter_file (strcache_add (expand_command_line_file (arg)));
       f->cmd_target = 1;
 
       if (goals == 0)
@@ -3116,6 +3121,7 @@ handle_non_switch_argument (const char *arg, enum variable_origin origin)
         define_variable_cname ("MAKECMDGOALS", value, o_default, 0);
       }
     }
+  return 0;
 }
 
 /* Called if the makefile resets the MAKEFLAGS variable.  */
@@ -3137,6 +3143,7 @@ decode_switches (int argc, const char **argv, enum variable_origin origin)
   struct command_switch *cs;
   struct stringlist *sl;
   int c;
+  int found_wait = 0;
 
   /* getopt does most of the parsing for us.
      First, get its vectors set up.  */
@@ -3160,8 +3167,13 @@ decode_switches (int argc, const char **argv, enum variable_origin origin)
         /* End of arguments, or "--" marker seen.  */
         break;
       else if (c == 1)
-        /* An argument not starting with a dash.  */
-        handle_non_switch_argument (coptarg, origin);
+        {
+          /* An argument not starting with a dash.  */
+          const int prior_found_wait = found_wait;
+          found_wait = handle_non_switch_argument (coptarg, origin);
+          if (prior_found_wait && lastgoal)
+            lastgoal->wait_here = 1;
+        }
       else if (c == '?')
         /* Bad option.  We will print a usage message and die later.
            But continue to parse the other options so the user can
@@ -3358,7 +3370,12 @@ decode_switches (int argc, const char **argv, enum variable_origin origin)
      to be returned in order, this only happens when there is a "--"
      argument to prevent later arguments from being options.  */
   while (optind < argc)
-    handle_non_switch_argument (argv[optind++], origin);
+    {
+      const int prior_found_wait = found_wait;
+      found_wait = handle_non_switch_argument (argv[optind++], origin);
+      if (prior_found_wait && lastgoal)
+        lastgoal->wait_here = 1;
+    }
 
   if (bad && origin == o_command)
     print_usage (bad);
