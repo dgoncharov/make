@@ -17,6 +17,7 @@ this program.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "makeint.h"
 #include "warning.h"
 #include "variable.h"
+#include <assert.h>
 
 /* Current action for each warning.  */
 enum warning_action warnings[wt_max];
@@ -132,7 +133,7 @@ decode_warn_actions (const char *value, const floc *flocp)
       action = decode_warn_action (value, ep - value);
       if (action != w_unset)
         data->global = action;
-      else
+      else for (;;)
         {
           enum warning_type type;
           const char *cp = memchr (value, ':', ep - value);
@@ -146,6 +147,7 @@ decode_warn_actions (const char *value, const floc *flocp)
                 ONS (fatal, NILF, _("unknown warning '%.*s'"), l, value);
               ONS (error, flocp,
                    _("unknown warning '%.*s': ignored"), l, value);
+              break;
             }
 
           /* If there's a warning action, decode it.  */
@@ -164,7 +166,10 @@ decode_warn_actions (const char *value, const floc *flocp)
                        _("unknown warning action '%.*s': ignored"), l, cp);
                 }
             }
+          assert (type >= 0);
+          assert (type < wt_max);
           data->actions[type] = action;
+          break;
         }
 
       value = ep;
