@@ -225,6 +225,17 @@ unrelated: hello.x
 
 unlink('hello.z');
 
+# SV xxx.
+# Test that update_goal_chain moves to the next target while the current target
+# is being built.
+# Here, hello.x recipe gets started and update_goal_chain begins to update bye.x.
+
+run_make_test(q!
+hello.x::; @echo $@
+bye.x::; @echo $@
+!,
+              '-j2 hello.x bye.x', "hello.x\nbye.x");
+
 
 # This tells the test driver that the perl test script executed properly.
 1;
