@@ -290,16 +290,13 @@ update_goal_chain (struct goaldep *goaldeps)
               else
                 lastgoal->next = gu->next;
 
-              gu = lastgoal == 0 ? goals : lastgoal->next;
-
               if (stop)
                 break;
             }
           else
-            {
-              lastgoal = gu;
-              gu = gu->next;
-            }
+            lastgoal = gu;
+
+          gu = gu->next;
         }
 
       /* If we reached the end of the dependency graph update CONSIDERED
