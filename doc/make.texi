@@ -1806,6 +1806,23 @@ This version allows users to specify source files rather than object
 files, but gives the same resulting prerequisites list as the previous
 example.
 
+Because, @emph{second expansion} is only performed when a target is considered,
+it is possible to use @emph{second expansion} to cause make to perform
+expensive work only for those targets which are being built.
+
+@example
+.SECONDEXPANSION:
+hello.tsk: $$(file <hello.d); $(info $@ from $^)
+bye.tsk: $$(file <bye.d); $(info $@ from $^)
+clean:; -rm -f hello.tsk bye.tsk
+@end example
+
+Assuming there are files @file{hello.d} and @file{bye.d} which contain the
+prerequisites of @file{hello.tsk} and @file{bye.tsk} respectively, @samp{make
+hello.tsk} will @emph{second expand} $$(file <hello.d) and will @emph{not
+second expand} $$(file <bye.d).  @samp{make clean} will @emph{not second
+expand} $$(file <hello.d) or $$(file <bye.d).
+
 Evaluation of automatic variables during the secondary expansion
 phase, especially of the target name variable @code{$$@@}, behaves
 similarly to evaluation within recipes.  However, there are some
