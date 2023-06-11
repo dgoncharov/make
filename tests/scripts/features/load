@@ -20,6 +20,7 @@ unlink(qw(testload.c testload.so));
 open(my $F, '> testload.c') or die "open: testload.c: $!\n";
 print $F <<'EOF' ;
 #include "gnumake.h"
+#include "gnumake_abi_version.h"
 
 char* getenv (const char*);
 
@@ -31,6 +32,7 @@ int explicit_setup (unsigned int, gmk_floc *);
 int
 testload_gmk_setup (unsigned int abi, gmk_floc *pos)
 {
+    (void) abi;
     (void)pos;
     gmk_eval ("TESTLOAD = implicit", 0);
     if (getenv("TESTAPI_KEEP"))
@@ -41,6 +43,7 @@ testload_gmk_setup (unsigned int abi, gmk_floc *pos)
 int
 explicit_setup (unsigned int abi, gmk_floc *pos)
 {
+    (void) abi;
     (void)pos;
     gmk_eval ("TESTLOAD = explicit", 0);
     if (getenv("TESTAPI_KEEP"))
@@ -52,7 +55,7 @@ close($F) or die "close: testload.c: $!\n";
 
 # Make sure we can compile
 
-my $cppflags = get_config('CPPFLAGS') . ($srcdir ? " -I$srcdir/src" : '');
+my $cppflags = get_config('CPPFLAGS') . ($srcpath ? " -I$srcpath/../src" : '');
 my $cflags = get_config('CFLAGS') . ' -fPIC';
 my $ldflags = get_config('LDFLAGS') . ' -shared';
 my $sobuild = "$cc $cppflags $cflags $ldflags -o testload.so testload.c";

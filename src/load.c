@@ -60,6 +60,7 @@ load_object (const floc *flocp, int noerror, const char *ldname,
   void *dlp;
   struct load_list *new;
   setup_func_t symp;
+  const char *vsym;
 
   if (! global_dl)
     {
@@ -140,6 +141,28 @@ load_object (const floc *flocp, int noerror, const char *ldname,
   if (! symp)
     OS (fatal, flocp,
         _("loaded object %s is not declared to be GPL compatible"), ldname);
+
+  /* If the interface in gnumake.h ever changes in an incompatible fashion,
+   * exit with an error code, unless vsym is found.  */
+  vsym = (const char *) dlsym (dlp, "gmk_needed_abi_version__");
+  if (vsym)
+    {
+      int n, plver, plage;
+      DB (DB_VERBOSE, (_("Make abi %d.%d, %s needed abi %s\n"),
+                       GMK_ABI_VERSION, GMK_ABI_AGE, ldname, vsym));
+      n = sscanf (vsym, "%d.%d", &plver, &plage);
+      if (n != 2 ||
+          GMK_ABI_VERSION < plver ||
+         (GMK_ABI_VERSION == plver && GMK_ABI_AGE < plage) ||
+          GMK_ABI_VERSION - GMK_ABI_AGE > plver)
+        OSSNN (fatal, flocp,
+                _("%s needed abi %s is incompatible with make abi %d.%d"),
+                ldname, vsym, GMK_ABI_VERSION, GMK_ABI_AGE);
+    }
+  else
+      DB (DB_VERBOSE,
+          (_("Make abi %d.%d, %s has no needed abi\n"),
+          GMK_ABI_VERSION, GMK_ABI_AGE, ldname));
 
   symp = (setup_func_t) dlsym (dlp, setupnm);
   if (! symp)

@@ -18,7 +18,16 @@ this program.  If not, see <https://www.gnu.org/licenses/>.  */
 #ifndef _GNUMAKE_H_
 #define _GNUMAKE_H_
 
+/* GMK_ABI_VERSION is the current version of GNU Make abi.
+   GMK_ABI_AGE tells how many prior versions the current version is binary
+   compatible with.  E.g. GMK_ABI_VERSION equal 5 and GMK_ABI_AGE equal 3 means
+   "this is version 5 and it is binary compatible with versions 4, 3 and 2".
+   Whenever a binary compatible change is introduced, increment both version
+   and age.  Whenever a binary incompatible change is introduced, increment
+   version and set age to 0.  */
+
 #define GMK_ABI_VERSION 1
+#define GMK_ABI_AGE 0
 
 /* Specify the location of elements read from makefiles.  */
 typedef struct

@@ -23,6 +23,7 @@ print $F <<'EOF' ;
 #include <stdio.h>
 
 #include "gnumake.h"
+#include "gnumake_abi_version.h"
 
 char *getenv (const char*);
 
@@ -55,6 +56,8 @@ static char *
 func_test (const char *funcname, unsigned int argc, char **argv)
 {
     char *mem;
+    (void) argc;
+    (void) argv;
 
     if (strcmp (funcname, "test-expand") == 0)
         return test_expand (argv[0]);
@@ -74,6 +77,7 @@ int
 testapi_gmk_setup (unsigned int abi, const gmk_floc *floc)
 {
     const char *verbose = getenv ("TESTAPI_VERBOSE");
+    (void) abi;
 
     gmk_add_function ("test-expand", func_test, 1, 1, GMK_FUNC_DEFAULT);
     gmk_add_function ("test-noexpand", func_test, 1, 1, GMK_FUNC_NOEXPAND);
@@ -127,7 +131,7 @@ close($F) or die "close: testapi.c: $!\n";
 my $cflags = get_config('CFLAGS');
 my $cppflags = get_config('CPPFLAGS');
 my $ldflags = get_config('LDFLAGS');
-my $sobuild = "$cc ".($srcdir? "-I$srcdir/src":'')." $cppflags $cflags -shared -fPIC $ldflags -o testapi.so testapi.c";
+my $sobuild = "$cc ".($srcpath? "-I$srcpath/../src":'')." $cppflags $cflags -shared -fPIC $ldflags -o testapi.so testapi.c";
 
 my $clog = `$sobuild 2>&1`;
 if ($? != 0) {

@@ -24,7 +24,7 @@ MAKE_HOST =	@MAKE_HOST@
 SUBDIRS =	lib po doc
 
 bin_PROGRAMS =	make
-include_HEADERS = src/gnumake.h
+include_HEADERS = src/gnumake.h src/gnumake_abi_version.h
 
 man_MANS =	doc/make.1
 

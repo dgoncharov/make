@@ -12166,6 +12166,17 @@ If not NULL, the major version number is placed here.
 If not NULL, the minor version number is placed here.
 @end table
 
+@subsubheading ABI Versioning
+
+Your plugin should include gnumake_abi_version.h once and only once in one of
+its source files.  Including gnumake_abi_version.h more than once will result
+in an error.
+
+gnumake_abi_version.h will embed the version information of the needed GNU
+@code{make} abi in your plugin.
+
+At load time GNU @code{make} will be able to check needed abi version and exit
+with and error message in the case of a binary incompatibility.
 
 @subsubheading Registering Functions
 @findex gmk_add_function
@@ -12297,6 +12308,7 @@ take a prefix as an argument.  First we can write the function in a file
 #include <errno.h>
 
 #include <gnumake.h>
+#include <gnumake_abi_version.h>
 
 int plugin_is_GPL_compatible;
 

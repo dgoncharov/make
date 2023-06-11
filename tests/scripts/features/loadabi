@@ -1,0 +1,127 @@
+#                                                                    -*-perl-*-
+$description = "Test versioning of make abi.";
+
+$details = ".";
+
+# Don't do anything if this system doesn't support "load"
+exists $FEATURES{'load'} or return -1;
+
+my $cc = get_config('CC');
+if (! $cc) {
+    $verbose and print "Skipping load test: no CC defined\n";
+    return -1;
+}
+
+sub generate_srcfile
+{
+    my ($include_version) = @_;
+
+    unlink('testabi.c');
+
+    my $contents = '
+#include <gnumake.h>
+int plugin_is_GPL_compatible;
+int
+testabi_gmk_setup (gmk_floc *pos)
+{
+    (void) pos;
+    return 1;
+}
+';
+    $include_version == 1 and $contents .= "#include <gnumake_abi_version.h>\n";
+    create_file('testabi.c', "$contents");
+}
+
+sub build_so
+{
+    my ($fakeinc) = @_;
+
+    unlink('testapi.so');
+    my $cppflags = "$fakeinc" . get_config('CPPFLAGS') . ($srcpath ? " -I$srcpath/../src" : '');
+    my $cflags = get_config('CFLAGS') . ' -fPIC';
+    my $ldflags = get_config('LDFLAGS') . ' -shared';
+    my $sobuild = "$cc $cppflags $cflags $ldflags -o testabi.so testabi.c";
+
+    my $clog = `$sobuild 2>&1`;
+    $verbose && printf "$sobuild\n$clog\n";
+    $? == 0 or die "cannot build testabi.so:\n$sobuild\n$clog";
+}
+
+
+# testabi.so does not contain needed abi.
+# Successful load.
+
+generate_srcfile(0);
+build_so('');
+
+run_make_test(q!
+load testabi.so
+all:
+!,
+'', "#MAKE#: Nothing to be done for 'all'.\n");
+
+# testabi.so needs the same abi as make provides.
+# Successful load.
+
+generate_srcfile(1);
+build_so('');
+
+run_make_test(q!
+load testabi.so
+all:
+!,
+'', "#MAKE#: Nothing to be done for 'all'.\n");
+
+# To test how make detects incompatible versions create a fake
+# gnumake_abi_version.h with various values of version and age in a temporary
+# directory and have this temporary directory preceed the real directory in
+# compiler header search path.
+
+my $verfile = $srcpath ? "$srcpath/../src/gnumake.h" : 'gnumake.h';
+open my $verinfo, $verfile or die "cannot open $verfile: $!";
+
+my $gmk_version = -1;
+my $gmk_age = -1;
+while(my $line = <$verinfo>)
+{
+    if ($line =~ /GMK_ABI_VERSION\s+(\d+)/) {
+        $gmk_version = $1;
+    }
+    if ($line =~ /GMK_ABI_AGE\s+(\d+)/) {
+        $gmk_age = $1;
+    }
+}
+
+$gmk_version == -1 and die "cannot read gmk_abi_version from gnumake.h";
+$gmk_age == -1 and die "cannot read gmk_abi_age from gnumake.h";
+
+rmdir('fake_inc');
+mkdir('fake_inc', 0777);
+my @vers = ($gmk_version - 1, $gmk_version, $gmk_version + 1);
+for my $v (@vers) {
+    my $age = $gmk_age;
+    # If version is the same as make's version, increment age to cause an
+    # incompatibility.
+    $v == $gmk_version and $age = $gmk_age + 1;
+
+    create_file('fake_inc/gnumake_abi_version.h',
+                "const char gmk_needed_abi_version__[] = \"$v.$age\";\n");
+    build_so('-Ifake_inc');
+
+    run_make_test(q!
+load testabi.so
+all:
+!,
+    '',
+    "#MAKEFILE#:2: *** testabi.so needed abi $v.$age is incompatible with make abi $gmk_version.$gmk_age.  Stop.\n",
+    512);
+}
+
+#TODO: Once make's abi age exceeds zero, test that the new version minus
+# age is compatible with the prior version.
+unlink(qw(testabi.c testabi.so)) unless $keep;
+unlink('fake_inc/gnumake_abi_version.h') unless $keep;
+rmdir('fake_inc') unless $keep;
+
+# This tells the test driver that the perl test script executed properly.
+1;

@@ -572,6 +572,8 @@ void out_of_memory (void) NORETURN;
                                  (_f), (_s), (_n))
 #define ONS(_t,_a,_f,_n,_s)   _t((_a), INTSTR_LENGTH + strlen (_s), \
                                  (_f), (_n), (_s))
+#define OSSNN(_t,_a,_f,_s1,_s2,_n1,_n2)   _t((_a), strlen (_s1) + strlen (_s2) + INTSTR_LENGTH*2, \
+                                 (_f), (_s1), (_s2), (_n1), (_n2))
 
 enum variable_origin;
 struct variable;
