@@ -1,0 +1,123 @@
+#                                                                    -*-perl-*-
+$description = "Test the behaviour of variable .SHELLFLAGS.";
+
+$details = "";
+
+# TODO:
+# for ' "
+# each input with and w/o trailing and leading space.
+# with and w/o oneshell
+
+create_file('args.sh', '#!/bin/sh
+for a in "$@"
+do
+    echo "$a"
+done
+');
+
+chmod(0755, 'args.sh');
+
+my @oneshell = ('', '.ONESHELL:');
+my %input;
+%input = (
+  '' => ''
+, '1' => "1\n"
+, '   1' => "1\n"
+, '1' => "1\n"
+, '1 2' => "1\n2\n"
+, '  1 2' => "1\n2\n"
+, '1 2 3' => "1\n2\n3\n"
+, '   1 2 3' => "1\n2\n3\n"
+#, 'a b \'1 2\' d e " f"' => "a\nb\n1 2\nd\ne\n f\n"
+#, '\'1 2 "a b "\'' => "1 2 \"a b \"\n"
+# In .ONESHELL case .SHELLFLAGS containing a quote adjasent to a word are
+# split to argv the same way as bash would split such input.
+#, '"1 2"' => "1 2\n"
+, "'1 2'" => "1 2\n"
+, "    '1 2'" => "1 2\n"
+, "'a'" => "a\n"
+, 'a=b' => "a=b\n"
+, "'a=b'" => "a=b\n"
+, "'cd'" => "cd\n"
+, " 'cd'" => "cd\n"
+, "'ab' 'cd'" => "ab\ncd\n"
+, "'ab' 'cd'   " => "ab\ncd\n"
+, "'a=b' 'cd'" => "a=b\ncd\n"
+, "'a=b' 'cd'     " => "a=b\ncd\n"
+, "'a'b" => "ab\n"
+, "'a'b " => "ab\n"
+, "a'b'" => "ab\n"
+, "a' b'" => "a b\n"
+, "'a 'b" => "a b\n"
+, "a' b'c" => "a bc\n"
+, "a' b'c d" => "a bc\nd\n"
+, "a' b' c" => "a b\nc\n"
+, "a' b' c  " => "a b\nc\n"
+, "'a \"one 'cd' two\"  b'" => "a \"one cd two\"  b\n"
+);
+
+if ($port_type eq 'UNIX') {
+# These long strings will be passed as arguments to args.sh.
+# Test this only on unix. Not sure, if other systems can pull this off.
+# This string is 120K bytes long.
+$input{'hello world ' x 10000} => "hello\nworld\n" x 10000;
+# This string is 104K bytes long and contains quotes.
+#$input{'"hello world" ' x 8000} => "hello world\n" x 8000;
+# This string is 104K bytes long and contains quotes.
+$input{"'hello world' " x 8000} => "hello world\n" x 8000;
+}
+
+foreach my $sflags (keys %input) {
+my $answer = $input{$sflags};
+for my $osh (@oneshell) {
+    run_make_test("
+$osh
+SHELL:=./args.sh
+.SHELLFLAGS:=$sflags
+all:;\@:
+    ", '', "$answer:");
+}
+}
+
+# When .SHELLFLAGS is missing a closing quote, and .ONESHELL is not specified
+# make spawns /bin/sh -c and /bin/sh fails with a syntax error message.
+# When .SHELLFLAGS is missing a closing quote, and .ONESHELL is specified
+# make does not spawn /bin/sh.
+# This difference in behavior was present in 4.3 and earlier. 
+# This difference in behavior produces different output and that's why this
+# test only tests the .ONESHELL scenarios.
+# Similary, make spawns /bin/sh -c when .ONESHELL is missing and .SHELLFLAGS
+# contains characters of special interest to shell, such as a semicolon.
+
+%input = (
+  "'" => "'\n"
+, "' " => "'\n"
+#, '"' => "\"\n"
+, "' " => "'\n"
+#, 'hello" ' => "hello\"\n"
+, "hello' " => "hello'\n"
+#, 'hello"' => "hello\"\n"
+, "hello'" => "hello'\n"
+, "hello'   " => "hello'\n"
+#, '"hello world' => "\"hello world\n"
+, "'hello world" => "'hello world\n"
+, "'hello world  " => "'hello world\n"
+
+# shellflags with characters of special interest to shell.
+, 'a ; b' => "a\n;\nb\n"
+);
+
+foreach my $sflags (keys %input) {
+my $answer = $input{$sflags};
+    run_make_test("
+.ONESHELL:
+SHELL:=./args.sh
+.SHELLFLAGS:=$sflags
+all:;\@:
+    ", '', "$answer:");
+}
+
+
+#unlink('args.sh');
+# This tells the test driver that the perl test script executed properly.
+1; 

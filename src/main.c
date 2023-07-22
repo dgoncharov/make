@@ -682,6 +682,8 @@ initialize_stopchar_map (void)
 
   stopchar_map[(int)' '] = MAP_BLANK;
   stopchar_map[(int)'\t'] = MAP_BLANK;
+  stopchar_map[(int)'\''] = MAP_SQUOTE;
+  stopchar_map[(int)'\"'] = MAP_DQUOTE;
 
   stopchar_map[(int)'/'] = MAP_DIRSEP;
 #if MK_OS_VMS

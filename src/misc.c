@@ -406,6 +406,115 @@ end_of_token (const char *s)
 {
   while (! END_OF_TOKEN (*s))
     ++s;
+  assert (ISSPACE (*s) || *s == '\0');
+  return (char *)s;
+}
+
+/* Return the address of the first quote or null in the string S.  */
+
+//char *
+//end_of_token_quoted (const char *s)
+//{
+//  const char q = *s;
+//  const unsigned short v = stopchar_map[(unsigned char) q];
+//  (void) v;
+//  assert (*s == '\'' || *s == '\"');
+//  assert (v == MAP_SQUOTE || v == MAP_DQUOTE);
+//  assert (*s == '\'' || v == MAP_DQUOTE);
+//  assert (*s == '\"' || v == MAP_SQUOTE);
+//  ++s;
+//  while (! END_OF_TOKEN_QUOTED (*s, v))
+//    ++s;
+//  assert (*s == q || *s == '\0');
+//  return (char *)s;
+//}
+
+/* Return the address of the first single quote or null in the string S.  */
+
+//char *
+//end_of_token_squoted (const char *s)
+//{
+//  assert (*s == '\'');
+//  ++s;
+//printf("input = %s\n", s);
+//  for (;;)
+//    {
+//      s += strcspn (s, "\'");
+//printf("after skipping until next quote s = %s\n", s);
+//      if (*s == '\0')
+//        /* Found a quote followed by end of string.  */
+//        break;
+//      assert (*s == '\'');
+//      /* Skip adjacent quotes.  */
+////TODO: even number.
+////      s += strspn (s, "\'");
+////printf("after skipping adjacent quotes s = %s\n", s);
+////      assert (*s != '\'');
+//      if (*(s + 1) == '\0' || ISSPACE (*(s + 1)))
+//        /* Found a quote followed by end of string or white space.  */
+//        break;
+//      ++s;
+//    }
+//printf("found end s = %s at %p\n", s, s);
+//
+//  return (char *)s;
+//}
+
+char *
+end_of_token_squoted (const char *s)
+{
+  /* Skip until next quote.  */
+  s += strcspn (s, "\'");
+  assert (*s == '\'' || *s == '\'');
+  ++s;
+//printf("input = %s\n", s);
+  s += strcspn (s, "\'");
+//printf("after skipping until next quote s = %s\n", s);
+  if (*s == '\0')
+    /* Found a quote followed by end of string.  */
+    return (char *)s;
+  assert (*s == '\'');
+  /* Skip until the next white space.  */
+  s += strcspn (s, " \t\n");
+//printf("after skipping until next white space s = %s\n", s);
+  return (char *)s;
+}
+
+static
+char *
+end_of_token_quoted (const char *s)
+{
+  const char q = *s;
+  const char qs[] = {q, '\0'};
+
+  assert (q == '\'' || q == '\"');
+  ++s;
+//printf("input = %s\n", s);
+  /* Skip until the next quote.  */
+  s += strcspn (s, qs);
+//printf("after skipping until next quote s = %s\n", s);
+  if (*s == '\0')
+    /* Closing quote is missing.  */
+    return (char *)s;
+
+  assert (*s == q);
+  /* Skip until the next white space.  */
+  s += strcspn (s, " \t\n");
+//printf("after skipping until next white space s = %s\n", s);
+  return (char *)s;
+}
+
+
+/* Return the address of the first double quote or null in the string S.  */
+
+char *
+end_of_token_dquoted (const char *s)
+{
+  assert (*s == '\"');
+  ++s;
+  while (! END_OF_TOKEN_DQUOTED (*s))
+    ++s;
+  assert (*s == '\"' || *s == '\0');
   return (char *)s;
 }
 
@@ -436,6 +545,356 @@ find_next_token (const char **ptr, size_t *lengthptr)
 
   return (char *)p;
 }
+
+
+//char *result = input;
+//while (input)
+//{
+//  switch (*input)
+//    {
+//    case ' ':
+//    case '\t':
+//      if (instring)
+//        *result++ = *input++;
+//      else
+//    case '\'':
+//    case '\"':
+//      if (instring == *input)
+//        instring = 0;
+//      else
+//        *result++ == *input++;
+//    default:
+//      *result = *input;
+//    }
+//}
+
+/* Compute the length of the specified string BEG of length LEN excluding
+ * trailing white space.  */
+
+size_t trim_trailing_space (const char *beg, size_t len)
+{
+  const char *s;
+  size_t result = len;
+
+//  for (s = beg + len; s > beg + 1 && ISSPACE (*(s - 1)); --s)
+  for (s = beg + len - 1; s > beg && ISSPACE (*s); --s)
+    --result;
+  return result;
+}
+
+/* Find the next token in PTR; return the address of it, and store the length
+   of the token into *LENGTHPTR if LENGTHPTR is not nil.  Set *PTR to the end
+   of the token, so this function can be called repeatedly in a loop.
+   A token is determined by either white space or by a pair of space (or
+   beginning of string) immediately followed by a quote (single or double) and
+   the same quote (single or double) immediately followed by a space (or end of
+   string).
+   White space inside the quoted substring does not separate tokens.
+   A quoted substring can contain quotes as long as those quotes are not
+   adjacent to white space.  */
+
+char *
+find_next_token_quoted (const char **s, size_t *tokenlen)
+{
+  const char *token;
+
+//printf("input = \"%s\"\n", *s);
+  assert (*s);
+  /* Skip until white space or a quote.  */
+  *s += strspn (*s, " \t\n");
+
+  *tokenlen = 1;
+  if (**s == '\0')
+    return 0;
+
+  /* Point token at the beginning of the token.  */
+  token = *s;
+
+  /* Skip until white space or a quote.  */
+  *s += strcspn (*s, "\'\" \t\n");
+
+  if (**s == '\'' || **s == '\"')
+    /* Either this is the opening quote of the token or the token contains a
+     * quote. Find the end of this token.  */
+    *s = end_of_token_quoted (*s);
+
+  /*  token points at the begininng of the token. *s pointst at the end of the
+   *  token.*/
+  *tokenlen = trim_trailing_space (token, *s - token);
+  /* Move s to the beginning of the next token.  */
+  *s += strspn (*s, " \t\n");
+
+//printf("token = \"%.*s\"\n", (int) *tokenlen, token);
+  return (char *)token;
+}
+
+#if 0
+char *
+find_next_token_quoted (const char *s, size_t *tokenlen)
+{
+  const char *token;
+
+//printf("input = \"%s\"\n", s);
+  assert (s);
+
+  /* Skip white space.  */
+  s += strspn (s, " \t\n");
+
+  if (*s == '\0')
+    return 0;
+
+  /* Point p at the beginning of the token.  */
+  token = s;
+
+  /* Skip until white space or a quote.  */
+  s += strcspn (s, "\'\" \t\n");
+
+  if (*s == '\'' || *s == '\"')
+    /* Either this is the opening quote of the token or the token contains a
+     * quote. Find the end of this token.  */
+    s = end_of_token_quoted (s);
+
+  /*  p points at the begininng of the token. s points at the end of the
+   *  token.*/
+  *tokenlen = trim_trailing_space (token, s - token);
+//printf("token = \"%.*s\"\n", (int) *tokenlen, token);
+
+  /* Move s to the beginning of the next token.  */
+  s += strspn (s, " \t\n");
+  return (char *)s;
+}
+#endif
+#if 0
+//TODO: char *find_next_token_quoted (char *input)
+
+// static
+char *
+find_next_token_quoted (const char **ptr, size_t *lengthptr)
+{
+  const char *p, *v;
+
+//printf("input = \"%s\"\n", *ptr);
+
+  if (**ptr == '\0')
+    return '\0';
+
+  p = *ptr;
+
+  /* Skip white space*/
+  *ptr += strspn (*ptr, " \t\n");
+
+  if (**ptr == '\0')
+    return '\0';
+
+  v = *ptr;
+  /* Find next white space.  */
+  v += strcspn (v, " \t\n");
+  v = memchr (*ptr, (unsigned char) '\'', v - *ptr);
+  if (v)
+    {
+      /* Token begins at *ptr and includes at least one quote. */
+      p = *ptr;
+      *ptr = end_of_token_squoted (*ptr);
+//      *lengthptr = *ptr - p;
+//printf("0 token = %.*s\n", (int) *lengthptr, p);
+//  for (v = *ptr; v > p + 1 && ISSPACE (*(v - 1)); --v)
+//{
+////printf("dec len = %lu\n", *lengthptr);
+//    --*lengthptr;
+//}
+      *lengthptr = trim_trailing_space (p, *ptr - p);
+
+      return (char *)p;
+    }
+
+//printf("after skipping white space input = \"%s\"\n", *ptr);
+
+  switch (**ptr)
+    {
+    case '\'':
+    case '\"':
+//printf("next token quoted from %s at %p\n", *ptr, *ptr);
+//      if (*ptr > p || *lengthptr == 0)
+        {
+          // Found white space (or beginning of the string) immediatly followed
+          // by a quote. This is an opening to a quoted substring.
+//          assert (ISSPACE(*p) || *lengthptr == 0);
+          p = *ptr;
+          break;
+        }
+       // This quote is not following white space. Not a beginning of a quoted
+       // substring.
+       // Fall through.
+    default:
+//printf("next token from %s\n", *ptr);
+      p = next_token (*ptr);
+      if (!p)
+        return 0;
+//      v =
+      *ptr = end_of_token (p);
+      assert (**ptr == '\0' || ISSPACE (**ptr));
+//      if (*(*ptr - 1) == '\'')
+//        {
+//          *ptr = end_of_token_squoted (*ptr - 1);
+//          if (**ptr)
+//            /* Include closing quote.  */
+//            ++*ptr;
+//          else
+//            *ptr = end_of_token (v);
+////          else
+////            {
+////            /*Trim trailing white space.  */
+////            while (**ptr == '\0' || (ISSPACE (**ptr)))
+////              --*ptr;
+////            }
+//        }
+//      else if (*(*ptr - 1) == '\"')
+//        {
+//          *ptr = end_of_token_dquoted (*ptr - 1);
+//          if (**ptr)
+//            /* Include closing quote.  */
+//            ++*ptr;
+//          else
+//            *ptr = end_of_token (v);
+////            {
+////            /*Trim trailing white space.  */
+////            while (**ptr == '\0' || (ISSPACE (**ptr)))
+////              --*ptr;
+////            }
+//        }
+      *lengthptr = *ptr - p;
+//      if (**ptr)
+//        ++*ptr;
+//printf("1 token = %.*s\n", (int) *lengthptr, p);
+//printf("p = %s at %p, *ptr = %s at %p\n", p, p, *ptr, *ptr);
+//      p = dequote(p, *lengthptr);
+      return (char *)p;
+    }
+//printf("found \"%s\" at %p\n", p, p);
+
+  assert (*p == '\'' || *p == '\"');
+
+  if (*p ==  '\'')
+      *ptr = end_of_token_squoted (p);
+  else
+      *ptr = end_of_token_dquoted (p);
+
+//  assert (*p == '\'' || *p == '\"');
+//  assert (*ptr > p);
+  *lengthptr = *ptr - p;
+
+  if (*lengthptr < 2)
+    {
+      /* There is no closing quote.
+       * p points at the opening quote.
+       * *lengthptr carries the the number of chars from the opening quote till the end of
+       * the string (including the opening quote).
+       * When there is no closing quote tokenize again by white space.
+       * e.g. if input string is "'hello world", return the address of the quote,
+       * move *ptr to the space and store 6 in *lengthptr and end up with token
+       * "'hello".  */
+      *ptr = end_of_token (p);
+      *lengthptr = *ptr - p;
+      if (**ptr)
+        ++*ptr;
+//printf("2 token = %.*s\n", (int) *lengthptr, p);
+      return (char *)p;
+    }
+
+//  assert (**ptr == *p);
+    /* Both opening and closing quotes are present.
+     * p points at the opening quote.
+     * *ptr points at the closing quote.
+     * When both opening and closing quotes are present return the pointer to
+     * the contents between the quotes and the size of the contents between the
+     * quotes and point *ptr after the closing quote.
+     * e.g. if input string is "'hello world'", return the address of 'h', move
+     * *ptr after the closing quote and store 11 in *lengthptr and end up with
+     * token "hello world".  */
+//    ++*ptr;
+//    ++p;
+//    --*lengthptr;
+//    v = end_of_token (*ptr + 1);
+//    if (v > *ptr + 1)
+//      {
+//        memmove (*ptr, *ptr + 1, v - *ptr - 1);
+//        *ptr += v - *ptr - 1;
+////printf("*ptr = %s\n", *ptr);
+//        *lengthptr = *ptr - p;
+//      }
+//    else
+//      {
+//        ++*ptr;
+//        *lengthptr = *ptr - p - 1;
+//      }
+//printf("len = %lu\n", *lengthptr);
+//printf("3 token = \"%.*s\", p = %p, *ptr = %p\n", (int) *lengthptr, p, p, *ptr);
+  /* Trim trailing white space.  */
+  *lengthptr = trim_trailing_space (p, *ptr - p);
+//  for (v = *ptr; v > p + 1 && ISSPACE (*(v - 1)); --v)
+//{
+////printf("dec len = %lu\n", *lengthptr);
+//    --*lengthptr;
+//}
+//printf("len = %lu\n", *lengthptr);
+//printf("3 token = \"%.*s\"\n", (int) *lengthptr, p);
+
+  return (char *)p;
+}
+#endif
+char *
+find_and_dequote_token (char **s, size_t *tokenlen)
+{
+  char *token = find_next_token_quoted ((const char **)s, tokenlen);
+  if (token)
+    {
+      token = dequote (token, *tokenlen);
+      token[*tokenlen] = '\0';
+    }
+  return token;
+}
+
+char *
+dequote (char *s, size_t slen)
+{
+  char *open, *close; /* Opening quote, closing quote.  */
+  void *sq, *dq; /* Single quote, double quote.  */
+
+  /* Find opening quote.  */
+  sq = memchr(s, (unsigned char) '\'', slen);
+  dq = memchr(s, (unsigned char) '\"', slen);
+  if (!sq && !dq)
+    return s;
+
+  assert (sq || dq);
+  if (!sq)
+    open = dq;
+  else if (!dq)
+    open = sq;
+  else
+    open = sq < dq ? sq : dq;
+
+  /* Find closing quote.  */
+  close = memrchr(open + 1, (unsigned char) *open, slen - (open - s));
+  if (!close)
+    return s;
+
+  /* Dequote.
+   * For each quote, starting from the next char copy the remainder of the
+   * string to the left, over the quote .  */
+
+  assert (open && close);
+  assert (open < close);
+  /* Copy the remainder after the closing quote, one char to the left, over
+   * the closing quote.  */
+  memmove (close, close + 1, slen - (close - s));
+  /* Copy the part between the quotes, one char the left, over the opening
+   * quote.  */
+  memmove (open, open + 1, close - open);
+  s[slen - 2] = '\0';
+  return s;
+}
+
 
 
 /* Write a BUFFER of size LEN to file descriptor FD.

@@ -2413,11 +2413,18 @@ child_execute_job (struct childbase *child, int good_stdin, char **argv)
       r = errno;
       goto cleanup;
     }
-
+{
+//char** a;
+////printf("cmd = %s\n", cmd);
+//for (a = argv; *a; ++a)
+//    printf("arg = \"%s\"\n", *a);
+//
+}
   /* Start the program.  */
   while ((r = posix_spawn (&pid, cmd, &fa, &attr, argv,
                            child->environment)) == EINTR)
     ;
+//printf("r = %d: %s\n", r, strerror (r));
 
   /* posix_spawn() doesn't provide sh fallback like exec() does; implement
      it here.  POSIX doesn't specify the path to sh so use the default.  */
@@ -2435,6 +2442,13 @@ child_execute_job (struct childbase *child, int good_stdin, char **argv)
       nargv[0] = (char *)default_shell;
       nargv[1] = cmd;
       memcpy (&nargv[2], &argv[1], sizeof (char *) * l);
+{
+//char** a;
+//printf("retrying with %s\n", nargv[0]);
+//for (a = nargv; *a; ++a)
+//    printf("arg = %s\n", *a);
+//
+}
 
       while ((r = posix_spawn (&pid, nargv[0], &fa, &attr, nargv,
                                child->environment)) == EINTR)
@@ -2839,6 +2853,7 @@ construct_command_argv_internal (char *line, char **restp, const char *shell,
 
   if (shellflags == 0)
     shellflags = posix_pedantic && NONE_SET (flags, COMMANDS_NOERROR) ? "-ec" : "-c";
+  assert (shellflags);
 
   /* See if it is safe to parse commands internally.  */
   if (shell == 0)
@@ -2897,11 +2912,10 @@ construct_command_argv_internal (char *line, char **restp, const char *shell,
       if (*cap != ' ' && *cap != '\t' && *cap != '\n')
         goto slow;
 
-  if (shellflags)
-    if (shellflags[0] != '-'
-        || ((shellflags[1] != 'c' || shellflags[2] != '\0')
-            && (shellflags[1] != 'e' || shellflags[2] != 'c' || shellflags[3] != '\0')))
-      goto slow;
+  if (shellflags[0] != '-'
+      || ((shellflags[1] != 'c' || shellflags[2] != '\0')
+          && (shellflags[1] != 'e' || shellflags[2] != 'c' || shellflags[3] != '\0')))
+    goto slow;
 
   i = strlen (line) + 1;
 
@@ -3187,7 +3201,7 @@ construct_command_argv_internal (char *line, char **restp, const char *shell,
     char *new_line;
     size_t shell_len = strlen (shell);
     size_t line_len = strlen (line);
-    size_t sflags_len = shellflags ? strlen (shellflags) : 0;
+    size_t sflags_len = strlen (shellflags);
 #if MK_OS_W32
     char *command_ptr = NULL; /* used for batch_mode_shell mode */
 #endif
@@ -3339,44 +3353,30 @@ construct_command_argv_internal (char *line, char **restp, const char *shell,
         /* Create an argv list for the shell command line.  */
         {
           int n = 1;
-          char *nextp;
+          char *nextp, *t;
+          size_t len;
 
           new_argv = xmalloc ((4 + sflags_len/2) * sizeof (char *));
-
-          nextp = new_argv[0] = xmalloc (shell_len + sflags_len + line_len + 3);
+          nextp = new_argv[0] = xmalloc (shell_len + sflags_len + line_len + 4);
           nextp = mempcpy (nextp, shell, shell_len + 1);
+          /* Preserve the null terminator.  */
+          ++nextp;
 
           /* Chop up the shellflags (if any) and assign them.  */
-          if (! shellflags)
-            {
-              new_argv[n++] = nextp;
-              *(nextp++) = '\0';
-            }
-          else
-            {
-              /* Parse shellflags using construct_command_argv_internal to
-                 handle quotes. */
-              char **argv;
-              char *f = alloca (sflags_len + 1);
-              memcpy (f, shellflags, sflags_len + 1);
-              argv = construct_command_argv_internal (f, 0, 0, 0, 0, flags, 0);
-              if (argv)
-                {
-                  char **a;
-                  for (a = argv; *a; ++a)
-                    {
-                      new_argv[n++] = nextp;
-                      nextp = stpcpy (nextp, *a) + 1;
-                    }
-                  free (argv[0]);
-                  free (argv);
-                }
-            }
+          /* Populate new_argv with tokens from shellflags using
+           * find_next_token_quoted to handle quotes. */
 
-          /* Set the command to invoke.  */
-          new_argv[n++] = nextp;
+          memcpy (nextp, shellflags, sflags_len + 1);
+          new_argv[n] = nextp;
+          while ((t = find_and_dequote_token (&nextp, &len)) != 0)
+            new_argv[n++] = t;
+          /* Preserve the null terminator.  */
+          ++nextp;
+ 
+           /* Set the command to invoke.  */
           memcpy(nextp, line, line_len + 1);
-          new_argv[n++] = NULL;
+          new_argv[n++] = nextp;
+          new_argv[n] = NULL;
         }
         return new_argv;
       }

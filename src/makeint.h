@@ -427,6 +427,8 @@ extern int unixy_shell;
 #define MAP_PIPE        0x0100
 #define MAP_DOT         0x0200
 #define MAP_COMMA       0x0400
+#define MAP_SQUOTE      0x0800
+#define MAP_DQUOTE      0x1000
 
 /* These are the valid characters for a user-defined function.  */
 #define MAP_USERFUNC    0x2000
@@ -478,6 +480,10 @@ extern int unixy_shell;
 #define ISSPACE(c)      STOP_SET((c),MAP_SPACE)
 /* True if C is nul or whitespace (including newline).  */
 #define END_OF_TOKEN(c) STOP_SET((c),MAP_SPACE|MAP_NUL)
+/* True if C is nul or a single quote.  */
+#define END_OF_TOKEN_SQUOTED(c) STOP_SET((c),MAP_NUL|MAP_SQUOTE)
+/* True if C is nul or a double quote.  */
+#define END_OF_TOKEN_DQUOTED(c) STOP_SET((c),MAP_NUL|MAP_DQUOTE)
 /* Move S past all whitespace (including newlines).  */
 #define NEXT_TOKEN(s)   while (ISSPACE (*(s))) ++(s)
 
@@ -596,6 +602,9 @@ void *xrealloc (void *, size_t);
 char *xstrdup (const char *);
 char *xstrndup (const char *, size_t);
 char *find_next_token (const char **, size_t *);
+char *find_next_token_quoted (const char **, size_t *);
+char *find_and_dequote_token (char **s, size_t *tokenlen);
+char *dequote (char *input, size_t len);
 char *next_token (const char *);
 char *end_of_token (const char *);
 void collapse_continuations (char *);
