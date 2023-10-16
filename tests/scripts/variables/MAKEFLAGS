@@ -4,6 +4,9 @@ $description = "Test proper behavior of MAKEFLAGS";
 
 $details = "DETAILS";
 
+# MAKEFLAGS format.
+# [shortopts] [-opt with arg]... [--long opt]... [ -- cli variable definitions]
+
 # Normal flags aren't prefixed with "-"
 run_make_test(q!
 all: ; @echo /$(MAKEFLAGS)/
@@ -127,7 +130,7 @@ all:; \$(info makeflags='\$(MAKEFLAGS)')
 # decode_switches reallocates when the number of parameters in sl->list exceeds 5.
 # This test exercises the realloc branch.
 for my $fl (@flavors) {
-$ENV{'MAKEFLAGS'} = '-I1 -Onone --debug=b -l2.5 -I2 -I3 -I4 -I5 -I6 -I2 -I2';
+$ENV{'MAKEFLAGS'} = ' -I1 -Onone --debug=b -l2.5 -I2 -I3 -I4 -I5 -I6 -I2 -I2';
 run_make_test("
 MAKEFLAGS${fl}B -I1 -Onone --debug=b -l2.5 -I2 -I3 -I4 -I5 -I6 -I2 -I2
 all:; \$(info makeflags='\$(MAKEFLAGS)')
@@ -260,7 +263,7 @@ rR -- \nrR
 # MAKEFLAGS set is env and makefile sets MAKEFLAGS and there is a command
 # line definition.
 $answer = ' -- bye=moon hello=world';
-$ENV{'MAKEFLAGS'} = 'hello=world';
+$ENV{'MAKEFLAGS'} = ' -- hello=world';
 run_make_test(q!
 $(info $(MAKEFLAGS))
 all:; $(info $(MAKEFLAGS))
@@ -272,7 +275,7 @@ all:; $(info $(MAKEFLAGS))
 # sv 63347.
 # Conditional assignment and MAKEFLAGS.
 $answer = 'B -- bye=moon hello=world';
-$ENV{'MAKEFLAGS'} = 'hello=world';
+$ENV{'MAKEFLAGS'} = ' -- hello=world';
 run_make_test(q!
 $(info $(MAKEFLAGS))
 MAKEFLAGS?=-k
@@ -289,7 +292,7 @@ $answer
 # line definition.
 for my $fl (@flavors) {
 my $answer = ' -- bye=moon hello=world';
-$ENV{'MAKEFLAGS'} = 'hello=world';
+$ENV{'MAKEFLAGS'} = ' -- hello=world';
 run_make_test("
 \$(info \$(MAKEFLAGS))
 MAKEFLAGS${fl}R
@@ -428,7 +431,7 @@ all:; $(info $(MAKEFLAGS))
 #MAKE#: 'all' is up to date.\n");
 
 # --no-print-directory in env, -w on the command line.
-$ENV{'MAKEFLAGS'} = '--no-print-directory';
+$ENV{'MAKEFLAGS'} = ' --no-print-directory';
 run_make_test(q!
 $(info $(MAKEFLAGS))
 all:; $(info $(MAKEFLAGS))
@@ -740,7 +743,7 @@ all:; $(info $(MAKEFLAGS))
 #MAKE#: 'all' is up to date.\n");
 
 # --no-silent in env.
-$ENV{'MAKEFLAGS'} = '--no-silent';
+$ENV{'MAKEFLAGS'} = ' --no-silent';
 run_make_test(q!
 $(info $(MAKEFLAGS))
 all:; $(info $(MAKEFLAGS))
@@ -750,7 +753,7 @@ all:; $(info $(MAKEFLAGS))
 #MAKE#: 'all' is up to date.\n");
 
 # --no-silent in env, -s on the command line.
-$ENV{'MAKEFLAGS'} = '--no-silent';
+$ENV{'MAKEFLAGS'} = ' --no-silent';
 run_make_test(q!
 $(info $(MAKEFLAGS))
 all:; $(info $(MAKEFLAGS))
@@ -783,7 +786,7 @@ all:; \$(info \$(MAKEFLAGS))
 # sv 63537
 # -s in makefile and --no-silent in the env.
 for my $fl (@flavors) {
-$ENV{'MAKEFLAGS'} = '--no-silent';
+$ENV{'MAKEFLAGS'} = ' --no-silent';
 run_make_test("
 MAKEFLAGS${fl}-s
 \$(info \$(MAKEFLAGS))
@@ -879,7 +882,7 @@ hello:; touch $@
 # --debug=b in makefile, --debug=j in the env.
 # Test for --debug=j output.
 for my $fl (@flavors) {
-$ENV{'MAKEFLAGS'} = '--debug=j';
+$ENV{'MAKEFLAGS'} = ' --debug=j';
 run_make_test("
 MAKEFLAGS${fl}--debug=b
 hello:; touch \$@
@@ -890,7 +893,7 @@ hello:; touch \$@
 # --debug=b in makefile, --debug=j in the env.
 # Test for --debug=b output.
 for my $fl (@flavors) {
-$ENV{'MAKEFLAGS'} = '--debug=j';
+$ENV{'MAKEFLAGS'} = ' --debug=j';
 run_make_test("
 MAKEFLAGS${fl}--debug=b
 hello:; touch \$@

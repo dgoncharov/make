@@ -105,6 +105,8 @@ static int init_argv (const char **argv, char *buf, const char *value);
 static void disable_builtins ();
 static char *quote_for_env (char *out, const char *in);
 static void initialize_global_hash_tables (void);
+static int read_env_overrides (int argc, const char **argv);
+static int read_env_overrides_from_makeflags (int argc, const char **argv);
 
 
 /* True if C is a switch value that corresponds to a short option.  */
@@ -1504,6 +1506,15 @@ main (int argc, char **argv, char **envp)
   {
     unsigned int i;
 
+    /*  Read command line switches and set 'env_overrides' before going through
+        env variables to ensure the origin of variables inherited from env is
+        o_env_override when -e is set.  */
+
+    env_overrides = read_env_overrides (argc, (const char **) argv);
+    if (!env_overrides)
+      env_overrides = read_env_overrides_from_makeflags (argc,
+                                                         (const char **) argv);
+
     for (i = 0; envp[i] != 0; ++i)
       {
         struct variable *v;
@@ -1547,7 +1558,8 @@ main (int argc, char **argv, char **envp)
             export = v_noexport;
           }
 
-        v = define_variable (envp[i], len, ep, o_env, 1);
+        v = define_variable (envp[i], len, ep,
+                             env_overrides ? o_env_override: o_env, 1);
 
         /* POSIX says the value of SHELL set in the makefile won't change the
            value of SHELL given to subprocesses.  */
@@ -2964,6 +2976,76 @@ init_switches (void)
   long_options[i].name = 0;
 }
 
+/* Return 1 if -e or --environment-overrides is set. Otherwise, return 0.  */
+
+static int
+read_env_overrides (int argc, const char **argv)
+{
+  int result = 0;
+
+  init_switches ();
+
+  /* Prevent getopt from printing error messages about the flags from the
+     environment.  */
+  opterr = 0;
+
+  /* Reset getopt's state.  */
+  optind = 0;
+  while (optind < argc)
+    {
+      int c;
+      c = getopt_long (argc, (char *const *)argv, options, long_options, NULL);
+      if (c == EOF)
+        /* End of arguments, or "--" marker seen.  */
+        break;
+      if (c == 'e')
+        {
+          result = 1;
+          break;
+        }
+    }
+
+  return result;
+}
+
+/* Return 1 if MAKEFLAGS has switch -e set. Otherwise, return 0.  */
+
+static int
+read_env_overrides_from_makeflags (int argc, const char **argv)
+{
+  static const char mf[] = "MAKEFLAGS=";
+  size_t len = sizeof (mf) - 1;
+  int k;
+  const char *m = NULL;
+  char *buf;
+
+  /* See if there is a command line MAKEFLAGS definition.  */
+  for (k = 0; k < argc; ++k)
+    if (strlen (argv[k]) >= len && memcmp (argv[k], mf, len) == 0)
+      {
+        m = argv[k] + len;
+        break;
+      }
+
+  if (k >= argc)
+    /* There is no MAKEFLAGS in argv. See if there is MAKEFLAGS in env.  */
+    m = getenv (MAKEFLAGS_NAME);
+
+  if (!m)
+    return 0;
+
+  /* Skip whitespace, and check for an empty value.  */
+  NEXT_TOKEN (m);
+  len = strlen (m);
+  if (len == 0)
+    return 0;
+
+  /* Allocate an array that is definitely big enough.  */
+  buf = alloca (1 + len + 1);
+  argv = alloca ((1 + len + 1) * sizeof (char *));
+  argc = init_argv (argv, buf, m);
+  return read_env_overrides (argc, argv);
+}
 
 /* Non-option argument.  It might be a variable definition.
    Returns 1 if the argument we read was .WAIT, else 0.
