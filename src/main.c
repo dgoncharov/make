@@ -101,6 +101,7 @@ static void decode_switches (int argc, const char **argv,
                              enum variable_origin origin);
 static void decode_env_switches (const char *envar, size_t len,
                                  enum variable_origin origin);
+static int init_argv (const char **argv, char *buf, const char *value);
 static void disable_builtins ();
 static char *quote_for_env (char *out, const char *in);
 static void initialize_global_hash_tables (void);
@@ -3363,7 +3364,7 @@ decode_switches (int argc, const char **argv, enum variable_origin origin)
 static void
 decode_env_switches (const char *envar, size_t len, enum variable_origin origin)
 {
-  char *value, *p, *buf;
+  char *value, *buf;
   int argc;
   const char **argv;
 
@@ -3377,7 +3378,33 @@ decode_env_switches (const char *envar, size_t len, enum variable_origin origin)
     return;
 
   /* Allocate an array that is definitely big enough.  */
-  argv = xmalloc ((1 + len + 1) * sizeof (char *));
+  buf = alloca (1 + len + 1);
+  argv = alloca ((1 + len + 1) * sizeof (char *));
+  argc = init_argv (argv, buf, value);
+
+  /* Parse those words.  */
+  decode_switches (argc, argv, origin);
+}
+
+/* Split VALUE into tokens, copy those tokens to BUF and null terminate each
+   token. Initialize ARGV to point to the tokens inside BUF.  Null terminate
+   ARGV.
+   If the first word doesn't start with a dash and isn't a variable definition,
+   then prepend a dash before the first word.
+   Return the number of elements of ARGV.
+   VALUE cannot be an empty string.
+   BUF has to greater than 'strlen (value) + 1'.
+   It is responsibility of the caller to allocate ARGV and BUF of sufficient
+   size.  */
+
+static int
+init_argv (const char **argv, char *buf, const char *value)
+{
+  int argc;
+  char *p;
+  const char *v = value;
+
+  assert (value && *value);
 
   /* getopt will look at the arguments starting at ARGV[1].
      Prepend a spacer word.  */
@@ -3386,7 +3413,6 @@ decode_env_switches (const char *envar, size_t len, enum variable_origin origin)
 
   /* We need a buffer to copy the value into while we split it into words
      and unquote it.  Set up in case we need to prepend a dash later.  */
-  buf = xmalloc (1 + len + 1);
   buf[0] = '-';
   p = buf+1;
   argv[argc] = p;
@@ -3408,17 +3434,15 @@ decode_env_switches (const char *envar, size_t len, enum variable_origin origin)
     }
   *p = '\0';
   argv[++argc] = 0;
-  assert (p < buf + len + 2);
+  (void) v;
+  assert (p < buf + strlen (v) + 2);
 
   if (argv[1][0] != '-' && strchr (argv[1], '=') == 0)
     /* The first word doesn't start with a dash and isn't a variable
        definition, so add a dash.  */
     argv[1] = buf;
 
-  /* Parse those words.  */
-  decode_switches (argc, argv, origin);
-  free (buf);
-  free (argv);
+  return argc;
 }
 
 /* Quote the string IN so that it will be interpreted as a single word with
