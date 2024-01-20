@@ -52,6 +52,13 @@ enum variable_export
     v_ifset             /* Export it if it has a non-default value.  */
 };
 
+enum variable_specificity
+{
+    s_global = 0,       /* Global variable.  */
+    s_target,           /* Target-specific variable.  */
+    s_pattern           /* Pattern-specific variable.  */
+};
+
 /* Structure that represents one variable definition.
    Each bucket of the hash table is a chain of these,
    chained through 'next'.  */
@@ -172,13 +179,13 @@ struct variable *do_variable_definition (const floc *flocp,
                                          const char *name, const char *value,
                                          enum variable_origin origin,
                                          enum variable_flavor flavor,
-                                         int target_var);
+                                         enum variable_specificity specificity);
 char *parse_variable_definition (const char *line,
                                  struct variable *v);
 struct variable *assign_variable_definition (struct variable *v, const char *line);
 struct variable *try_variable_definition (const floc *flocp, const char *line,
                                           enum variable_origin origin,
-                                          int target_var);
+                                          enum variable_specificity specificity);
 void init_hash_global_variable_set (void);
 void hash_init_function_table (void);
 void define_new_function(const floc *flocp, const char *name,
