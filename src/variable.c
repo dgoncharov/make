@@ -1440,8 +1440,10 @@ do_variable_definition (const floc *flocp, const char *varname,
     case f_append:
     case f_append_value:
       {
-        /* If we have += but we're in a target variable context, we want to
-           append only with other variables in the context of this target.  */
+        /* If we have += but we're in a target/pattern variable context, we
+           want to append only with other variables in the context of this
+           target/pattern.  */
+        int cli_defn = 0;
         if (specificity)
           {
             append = 1;
@@ -1449,9 +1451,25 @@ do_variable_definition (const floc *flocp, const char *varname,
                                         current_variable_set_list->set);
 
             /* Don't append from the global set if a previous non-appending
-               target-specific variable definition exists. */
+               target/pattern-specific variable definition exists. */
             if (v && !v->append)
               append = 0;
+
+            if (v && specificity == s_pattern &&
+               (v->origin == o_env_override || v->origin == o_command))
+              {
+                /* This is the case of multiple target/pattern specific
+                   definitions/appends, e.g.
+                   al%: hello:=first
+                   al%: hello+=second
+                   in the presence of a command line definition or an
+                   env override.
+                   Do not merge x->value and value here. For pattern-specific
+                   variables the values are merged in
+                   recursively_expand_for_file.  */
+                cli_defn = 1;
+                append = 1;
+              }
           }
         else
           v = lookup_variable (varname, strlen (varname));
@@ -1461,6 +1479,15 @@ do_variable_definition (const floc *flocp, const char *varname,
             /* There was no old value.
                This becomes a normal recursive definition.  */
             newval = value;
+            flavor = f_recursive;
+          }
+        else if (cli_defn)
+          {
+            /* A command line definition or an env override take precedence
+               over the pattern/target specific append in the makefile.  */
+            newval = value;
+            /* Set flavor to f_recursive to recursively expand this variable
+               at build time in recursively_expand_for_file.  */
             flavor = f_recursive;
           }
         else
