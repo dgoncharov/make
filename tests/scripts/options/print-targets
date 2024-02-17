@@ -27,6 +27,6 @@ submake: ; $(MAKE) all
 always: ; +echo always
 goodfile: ; touch goodfile
 !,
-        "--print-targets", "submake\n.x.z\nalways\nall\ngoodfile\n");
+        "--print-targets", "all\n.x.z\nsubmake\nalways\ngoodfile\n");
 
 1;

@@ -1226,10 +1226,62 @@ print_target (const void *item)
   puts (f->name);
 }
 
+/* Sort targets defined in the same makefile by their location in the makefile.
+   Sort targets defined in different makefiles by makefile name.
+   Sort a target defined in a makefile before a target defined elsewhere.
+   Otherwise, sort a target with a recipe before a target without recipe.
+   Otherwise, sort by a target name.
+
+   qsort compare routine requirements
+   Return 1 if X is less than Y.
+   Return -1 if Y is less than X.
+   Return 0 if X equal Y.  */
+static
+int compare_files_by_loc (void const *slotx, void const *sloty)
+{
+  struct file const *x = *(struct file const **)slotx;
+  struct file const *y = *(struct file const **)sloty;
+
+  if (x->cmds && y->cmds)
+    {
+      if (x->cmds->fileinfo.filenm && y->cmds->fileinfo.filenm)
+        {
+          int r = strcmp (x->cmds->fileinfo.filenm, y->cmds->fileinfo.filenm);
+          if (r)
+            return r;
+          if (x->cmds->fileinfo.lineno < y->cmds->fileinfo.lineno)
+            return -1;
+          if (y->cmds->fileinfo.lineno < x->cmds->fileinfo.lineno)
+            return 1;
+          return 0;
+        }
+      else if (x->cmds->fileinfo.filenm)
+        return -1;
+      else if (y->cmds->fileinfo.filenm)
+        return 1;
+      if (x->cmds->fileinfo.lineno < y->cmds->fileinfo.lineno)
+        return -1;
+      if (y->cmds->fileinfo.lineno < x->cmds->fileinfo.lineno)
+        return 1;
+      if (x->cmds->fileinfo.lineno)
+        return 0;
+    }
+  if (x->cmds)
+    return -1;
+  if (y->cmds)
+    return 1;
+  return strcmp (x->name, y->name);
+}
+
 void
 print_targets (void)
 {
-  hash_map (&files, print_target);
+  struct file const **sorted;
+  sorted = alloca (sizeof (struct file const*) * (files.ht_fill + 1));
+  hash_dump (&files, (void**) sorted, compare_files_by_loc);
+  /* sorted is null terminated.  */
+  for (; *sorted; ++sorted)
+    print_target (*sorted);
 }
 
 /* Verify the integrity of the data base of files.  */
