@@ -1204,13 +1204,19 @@ print_file_data_base (void)
   hash_print_stats (&files, stdout);
 }
 
-static void
-print_target (const void *item)
+static int
+printable (const void *item)
 {
-  const struct file *f = item;
+  const struct file *f = (const struct file *) item;
+
+assert (f);
+//printf("f at %p, f->name = %s, f->is_target = %d\n", f, f->name, f->is_target);
 
   if (!f->is_target || f->suffix)
-    return;
+    {
+//printf("excluding %s at %p\n", f->name, f);
+      return 0;
+    }
 
   /* Ignore any special targets, as defined by POSIX. */
   if (f->name[0] == '.' && isupper ((unsigned char)f->name[1]))
@@ -1220,45 +1226,60 @@ print_target (const void *item)
         if (!isupper ((unsigned char)*cp))
           break;
       if (*cp == '\0')
-        return;
+        return 0;
     }
 
-  puts (f->name);
+  return 1;
 }
 
-/* Sort targets defined in the same makefile by their location in the makefile.
+/* Sort a target with a recipe before a target without recipe.
    Sort targets defined in different makefiles by makefile name.
+   Sort targets defined in the same makefile by their location in the makefile.
    Sort a target defined in a makefile before a target defined elsewhere.
-   Otherwise, sort a target with a recipe before a target without recipe.
    Otherwise, sort by a target name.
 
    qsort compare routine requirements
    Return 1 if X is less than Y.
    Return -1 if Y is less than X.
-   Return 0 if X equal Y.  */
+   Return 0 if X is equal to Y.  */
 static
-int compare_files_by_loc (void const *slotx, void const *sloty)
+int filecmp (void const *slotx, void const *sloty)
 {
-  struct file const *x = *(struct file const **)slotx;
-  struct file const *y = *(struct file const **)sloty;
+  struct file const *x = *(struct file const **) slotx;
+  struct file const *y = *(struct file const **) sloty;
+
+printf("slotx at %p, x at %p, sloty at %p, y at %p", slotx, x, sloty, y);
+//print_target (x);
+printf ("x->cmds = %p, y->cmds = %p", x->cmds, y->cmds);
+printf("\n");
+printf("y = ");
+//print_target (y);
+printf("\n");
 
   if (x->cmds && y->cmds)
     {
+printf ("x->filenm = %s, y->filenm = %s\n", x->cmds->fileinfo.filenm, y->cmds->fileinfo.filenm);
       if (x->cmds->fileinfo.filenm && y->cmds->fileinfo.filenm)
         {
           int r = strcmp (x->cmds->fileinfo.filenm, y->cmds->fileinfo.filenm);
+printf ("r = %d\n", r);
           if (r)
             return r;
+printf ("x->lineno = %lu, y->lineno = %lu\n", x->cmds->fileinfo.lineno, y->cmds->fileinfo.lineno);
+
           if (x->cmds->fileinfo.lineno < y->cmds->fileinfo.lineno)
             return -1;
           if (y->cmds->fileinfo.lineno < x->cmds->fileinfo.lineno)
             return 1;
-          return 0;
+          if (x->cmds->fileinfo.lineno)
+            return 0;
         }
       else if (x->cmds->fileinfo.filenm)
         return -1;
       else if (y->cmds->fileinfo.filenm)
         return 1;
+printf ("1 not supposed to be here, x->name = %s, y->name = %s\n", x->name, y->name);
+
       if (x->cmds->fileinfo.lineno < y->cmds->fileinfo.lineno)
         return -1;
       if (y->cmds->fileinfo.lineno < x->cmds->fileinfo.lineno)
@@ -1266,10 +1287,12 @@ int compare_files_by_loc (void const *slotx, void const *sloty)
       if (x->cmds->fileinfo.lineno)
         return 0;
     }
+printf ("2 not supposed to be here, x->name = %s, y->name = %s\n", x->name, y->name);
   if (x->cmds)
     return -1;
   if (y->cmds)
     return 1;
+printf ("3 not supposed to be here, x->name = %s, y->name = %s\n", x->name, y->name);
   return strcmp (x->name, y->name);
 }
 
@@ -1278,10 +1301,11 @@ print_targets (void)
 {
   struct file const **sorted;
   sorted = alloca (sizeof (struct file const*) * (files.ht_fill + 1));
-  hash_dump (&files, (void**) sorted, compare_files_by_loc);
+  hash_dump (&files, (void**) sorted, filecmp, 0);
   /* sorted is null terminated.  */
   for (; *sorted; ++sorted)
-    print_target (*sorted);
+    if (printable (*sorted))
+      puts ((*sorted)->name);
 }
 
 /* Verify the integrity of the data base of files.  */

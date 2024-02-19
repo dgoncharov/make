@@ -17,6 +17,7 @@ this program.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "makeint.h"
 #include "hash.h"
 #include <assert.h>
+#include "filedef.h"
 
 #define CALLOC(t, n) ((t *) xcalloc (sizeof (t) * (n)))
 #define MALLOC(t, n) ((t *) xmalloc (sizeof (t) * (n)))
@@ -290,9 +291,10 @@ hash_print_stats (struct hash_table *ht, FILE *out_FILE)
    user-supplied vector, or malloc one.  */
 
 void **
-hash_dump (struct hash_table *ht, void **vector_0, qsort_cmp_t compare)
+hash_dump (struct hash_table *ht, void **vector_0, qsort_cmp_t compare,
+           dump_filter_t filter)
 {
-  void **vector;
+  void **vector, **v;
   void **slot;
   void **end = &ht->ht_vec[ht->ht_size];
 
@@ -301,12 +303,31 @@ hash_dump (struct hash_table *ht, void **vector_0, qsort_cmp_t compare)
   vector = vector_0;
 
   for (slot = ht->ht_vec; slot < end; slot++)
-    if (!HASH_VACANT (*slot))
-      *vector++ = *slot;
+    if (!HASH_VACANT (*slot) && (!filter || filter (*slot)))
+      {
+        printf ("included %p\n", *slot);
+        *vector++ = *slot;
+      }
+    else if (!HASH_VACANT (*slot))
+      printf ("excluded %p\n", *slot);
   *vector = 0;
 
+  printf ("sorting %ld filtered elements\n", vector - vector_0);
+  for (v = vector_0; *v; ++v)
+    {
+      struct file const *f = *(struct file const **) v;
+      printf ("v at %p, f->name = %s\n", v, f->name);
+    }
+
   if (compare)
-    qsort (vector_0, ht->ht_fill, sizeof (void *), compare);
+    qsort (vector_0, vector - vector_0, sizeof (void *), compare);
+
+  printf ("sorted\n");
+  for (v = vector_0; *v; ++v)
+    {
+      struct file const *f = *(struct file const **) v;
+      printf ("v at %p, f->name = %s\n", v, f->name);
+    }
   return vector_0;
 }
 
