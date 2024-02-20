@@ -66,6 +66,7 @@ struct file
     unsigned int considered;    /* equal to 'considered' if file has been
                                    considered on current scan of goal chain */
     int command_flags;          /* Flags OR'd in for cmds; see commands.h.  */
+    long order;                 /* Order in which this file was entered. */
     enum update_status          /* Status of the last attempt to update.  */
       {
         us_success = 0,         /* Successfully updated.  Must be 0!  */

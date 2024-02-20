@@ -72,8 +72,8 @@ void hash_free __P((struct hash_table *ht, int free_items));
 void hash_map __P((struct hash_table *ht, hash_map_func_t map));
 void hash_map_arg __P((struct hash_table *ht, hash_map_arg_func_t map, void *arg));
 void hash_print_stats __P((struct hash_table *ht, FILE *out_FILE));
-void **hash_dump __P((struct hash_table *ht, void **vector_0, qsort_cmp_t compare,
-                      dump_filter_t filter));
+void **hash_dump __P((struct hash_table *ht, void **vector_0, dump_filter_t filter,
+                      qsort_cmp_t compare));
 
 extern unsigned jhash(unsigned char const *key, int n);
 extern unsigned jhash_string(unsigned char const *key);

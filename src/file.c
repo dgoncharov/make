@@ -191,8 +191,10 @@ enter_file (const char *name)
 
   if (HASH_VACANT (f))
     {
+      static long order_count = 0;
       new->last = new;
       hash_insert_at (&files, new, file_slot);
+      new->order = ++order_count;
     }
   else
     {
@@ -1209,14 +1211,8 @@ printable (const void *item)
 {
   const struct file *f = (const struct file *) item;
 
-assert (f);
-//printf("f at %p, f->name = %s, f->is_target = %d\n", f, f->name, f->is_target);
-
   if (!f->is_target || f->suffix)
-    {
-//printf("excluding %s at %p\n", f->name, f);
-      return 0;
-    }
+    return 0;
 
   /* Ignore any special targets, as defined by POSIX. */
   if (f->name[0] == '.' && isupper ((unsigned char)f->name[1]))
@@ -1232,13 +1228,7 @@ assert (f);
   return 1;
 }
 
-/* Sort a target with a recipe before a target without recipe.
-   Sort targets defined in different makefiles by makefile name.
-   Sort targets defined in the same makefile by their location in the makefile.
-   Sort a target defined in a makefile before a target defined elsewhere.
-   Otherwise, sort by a target name.
-
-   qsort compare routine requirements
+/* qsort compare routine requirements
    Return 1 if X is less than Y.
    Return -1 if Y is less than X.
    Return 0 if X is equal to Y.  */
@@ -1248,52 +1238,11 @@ int filecmp (void const *slotx, void const *sloty)
   struct file const *x = *(struct file const **) slotx;
   struct file const *y = *(struct file const **) sloty;
 
-printf("slotx at %p, x at %p, sloty at %p, y at %p", slotx, x, sloty, y);
-//print_target (x);
-printf ("x->cmds = %p, y->cmds = %p", x->cmds, y->cmds);
-printf("\n");
-printf("y = ");
-//print_target (y);
-printf("\n");
-
-  if (x->cmds && y->cmds)
-    {
-printf ("x->filenm = %s, y->filenm = %s\n", x->cmds->fileinfo.filenm, y->cmds->fileinfo.filenm);
-      if (x->cmds->fileinfo.filenm && y->cmds->fileinfo.filenm)
-        {
-          int r = strcmp (x->cmds->fileinfo.filenm, y->cmds->fileinfo.filenm);
-printf ("r = %d\n", r);
-          if (r)
-            return r;
-printf ("x->lineno = %lu, y->lineno = %lu\n", x->cmds->fileinfo.lineno, y->cmds->fileinfo.lineno);
-
-          if (x->cmds->fileinfo.lineno < y->cmds->fileinfo.lineno)
-            return -1;
-          if (y->cmds->fileinfo.lineno < x->cmds->fileinfo.lineno)
-            return 1;
-          if (x->cmds->fileinfo.lineno)
-            return 0;
-        }
-      else if (x->cmds->fileinfo.filenm)
-        return -1;
-      else if (y->cmds->fileinfo.filenm)
-        return 1;
-printf ("1 not supposed to be here, x->name = %s, y->name = %s\n", x->name, y->name);
-
-      if (x->cmds->fileinfo.lineno < y->cmds->fileinfo.lineno)
-        return -1;
-      if (y->cmds->fileinfo.lineno < x->cmds->fileinfo.lineno)
-        return 1;
-      if (x->cmds->fileinfo.lineno)
-        return 0;
-    }
-printf ("2 not supposed to be here, x->name = %s, y->name = %s\n", x->name, y->name);
-  if (x->cmds)
+  if (x->order < y->order)
     return -1;
-  if (y->cmds)
+  if (y->order < x->order)
     return 1;
-printf ("3 not supposed to be here, x->name = %s, y->name = %s\n", x->name, y->name);
-  return strcmp (x->name, y->name);
+  return 0;
 }
 
 void
@@ -1301,11 +1250,10 @@ print_targets (void)
 {
   struct file const **sorted;
   sorted = alloca (sizeof (struct file const*) * (files.ht_fill + 1));
-  hash_dump (&files, (void**) sorted, filecmp, 0);
+  hash_dump (&files, (void**) sorted, printable, filecmp);
   /* sorted is null terminated.  */
   for (; *sorted; ++sorted)
-    if (printable (*sorted))
-      puts ((*sorted)->name);
+    puts ((*sorted)->name);
 }
 
 /* Verify the integrity of the data base of files.  */
