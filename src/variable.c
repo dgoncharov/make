@@ -711,6 +711,8 @@ initialize_file_variables (struct file *file, int reading)
               v->per_target = p->variable.per_target;
               v->export = p->variable.export;
               v->private_var = p->variable.private_var;
+              /* Init p->variable.exportable for print_variable_data_base.  */
+              p->variable.exportable = v->exportable;
             }
           while ((p = lookup_pattern_var (p, file->name, targlen)) != 0);
 
@@ -1991,11 +1993,20 @@ print_variable (const void *item, void *arg)
   fputs (origin, stdout);
   if (v->private_var)
     fputs (" private", stdout);
+  if (v->conditional)
+    fputs (" conditional", stdout);
+  if (v->special)
+    fputs (" special", stdout);
   if (v->fileinfo.filenm)
     printf (_(" (from '%s', line %lu)"),
             v->fileinfo.filenm, v->fileinfo.lineno + v->fileinfo.offset);
   putchar ('\n');
   fputs (prefix, stdout);
+
+  if (should_export (v))
+    fputs ("export ", stdout);
+  else
+    fputs ("unexport ", stdout);
 
   /* Is this a 'define'?  */
   if (v->recursive && strchr (v->value, '\n') != 0)
