@@ -1,0 +1,129 @@
+#                                                                    -*-perl-*-
+
+$description = "Test -p command line option.\n";
+
+# -p produces a multiline output with multiple similar lines.
+# Each variable has its related attributes printed on the line preceding
+# variable name.
+# E.g. hello=world causes the following two lines.
+# makefile (from 'makefile', line 2)
+# hello = world
+# The tests use regexes to match against multiline output of -p.
+# The tests for special and conditional flags rely on line number to compare
+# the line of interest.
+
+delete $ENV{'hello'};
+# Run the tests below for global, target-specific and pattern-specific
+# variables.
+my @specificities = ('', 'all: ', 'a%: ');
+for my $spec (@specificities) {
+# sv 65360.
+# Test that -p prints export status.
+run_make_test("
+${spec}hello=world
+all:;
+", '-rp', '/hello/');
+
+run_make_test("
+${spec}export hello=world
+all:;
+", '-rp', '/export hello/');
+
+run_make_test("
+${spec}unexport hello=world
+all:;
+", '-rp', '/hello/');
+
+run_make_test("
+${spec}unexport hello=world
+export
+all:;
+", '-rp', '/hello/');
+
+run_make_test("
+${spec}hello=world
+${spec}export hello+=again
+all:;
+", '-rp', '/export hello/');
+
+run_make_test("
+${spec}hello=world
+${spec}unexport hello+=again
+all:;
+", '-rp', '/hello/');
+
+run_make_test("
+${spec}hello=world
+${spec}export hello+=again
+unexport
+all:;
+", '-rp', '/export hello/');
+
+run_make_test("
+${spec}hello=world
+${spec}unexport hello+=again
+export
+all:;
+", '-rp', '/hello/');
+
+# Test that -p prints 'conditional' in the case of a conditional assignment.
+run_make_test("
+${spec}hello?=world
+all:;
+", '-rp', '/# makefile conditional \(from \'#MAKEFILE#\', line 2\)/');
+}
+
+# MAKEFILES is the only variable which is exported only when set.
+run_make_test(q!
+MAKEFILES=lib.mk
+unexport
+all:;
+!, '-rp', '/export MAKEFILES = lib.mk/');
+
+# Test that -p prints 'special' for special variables.
+run_make_test(q!
+.WARNINGS=no-such-warn
+all:;
+!, '-rp', '/# makefile special \(from \'#MAKEFILE#\', line 2\)/');
+
+# Variables inherited from env are exported by default.
+$ENV{'hello'} = 'world';
+run_make_test(q!
+all:;
+!, '-rp', '/export hello/');
+
+# define directive.
+delete $ENV{'hello'};
+run_make_test(q!
+define hello =
+world
+endef
+all:;
+!, '-rp', '/hello/');
+
+# Test that -p reports that a target/pattern specific variable is exported to
+# the intended target, regardless of the target being built.
+# In this test target 'all' is built and 'hello' is exported to 'def' and 'd%'.
+@specificities = ('def', 'd%');
+for my $spec (@specificities) {
+
+# First run the test and see that -p reports that 'hello' is exported.
+run_make_test("
+${spec}: export hello=world
+all:; \$(info hello=\$(hello))
+", '-rp', '/export hello/');
+
+# Run the same test again and see that 'hello' is exported to target 'def'.
+run_make_test("
+${spec}: export hello=world
+def:; \$(info hello=\$(hello))
+", '-r', "hello=world\n#MAKE#: 'def' is up to date.");
+
+# Run the same test again and see that 'hello' is not exported to target 'all'.
+run_make_test("
+${spec}: export hello=world
+all:; \$(info hello=\$(hello))
+", '-r', "hello=\n#MAKE#: 'all' is up to date.");
+}
+
+1;
