@@ -191,8 +191,10 @@ enter_file (const char *name)
 
   if (HASH_VACANT (f))
     {
+      static unsigned int order_count = 0;
       new->last = new;
       hash_insert_at (&files, new, file_slot);
+      new->order = ++order_count;
     }
   else
     {
@@ -1204,13 +1206,16 @@ print_file_data_base (void)
   hash_print_stats (&files, stdout);
 }
 
-static void
-print_target (const void *item)
+/* Return 1 if this file is printable by --print-targets.
+   Return 0 otherwise.  */
+
+static int
+printable (const void *item)
 {
   const struct file *f = item;
 
   if (!f->is_target || f->suffix)
-    return;
+    return 0;
 
   /* Ignore any special targets, as defined by POSIX. */
   if (f->name[0] == '.' && isupper ((unsigned char)f->name[1]))
@@ -1220,16 +1225,61 @@ print_target (const void *item)
         if (!isupper ((unsigned char)*cp))
           break;
       if (*cp == '\0')
-        return;
+        return 0;
     }
 
-  puts (f->name);
+  return 1;
+}
+
+/* Compare files for sorting.
+   Sort a target before its prerequisites.
+   Sort targets by the order in which make entered the files.
+
+   qsort comparison routine requirements
+   Return 1 if X is less than Y.
+   Return -1 if Y is less than X.
+   Return 0 if X is equal to Y.  */
+
+static int
+filecmp (const void *slotx, const void *sloty)
+{
+  const struct file *x = *(const struct file **) slotx;
+  const struct file *y = *(const struct file **) sloty;
+  const struct dep *d;
+
+  /* Target's name is used as a hash table key.
+     This hash table keeps items with unique keys.  */
+  assert (x != y);
+  assert (strcmp (x->name, y->name));
+
+  for (d = x->deps; d; d = d->next)
+    if (d->file == y)
+      return -1;
+
+  for (d = y->deps; d; d = d->next)
+    if (d->file == x)
+      return 1;
+
+  /* Sort targets in the order make entered them.  */
+  if (x->order < y->order)
+    return -1;
+  if (y->order < x->order)
+    return 1;
+  /* x->order equals y->order.  That can only happen when order_count
+     overflows.  */
+
+  return strcmp (x->name, y->name);
 }
 
 void
 print_targets (void)
 {
-  hash_map (&files, print_target);
+  const struct file **sorted;
+  sorted = alloca (sizeof (const struct file *) * (files.ht_fill + 1));
+  hash_dump (&files, (void **) sorted, printable, filecmp);
+  /* sorted is null terminated.  */
+  for (; *sorted; ++sorted)
+    puts ((*sorted)->name);
 }
 
 /* Verify the integrity of the data base of files.  */

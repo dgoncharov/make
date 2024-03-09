@@ -287,10 +287,13 @@ hash_print_stats (struct hash_table *ht, FILE *out_FILE)
 }
 
 /* Dump all items into a NULL-terminated vector.  Use the
-   user-supplied vector, or malloc one.  */
+   user-supplied vector, or malloc one.
+   If 'filter' is specified, include only those items for which 'filter'
+   returns true.  */
 
 void **
-hash_dump (struct hash_table *ht, void **vector_0, qsort_cmp_t compare)
+hash_dump (struct hash_table *ht, void **vector_0, dump_filter_t filter,
+           qsort_cmp_t compare)
 {
   void **vector;
   void **slot;
@@ -300,13 +303,14 @@ hash_dump (struct hash_table *ht, void **vector_0, qsort_cmp_t compare)
     vector_0 = MALLOC (void *, ht->ht_fill + 1);
   vector = vector_0;
 
+  /* Fitler before sorting to reduce the number of items being sorted.  */
   for (slot = ht->ht_vec; slot < end; slot++)
-    if (!HASH_VACANT (*slot))
+    if (!HASH_VACANT (*slot) && (!filter || filter (*slot)))
       *vector++ = *slot;
   *vector = 0;
 
   if (compare)
-    qsort (vector_0, ht->ht_fill, sizeof (void *), compare);
+    qsort (vector_0, vector - vector_0, sizeof (void *), compare);
   return vector_0;
 }
 

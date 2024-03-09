@@ -27,6 +27,123 @@ submake: ; $(MAKE) all
 always: ; +echo always
 goodfile: ; touch goodfile
 !,
-        "--print-targets", "submake\n.x.z\nalways\nall\ngoodfile\n");
+        "--print-targets", "all\n.x.z\ngoodfile\nsubmake\nalways\n");
+
+# sv 65438.
+# Multiple targets on the same line.
+# Make enters prerequisites before the target.
+run_make_test(q!
+all: one two
+one two:;
+!, '--print-targets', "all\none\ntwo\n");
+
+
+# Multiple definitions of the same target.
+run_make_test(q!
+all: one two
+one: one.h
+two: two.h
+two:;
+one:;
+!, '--print-targets', "all\none\ntwo\n");
+
+
+# Grouped targets.
+run_make_test(q!
+all: one two
+one two&:;
+!, '--print-targets', "all\none\ntwo\n");
+
+
+# Multiple double colon rules.
+run_make_test(q!
+all: one two
+one::
+one::
+two::
+two::;
+two::
+one::;
+!, '--print-targets', "all\none\ntwo\n");
+
+
+# Multiple double colon rules. Each rule has a recipe.
+run_make_test(q!
+all: one two
+one::;
+one::;
+two::;
+two::;
+two::;
+one::;
+!, '--print-targets', "all\none\ntwo\n");
+
+
+# Grouped double colon.
+run_make_test(q!
+all: one two
+one two&::;
+two one&::;
+!, '--print-targets', "all\none\ntwo\n");
+
+
+# A file found by directory search is preferred over the local one.
+# This causes rehashing to the new name.
+run_make_test(q!
+vpath hello.c src
+all: hello.c; $(info $@ from $^)
+hello.c: ; $(info 1 $@)
+src/hello.c: ; $(info 2 $@)
+!, '--print-targets', "all\nhello.c\nsrc\\hello.c\n");
+
+
+# Static pattern rules.
+run_make_test(q!
+all: one.x two.x
+one.x two.x: %.x: %.q;
+!, '--print-targets', "all\none.x\ntwo.x\n");
+
+
+# Target defined by -E.
+run_make_test(q!
+one:;
+two:;
+!, '-E "three:;" --print-targets', "three\none\ntwo\n");
+
+
+create_file('t.mk', 'three:;');
+
+# Targets defined in the included files.
+run_make_test(q!
+all: one two
+include t.mk
+one:;
+two:;
+!, '--print-targets', "all\none\ntwo\nthree\n");
+
+
+# Multiple input makefiles.
+run_make_test(q!
+all: one two
+one:;
+two:;
+!, '--print-targets -f t.mk', "all\none\ntwo\nthree\n");
+
+
+# Targets defined on the standard input.
+# The test driver constructs a command line for make and passes -f t013.mk
+# before -f-.
+# This determines that the targets from the standard input (three) in this case are
+# entered after the targets from t013.mk (one, two and all).
+close(STDIN);
+open(STDIN, "<", 't.mk') || die "$0: cannot open t.mk for reading: $!";
+
+
+run_make_test(q!
+all: one two
+one:;
+two:;
+!, "-f- --print-targets", "all\none\ntwo\nthree\n");
+unlink('t.mk');
 
 1;
