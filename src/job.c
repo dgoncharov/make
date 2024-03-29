@@ -2812,6 +2812,8 @@ construct_command_argv_internal (char *line, char **restp, const char *shell,
   int instring, word_has_equals, seen_nonequals, last_argument_was_empty;
   char **new_argv = 0;
   char *argstr = 0;
+  const char *defsh_flags =
+           posix_pedantic && NONE_SET (flags, COMMANDS_NOERROR) ? "-ec" : "-c";
 #if MK_OS_W32
   int slow_flag = 0;
 
@@ -2837,7 +2839,8 @@ construct_command_argv_internal (char *line, char **restp, const char *shell,
     return 0;
 
   if (shellflags == 0)
-    shellflags = posix_pedantic && NONE_SET (flags, COMMANDS_NOERROR) ? "-ec" : "-c";
+    shellflags = defsh_flags;
+  assert (shellflags);
 
   /* See if it is safe to parse commands internally.  */
   if (shell == 0)
@@ -2896,11 +2899,10 @@ construct_command_argv_internal (char *line, char **restp, const char *shell,
       if (*cap != ' ' && *cap != '\t' && *cap != '\n')
         goto slow;
 
-  if (shellflags)
-    if (shellflags[0] != '-'
-        || ((shellflags[1] != 'c' || shellflags[2] != '\0')
-            && (shellflags[1] != 'e' || shellflags[2] != 'c' || shellflags[3] != '\0')))
-      goto slow;
+  if (shellflags[0] != '-'
+      || ((shellflags[1] != 'c' || shellflags[2] != '\0')
+          && (shellflags[1] != 'e' || shellflags[2] != 'c' || shellflags[3] != '\0')))
+    goto slow;
 
   i = strlen (line) + 1;
 
@@ -3186,7 +3188,7 @@ construct_command_argv_internal (char *line, char **restp, const char *shell,
     char *new_line;
     size_t shell_len = strlen (shell);
     size_t line_len = strlen (line);
-    size_t sflags_len = shellflags ? strlen (shellflags) : 0;
+    size_t sflags_len = strlen (shellflags);
 #if MK_OS_W32
     char *command_ptr = NULL; /* used for batch_mode_shell mode */
 #endif
@@ -3223,7 +3225,7 @@ construct_command_argv_internal (char *line, char **restp, const char *shell,
 #else
         if (is_bourne_compatible_shell (shell)
 #if MK_OS_W32
-            /* If we didn't find any sh.exe, don't behave is if we did!  */
+            /* If we didn't find any sh.exe, don't behave as if we did!  */
             && !no_default_sh_exe
 #endif
             )
@@ -3346,31 +3348,25 @@ construct_command_argv_internal (char *line, char **restp, const char *shell,
           nextp = mempcpy (nextp, shell, shell_len + 1);
 
           /* Chop up the shellflags (if any) and assign them.  */
-          if (! shellflags)
-            {
-              new_argv[n++] = nextp;
-              *(nextp++) = '\0';
-            }
-          else
-            {
-              /* Parse shellflags using construct_command_argv_internal to
-                 handle quotes. */
-              char **argv;
-              char *f = alloca (sflags_len + 1);
-              memcpy (f, shellflags, sflags_len + 1);
-              argv = construct_command_argv_internal (f, 0, 0, 0, 0, flags, 0);
-              if (argv)
-                {
-                  char **a;
-                  for (a = argv; *a; ++a)
-                    {
-                      new_argv[n++] = nextp;
-                      nextp = stpcpy (nextp, *a) + 1;
-                    }
-                  free (argv[0]);
-                  free (argv);
-                }
-            }
+          {
+            /* Parse shellflags using construct_command_argv_internal to
+               handle quotes. */
+            char **argv;
+            char *f = alloca (sflags_len + 1);
+            memcpy (f, shellflags, sflags_len + 1);
+            argv = construct_command_argv_internal (f, 0, 0, 0, 0, flags, 0);
+            if (argv)
+              {
+                char **a;
+                for (a = argv; *a; ++a)
+                  {
+                    new_argv[n++] = nextp;
+                    nextp = stpcpy (nextp, *a) + 1;
+                  }
+                free (argv[0]);
+                free (argv);
+              }
+          }
 
           /* Set the command to invoke.  */
           new_argv[n++] = nextp;
@@ -3394,11 +3390,8 @@ construct_command_argv_internal (char *line, char **restp, const char *shell,
         *(ap++) = *cp;
       }
     *(ap++) = ' ';
-    if (shellflags)
-      {
-        ap = mempcpy (ap, shellflags, sflags_len);
-        *(ap++) = ' ';
-      }
+    ap = mempcpy (ap, shellflags, sflags_len);
+    *(ap++) = ' ';
 #if MK_OS_W32
     command_ptr = ap;
 #endif
