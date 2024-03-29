@@ -3341,7 +3341,7 @@ construct_command_argv_internal (char *line, char **restp, const char *shell,
         /* Create an argv list for the shell command line.  */
         {
           int n = 1, malformed = 0;
-          char *nextp, *t;
+          char *nextp, *t, *endp;
           size_t defsh_len = strlen (default_shell);
           size_t defshflags_len = strlen (defsh_flags);
           /* new_argv has to have room for at least 4 elements in the case of
@@ -3354,6 +3354,7 @@ construct_command_argv_internal (char *line, char **restp, const char *shell,
           new_argv = xmalloc (new_argv_len);
 
           nextp = new_argv[0] = xmalloc (argv0_len);
+          endp = nextp + argv0_len;
           nextp = mempcpy (nextp, shell, shell_len + 1);
           /* Preserve the null terminator.  */
           ++nextp;
@@ -3368,10 +3369,40 @@ construct_command_argv_internal (char *line, char **restp, const char *shell,
           ++nextp;
           /* new_argv contains shell, followed by tokenized shellflags.  */
 
-          /* append the command line.  */
-          memcpy(nextp, line, line_len + 1);
-          new_argv[n++] = nextp;
-          new_argv[n] = NULL;
+#if MK_OS_DOS || MK_OS_OS2 || MK_OS_W32 || defined(__riscos__)
+          /* In the case of an unterminated quote do not run the default shell
+             on any of these systems. Instead use the constructed new_argv.  */
+          malformed = 0;
+#endif
+          if (malformed)
+            {
+              /* shellflags carries an unterminated quote. Imitate slow mode to
+                 have the shell deal with the unterminated quote.
+                 Build new_argv starting from new_argv[0].  */
+              assert (new_argv_len > 3);
+              assert (argv0_len > defsh_len + defshflags_len + shell_len +
+                      sflags_len + line_len + 5);
+              nextp = new_argv[0];
+              nextp = mempcpy (nextp, default_shell, defsh_len + 1);
+              new_argv[1] = ++nextp;
+              nextp = mempcpy (nextp, defsh_flags, defshflags_len + 1);
+              new_argv[2] = ++nextp;
+              nextp = mempcpy (nextp, shell, shell_len);
+              *nextp++ = ' ';
+              nextp = mempcpy (nextp, shellflags, sflags_len);
+              *nextp++ = ' ';
+              memcpy (nextp, line, line_len + 1);
+              new_argv[3] = NULL;
+            }
+          else
+            {
+              /* shellflags is wellformed, append the command line.  */
+              assert (new_argv_len > (size_t) n + 1);
+              assert (nextp + line_len + 1 < endp);
+              memcpy(nextp, line, line_len + 1);
+              new_argv[n++] = nextp;
+              new_argv[n] = NULL;
+            }
         }
         return new_argv;
       }

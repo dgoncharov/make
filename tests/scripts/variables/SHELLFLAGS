@@ -24,6 +24,36 @@ chmod(0755, 'args.pl');
 # followed by the recipe, which is :.
 my %input;
 
+# sv 65588.
+# All these inputs have an unterminated quote.
+# Some shells (e.g. bash) fail on an unterminated quote.
+# Other shells (e.g. some versions of ksh) strip the unterminated quote and
+# proceed.
+$input{"\\\\'"} = '\ :';
+$input{"\\\\'hello"} = '\hello :';
+$input{"hello\\\\'"} = 'hello\ :';
+$input{"hello\\\\'world"} = 'hello\world :';
+$input{"hello\\\\' world"} = 'hello\ world :';
+$input{"'"} = ' :';
+$input{"'''"} = ' :';
+$input{" '"} = ' :';
+$input{"' "} = '  :';
+$input{"'  "} = '   :';
+$input{"'\\\n"} = '  :';
+$input{"'hello, world"} = 'hello, world :';
+$input{"hello, world'"} = "hello,\nworld :";
+$input{"'hello,\\' world'"} = "hello,\\\nworld :";
+$input{"\"hello,\\\\\" world\""} = "hello,\\\nworld :";
+$input{"'a'b'c"} = 'abc :';
+$input{"a'b'c'd"} = 'abcd :';
+$input{"'\\'\\''"} = "\\' :";
+
+if (system("/bin/sh -c \": 'hello\" 2>/dev/null >/dev/null")) {
+    foreach my $sflags (keys %input) {
+        $input{$sflags} = '/Error/';
+    }
+}
+
 # Valid inputs.
 $input{""} = ":";
 $input{" "} = ":";
@@ -158,7 +188,7 @@ $input{"'hello world' " x 8000} = ("hello world\n" x 8000) . ":";
 my @oneshell = ('', '.ONESHELL:');
 foreach my $sflags (keys %input) {
 my $answer = $input{$sflags};
-my $code = $answer =~ "Stop" || $answer =~ "Error 1" ? 512 : 0;
+my $code = $answer =~ "Stop" || $answer =~ "Error" ? 512 : 0;
 for my $osh (@oneshell) {
     run_make_test("
 $osh
