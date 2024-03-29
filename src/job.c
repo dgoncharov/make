@@ -15,6 +15,7 @@ You should have received a copy of the GNU General Public License along with
 this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include "makeint.h"
+#include "token.h"
 
 #include <assert.h>
 #include <string.h>
@@ -3339,39 +3340,38 @@ construct_command_argv_internal (char *line, char **restp, const char *shell,
 #endif /* MK_OS_W32 */
         /* Create an argv list for the shell command line.  */
         {
-          int n = 1;
-          char *nextp;
+          int n = 1, malformed = 0;
+          char *nextp, *t;
+          size_t defsh_len = strlen (default_shell);
+          size_t defshflags_len = strlen (defsh_flags);
+          /* new_argv has to have room for at least 4 elements in the case of
+             an unterminated quote.  */
+          size_t new_argv_len = (4 + sflags_len/2) * sizeof (char *);
+          size_t argv0_len = defsh_len + defshflags_len + shell_len +
+                             sflags_len + line_len + 8;
+          size_t tlen;
 
-          new_argv = xmalloc ((4 + sflags_len/2) * sizeof (char *));
+          new_argv = xmalloc (new_argv_len);
 
-          nextp = new_argv[0] = xmalloc (shell_len + sflags_len + line_len + 3);
+          nextp = new_argv[0] = xmalloc (argv0_len);
           nextp = mempcpy (nextp, shell, shell_len + 1);
+          /* Preserve the null terminator.  */
+          ++nextp;
 
-          /* Chop up the shellflags (if any) and assign them.  */
-          {
-            /* Parse shellflags using construct_command_argv_internal to
-               handle quotes. */
-            char **argv;
-            char *f = alloca (sflags_len + 1);
-            memcpy (f, shellflags, sflags_len + 1);
-            argv = construct_command_argv_internal (f, 0, 0, 0, 0, flags, 0);
-            if (argv)
-              {
-                char **a;
-                for (a = argv; *a; ++a)
-                  {
-                    new_argv[n++] = nextp;
-                    nextp = stpcpy (nextp, *a) + 1;
-                  }
-                free (argv[0]);
-                free (argv);
-              }
-          }
+          /* Populate new_argv with tokens from shellflags using
+             next_dequoted_token to let shellflags carry quoted tokens.  */
+          memcpy (nextp, shellflags, sflags_len + 1);
+          new_argv[n] = nextp;
+          while ((t = next_dequoted_token (&nextp, &tlen, &malformed)))
+            new_argv[n++] = t;
+          /* Preserve the null terminator.  */
+          ++nextp;
+          /* new_argv contains shell, followed by tokenized shellflags.  */
 
-          /* Set the command to invoke.  */
-          new_argv[n++] = nextp;
+          /* append the command line.  */
           memcpy(nextp, line, line_len + 1);
-          new_argv[n++] = NULL;
+          new_argv[n++] = nextp;
+          new_argv[n] = NULL;
         }
         return new_argv;
       }

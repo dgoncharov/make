@@ -1,0 +1,197 @@
+#                                                                    -*-perl-*-
+$description = "Test behaviour of variable .SHELLFLAGS.";
+
+$details = "";
+
+# Only bother with this on UNIX systems.
+$port_type eq 'UNIX' or return -1;
+$^O =~ /cygwin/ and return -1;
+
+create_file('args.pl',
+"#!$perl_name" .
+'
+foreach my $a (@ARGV) {
+  print "$a\n";
+}
+');
+
+chmod(0755, 'args.pl');
+
+# args.pl prints each argument followed by a newline.
+# This allows to test how make chops up shellflags to tokens.
+# In this hash table a key is the input value of shellflags and the value is
+# the output from args.pl, which is shellflags chopped up by make to tokens,
+# followed by the recipe, which is :.
+my %input;
+
+# Valid inputs.
+$input{""} = ":";
+$input{" "} = ":";
+$input{"   "} = ":";
+$input{" \t\n  "} = ":";
+$input{"hello\\world"} = "helloworld\n:";
+$input{"\\\\"} = "\\\n:";
+$input{"\\\n"} = ":";
+$input{"\\\nhello"} = "hello\n:";
+$input{"\\\n\\\nhello"} = "hello\n:";
+$input{"\\\n \\\nhello"} = "hello\n:";
+$input{" hello, world"} = "hello,\nworld\n:";
+$input{"\\ hello, world"} = " hello,\nworld\n:";
+$input{"\\\\ hello, world"} = "\\\nhello,\nworld\n:";
+$input{"\\\nhello\\\n \\\nworld\\\n "} = "hello\nworld\n:";
+$input{"\\\n \\\nhello\\\n \\\nworld"} = "hello\nworld\n:";
+$input{"hello "} = "hello\n:";
+$input{"hello\\\n"} = "hello\n:";
+$input{"hello\\\\\n"} = "hello\\\n:";
+$input{"hello\\\n \\\n"} = "hello\n:";
+$input{"hello\\\\\n \\\n"} = "hello\\\n:";
+$input{"hello\\\\"} = "hello\\\n:";
+$input{"hello\\\\ \\\n"} = "hello\\\n:";
+$input{"hello\\ \\\n"} = "hello \n:";
+$input{"hello,\\\nworld"} = "hello,\nworld\n:";
+$input{"hello, world"} = "hello,\nworld\n:";
+$input{"hello, world\n"} = "hello,\nworld\n:";
+$input{"hello,\\ world"} = "hello, world\n:";
+$input{"hello,\\  world"} = "hello, \nworld\n:";
+$input{"a\\ hello, world\\ b"} = "a hello,\nworld b\n:";
+$input{"\\'"} = "'\n:";
+$input{"\\\\\\'"} = "\\'\n:";
+$input{"\\'hello"} = "'hello\n:";
+$input{"a \\'hello, world\\' b"} = "a\n'hello,\nworld'\nb\n:";
+$input{"a 'hello one\" \"two world' b"} = "a\nhello one\" \"two world\nb\n:";
+$input{"a 'hello one\\' \\'two world b"} = "a\nhello one\\\n'two\nworld\nb\n:";
+$input{"a \"hello one\\\" \\\"two world\" b"} = "a\nhello one\" \"two world\nb\n:";
+$input{"a \\\"hello one\\\" \\\"two world b"} = "a\n\"hello\none\"\n\"two\nworld\nb\n:";
+$input{"\\\\\\'hello"} = "\\'hello\n:";
+$input{"hello\\'"} = "hello'\n:";
+$input{"hello\\\\\\'"} = "hello\\'\n:";
+$input{"hello\\'world"} = "hello'world\n:";
+$input{"hello\\\\\\'world"} = "hello\\'world\n:";
+$input{"''"} = "\n:";
+$input{"''''"} = "\n:";
+$input{"'hello, world'"} = "hello, world\n:";
+$input{"'hello,\\ world'"} = "hello,\\ world\n:";
+$input{"'hello,\\\nworld'"} = "hello, world\n:";
+$input{"\"hello,\\\nworld\""} = "hello, world\n:";
+$input{"\"hello, \t \\\n \t \\\n\t \t\\\n  \t\tworld\""} = "hello, world\n:";
+$input{"\"a\\\nb\\\nc\""} = "a b c\n:";
+$input{"\"hello, \t \\\n \t \\\n\t \t\\\n  \t\tworld  bye,\\\n \t \\\n \t \\\n \t   \\\n  \\\nmoon\""} = "hello, world  bye, moon\n:";
+$input{"'hello,\\\\ world'"} = "hello,\\\\ world\n:";
+$input{"\"hello,\\\\ world\""} = "hello,\\ world\n:";
+$input{"\"hello,\\\" world\""} = "hello,\" world\n:";
+$input{"\"hello,\\\\\\\" world\""} = "hello,\\\" world\n:";
+$input{"one\\\\two\\ tree\\\" four\\\nfive"} = "one\\two tree\"\nfour\nfive\n:";
+$input{"\"one\\\\two\\ tree\\\" four\\\nfive\""} = "one\\two\\ tree\" four five\n:";
+$input{"'hello, \"one two\" world'"} = "hello, \"one two\" world\n:";
+$input{"a 'hello one\\\\' \\\\'two world' b"} = "a\nhello one\\\\\n\\two world\nb\n:";
+$input{"a \"hello one\\\\\" \\\\\"two world\" b"} = "a\nhello one\\\n\\two world\nb\n:";
+$input{"a 'hello one\\\\\\\\' \\\\\\\\'two world' b"} = "a\nhello one\\\\\\\\\n\\\\two world\nb\n:";
+$input{"a \"hello one\\\\\\\\\" \\\\\\\\\"two world\" b"} = "a\nhello one\\\\\n\\\\two world\nb\n:";
+$input{"'a \"one 'cd' two\" b'"} = "a \"one cd two\" b\n:";
+$input{"'a \"one 'c d' two\" b'"} = "a \"one c\nd two\" b\n:";
+$input{"a 'hell\"o''w\"orld' b"} = "a\nhell\"ow\"orld\nb\n:";
+$input{"a \\'hell\"o\\'\\'w\"orld\\' b"} = "a\n'hello\\'\\'world'\nb\n:";
+$input{"\\'a \"one 'cd' two\" \\'b"} = "'a\none 'cd' two\n'b\n:";
+$input{"'hello, world' "} = "hello, world\n:";
+$input{"'hello'\\ "} = "hello \n:";
+$input{"'hello'\\\n"} = "hello\n:";
+$input{"'hello, world'\\ "} = "hello, world \n:";
+$input{"'hello, world'\\\n"} = "hello, world\n:";
+$input{"'a'b'c'"} = "abc\n:";
+$input{"a'b'c'd'"} = "abcd\n:";
+$input{"'\\\\'abc''"} = "\\\\abc\n:";
+$input{"\"\\\\\"abc\"\""} = "\\abc\n:";
+$input{"\"\\\"\\\"\""} = "\"\"\n:";
+$input{"'\\\\'\\\\''"} = "\\\\\\\n:";
+$input{"\"\\\\\"\\\\\"\""} = "\\\\\n:";
+$input{"  a  '  b  '  c  '  d  '  "} = "a\n  b  \nc\n  d  \n:";
+$input{"'hello'world\\'12''"} = "helloworld'12\n:";
+$input{"01'2 3'45\"67 89\"ab\\ cd"} = "012 34567 89ab cd\n:";
+$input{"-w -E 'use warnings FATAL => \"all\";' -E"} = "-w\n-E\nuse warnings FATAL => \"all\";\n-E\n:";
+$input{"\\"} = "#MAKE#: *** No targets.  Stop.";
+$input{"hello,\\\\\nworld"} = "#MAKEFILE#:5: *** missing separator.  Stop.";
+$input{"\"hello,\\\\\nworld\""} = "#MAKEFILE#:5: *** missing separator.  Stop.";
+
+# The following is a single quoted newline. The parser in read.c goes line by
+# line and ignores the single quotes and reads line 'hello,\\
+# and believes it is missing a separator.
+$input{"'hello,\\\\\nworld'"} = "#MAKEFILE#:5: *** missing separator.  Stop.";
+
+# make is supposed to preserve a single quoted backslash-newline combination
+# intact.
+# However, in the current impl collapse_continuations replaces each such
+# backslash-newline combination with a space, whether this combination is
+# single quoted or not.
+#
+# On top of that, collapse_continuations halfs the number consecutive
+# backslashes and then construct_command_argv_internal halfs the remaining
+# backslashes again. This behavior causes two consecutive backslashes to be
+# removed, rather than replaced with one backslash. So, given input like
+# hello,\\\
+# world
+# (three backslashes, followed by a newline)
+# collapse_continuations replaces two leading backslashes with one backslash
+# and replaces the combination of backslash-newline with a space and produces
+# hello,\ world
+# Then construct_command_argv_internal removes the lone backslash and produces
+# hello, world.
+# next_dequoted_token mimicks the behavior of construct_command_argv_internal
+# and removes double quoted backslash-newline combinations and those outside of
+# quotes.
+# next_dequoted_token also halfs backslashes.
+# The following tests just test that the current incorrect behavior is the
+# same whether .ONESHELL is active or not.
+
+# The following result is wrong due to consecutive backslashes.
+$input{"hello,\\\\\\\nworld"} = "hello, world\n:";
+# The following result is wrong due to a backslash-newline combination within
+# single quotes.
+$input{"'one\\\\two\\ tree\\\" four\\\nfive'"} = "one\\\\two\\ tree\\\" four five\n:";
+
+# This string is 120K bytes long.
+$input{'hello world ' x 10000} = ("hello\nworld\n" x 10000) . ":";
+# This string is 104K bytes long and contains quotes.
+$input{'"hello world" ' x 8000} = ("hello world\n" x 8000) . ":";
+# This string is 104K bytes long and contains quotes.
+$input{"'hello world' " x 8000} = ("hello world\n" x 8000) . ":";
+
+my @oneshell = ('', '.ONESHELL:');
+foreach my $sflags (keys %input) {
+my $answer = $input{$sflags};
+my $code = $answer =~ "Stop" || $answer =~ "Error 1" ? 512 : 0;
+for my $osh (@oneshell) {
+    run_make_test("
+$osh
+SHELL:=./args.pl
+.SHELLFLAGS:=$sflags
+all:;\@:
+    ", '', "$answer", $code);
+}
+}
+
+# Shellflags with characters of special interest to shell.
+# Run tests for special characters only in the oneshell mode, because in the
+# oneshell mode make execs ./args.pl. In the no-oneshell mode make execs sh -c
+# when the value of $SHELL is different from /bin/sh. These characters
+# cause /bin/sh to produce different messages that are harder to match than a
+# simple loop here.
+%input = ();
+for my $c (split //, ';*?[]&|<>(){}`^~!') {
+    my $k = "hello $c world";
+    my $v = "hello\n$c\nworld\n:";
+    $input{$k} = $v;
+}
+
+foreach my $sflags (keys %input) {
+my $answer = $input{$sflags};
+    run_make_test("
+.ONESHELL:
+SHELL:=./args.pl
+.SHELLFLAGS:=$sflags
+all:;\@:
+    ", '', "$answer");
+}
+
+unlink('args.pl') unless $keep;
+# This tells the test driver that the perl test script executed properly.
+1;

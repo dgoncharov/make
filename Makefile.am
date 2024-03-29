@@ -37,7 +37,8 @@ make_SRCS =	src/ar.c src/arscan.c src/commands.c src/commands.h \
 		src/mkcustom.h src/os.h src/output.c src/output.h src/read.c \
 		src/remake.c src/rule.c src/rule.h src/shuffle.h src/shuffle.c \
 		src/signame.c src/strcache.c src/variable.c src/variable.h \
-		src/version.c src/vpath.c src/warning.c src/warning.h
+		src/version.c src/vpath.c src/warning.c src/warning.h \
+		src/token.c src/token.h
 
 w32_SRCS =	src/w32/pathstuff.c src/w32/w32os.c src/w32/compat/dirent.c \
 		src/w32/compat/posixfcn.c src/w32/include/dirent.h \
@@ -59,6 +60,8 @@ loadavg_SRCS =	lib/getloadavg.c
 
 make_SOURCES =	$(make_SRCS)
 EXTRA_make_SOURCES = $(vms_SRCS)
+check_PROGRAMS = token.t.tsk
+token_t_tsk_SOURCES = src/token.t.c
 
 if HAVE_GUILE
   _GUILE_CFLAGS = $(GUILE_CFLAGS)
@@ -126,7 +129,7 @@ EXTRA_DIST =	ChangeLog INSTALL README build.sh build.cfg.in $(man_MANS) \
 		README.W32 build_w32.bat src/config.h.W32 \
 		README.VMS makefile.com src/config.h-vms src/vmsjobs.c \
 		vms_export_symbol_test.com \
-		src/gmk-default.scm src/gmk-default.h \
+		src/gmk-default.scm src/gmk-default.h src/token.t.c \
 		$(mk_FILES) $(m4_FILES) $(test_FILES) $(w32_utf8_SRCS)
 
 # --------------- Generate the Guile default module content
@@ -171,43 +174,55 @@ MAKETESTFLAGS =
 GMK_OUTDIR = ..
 
 testlog = test-suite.log
+token_testlog = token_test.log
 testresult = tests/.test-result
+token_testresult = tests/.token_test-result
 errorpre = makeerror-$(PACKAGE_VERSION)-$(host_triplet)
 
-testfiles = $(testlog) $(testresult) $(errorfile)
+testfiles = $(testlog) $(token_testlog) $(testresult) $(token_testresult) $(errorfile)
 MOSTLYCLEANFILES = $(testfiles)
 
 errordetails =	config.status config.log src/config.h src/mkconfig.h \
-		$(testlog) tests/work
+		$(testlog) $(token_testlog)
 
 # Create a 4-letter random sequence
 rand_value = c = "abcdefghijklmnopqrstuvwxyz0123456789"
 rand_char  = substr(c,int(rand()*36),1)
 rand_string = $(AWK) 'BEGIN{srand(); $(rand_value); print $(rand_char) "" $(rand_char) "" $(rand_char) "" $(rand_char);}'
 
-check-regression: tests/config-flags.pm
+check-regression: token.t.tsk$(EXEEXT) tests/config-flags.pm
 	$(AM_V_at) rm -f $(testfiles)
+	$(AM_V_at) (./token.t.tsk$(EXEEXT); echo $$? >$(token_testresult)) 2>&1 | tee $(token_testlog)
 	$(AM_V_at) if test -f '$(top_srcdir)/tests/run_make_tests.pl'; then \
 	  ulimit -n 128; \
 	  if $(PERL) -v >/dev/null 2>&1; then \
 	    echo "cd tests && $(PERL) $(PERLFLAGS) $(abs_top_srcdir)/tests/run_make_tests.pl -make $(GMK_OUTDIR)/make$(EXEEXT) $(MAKETESTFLAGS)"; \
 	    (cd tests && $(PERL) $(PERLFLAGS) '$(abs_top_srcdir)/tests/run_make_tests.pl' -make '$(GMK_OUTDIR)/make$(EXEEXT)' $(MAKETESTFLAGS); echo $$? >.test-result) 2>&1 | tee $(testlog); \
-	    export TAR_OPTIONS='$(filter-out --sort%,$(TAR_OPTIONS))'; \
-	    er=$$(cat $(testresult)); if test "$$er" -ne 0; then \
-	      dirnm="$(errorpre)-$$($(rand_string))"; fnm="$$dirnm.tar.gz"; \
-	      rm -rf "$$dirnm"; mkdir "$$dirnm"; \
-	      $(AMTAR) chf - $(errordetails) | (cd "$$dirnm"; $(AMTAR) xf -); \
-	      $(AMTAR) chf - "$$dirnm" | eval GZIP= gzip $(GZIP_ENV) -c >"$$fnm"; \
-	      echo "*** Testing FAILED!  Details: $$fnm"; \
-	      echo '*** Please report to <$(PACKAGE_BUGREPORT)>'; echo; \
-	      exit $$er; \
-	    fi; \
 	  else \
 	    echo "Can't find a working Perl ($(PERL)); the test suite requires Perl."; \
 	  fi; \
 	else \
 	  echo "Can't find the $(PACKAGE_NAME) test suite ($(top_srcdir)/tests)."; \
 	fi
+	$(AM_V_at) \
+    export TAR_OPTIONS='$(filter-out --sort%,$(TAR_OPTIONS))'; \
+    er=$$(cat $(testresult)); \
+    if test "$$er" -eq 0; then \
+        errdetails='$(errordetails)'; \
+        er=$$(cat $(token_testresult)); \
+    else \
+        errdetails='$(errordetails) tests/work'; \
+    fi;\
+    if test "$$er" -ne 0; then \
+      dirnm="$(errorpre)-$$($(rand_string))"; fnm="$$dirnm.tar.gz"; \
+      rm -rf "$$dirnm"; mkdir "$$dirnm"; \
+      $(AMTAR) chf - $$errdetails | (cd "$$dirnm"; $(AMTAR) xf -); \
+      $(AMTAR) chf - "$$dirnm" | eval GZIP= gzip $(GZIP_ENV) -c >"$$fnm"; \
+      rm -r "$$dirnm"; \
+      echo "*** Testing FAILED!  Details: $$fnm"; \
+      echo '*** Please report to <$(PACKAGE_BUGREPORT)>'; echo; \
+      exit $$er; \
+    fi
 
 
 # --------------- Maintainer's Section
