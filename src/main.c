@@ -3560,6 +3560,10 @@ define_makeflags (int makefile)
           break;
 
         case positive_int:
+          if (cs->c == 'j')
+            /* Presence of -j[value] in MFLAGS causes each submake to create
+               its own jobserver in the case of $(MAKE) $(MFLAGS).  */
+            break;
           if ((cs->default_value != 0
                && (*(unsigned int *) cs->value_ptr
                    == *(unsigned int *) cs->default_value)))
