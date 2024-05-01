@@ -3489,24 +3489,18 @@ void disable_builtins ()
       }
 }
 
-/* Define the MAKEFLAGS and MFLAGS variables to reflect the settings of the
-   command switches. Always include options with args.
-   Don't include options with the 'no_makefile' flag set if MAKEFILE.  */
+/* Go through command line switches and store in variable_buffer symbol
+   representation of the active switches.
+   If AVOID_DASH_J is set, then don't append -j to the resultant string.
+   The resultant string conforms to the following format.
+   [-shortoptions] [-option with arg]... [--long option]...  */
 
-struct variable *
-define_makeflags (int makefile)
+static char *
+stringify_switches (int makefile, int avoid_dash_j)
 {
-  const char ref[] = "MAKEOVERRIDES";
-  const char posixref[] = "-*-command-variables-*-";
-  const char evalref[] = " $(-*-eval-flags-*-)";
   const struct command_switch *cs;
-  struct variable *v;
-  char *bufsave;
-  size_t lensave;
   char *fp;
   char c[3];
-
-  install_variable_buffer (&bufsave, &lensave);
 
   /* Start with a dash, for MFLAGS.  */
   fp = variable_buffer_output (variable_buffer, "-", 1);
@@ -3639,13 +3633,43 @@ define_makeflags (int makefile)
     fp = variable_buffer;
 
   *fp = '\0';
+  return fp;
+}
+
+/* Define the MAKEFLAGS and MFLAGS variables to reflect the settings of the
+   command switches. Always include options with args.
+   Don't include options with the 'no_makefile' flag set if MAKEFILE.  */
+
+struct variable *
+define_makeflags (int makefile)
+{
+  const char ref[] = "MAKEOVERRIDES";
+  const char posixref[] = "-*-command-variables-*-";
+  const char evalref[] = " $(-*-eval-flags-*-)";
+  struct variable *v;
+  char *bufsave;
+  size_t lensave;
+  char *fp;
+
+  install_variable_buffer (&bufsave, &lensave);
+
+  /* MFLAGS should not carry switch -j, because old makefiles explicitly
+     expand MFLAGS, like
+     lib:; $(MAKE) $(MFLAGS)
+     Presence of -j in MFLAGS in this case causes the submake to have switch -j
+     on the command line and forces the submake to start its own jobserver.  */
+  stringify_switches (makefile, 1);
 
   /* Define MFLAGS before appending variable definitions.  Omit an initial
-     empty dash.  Since MFLAGS is not parsed for flags, there is no reason to
-     override any makefile redefinition.  */
-  define_variable_cname ("MFLAGS",
-                         variable_buffer + (variable_buffer[0] == '-' && variable_buffer[1] == ' ' ? 2 : 0),
-                         o_env, 1);
+     empty dash along with the subsequent space.  Since MFLAGS is not parsed
+     for flags, there is no reason to override any makefile redefinition.  */
+  fp = variable_buffer;
+  if (fp[0] == '-' && fp[1] == ' ')
+    fp += 2;
+  define_variable_cname ("MFLAGS", fp, o_env, 1);
+
+  initialize_variable_output ();
+  fp = stringify_switches (makefile, 0);
 
   /* Write a reference to -*-eval-flags-*-, which contains all the --eval
      flag options.  */
@@ -3670,7 +3694,8 @@ define_makeflags (int makefile)
 
   *fp = '\0';
 
-  /* If there is a leading dash, omit it.  */
+  /* If there is a leading dash, omit it. Keep the following space. This space
+     tells if there are short options in MAKEFLAGS.  */
   fp = variable_buffer;
   if (fp[0] == '-')
     ++fp;
