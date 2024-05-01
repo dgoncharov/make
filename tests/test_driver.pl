@@ -1367,6 +1367,7 @@ sub create_file
 
   open (CF, '>', $filename) or &error ("Couldn't open '$filename': $!\n", 1);
   foreach $line (@lines) {
+    $line = subst_make_string($line);
     print CF $line;
   }
   close (CF);

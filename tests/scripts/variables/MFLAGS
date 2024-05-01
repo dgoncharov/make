@@ -802,6 +802,11 @@ hello:; touch $@
 unlink('hello');
 rmdir('localtmp');
 
+if (!$parallel_jobs) {
+  return 1;
+}
+
+# sv 65685.
 # Test that -j is present in MAKEFLAGS.
 # This also tests that MAKEFLAGS begins with a space in absence of short
 # switches.
@@ -809,11 +814,52 @@ run_make_test(q!
 all:; $(info MAKEFLAGS=$(MAKEFLAGS))
 !, "-j4", "/MAKEFLAGS= -j4 --jobserver-auth=/");
 
-# Test that -j is present in MFLAGS.
+# Test that -j is absent from MFLAGS.
 # This also tests that MFLAGS has no leading space in absence of short
 # switches.
 run_make_test(q!
 all:; $(info MFLAGS=$(MFLAGS))
-!, "-j4", "/MFLAGS=-j4 --jobserver-auth=/");
+!, "-j4", "/MFLAGS=--jobserver-auth=/");
+
+# Test that explict expansion of MFLAGS in a recipe allows
+# submakes to participate in the jobserver.
+create_file('helper1.mk', "all:; \@#HELPER# file ONE wait THREE out TWO\n");
+create_file('helper2.mk', "all:; \@#HELPER# wait FOUR file THREE\n");
+create_file('helper3.mk', "all:; \@#HELPER# wait ONE file FOUR\n");
+
+run_make_test(q!
+all: def_1 def_2 def_3
+def_1:; @$(MAKE) $(MFLAGS) --no-print-directory -f helper1.mk
+def_2:; @$(MAKE) $(MFLAGS) --no-print-directory -f helper2.mk
+def_3:; @$(MAKE) $(MFLAGS) --no-print-directory -f helper3.mk
+!,
+        '-j4', "file ONE\nwait ONE\nfile FOUR\nwait FOUR\nfile THREE\nwait THREE\nTWO");
+
+rmfiles(qw(ONE TWO THREE FOUR));
+
+# Verify -j added to MAKEFLAGS in the makefile
+run_make_test(q!
+MAKEFLAGS += -j4
+all : def_1 def_2 def_3
+def_1:; @$(MAKE) $(MFLAGS) --no-print-directory -f helper1.mk
+def_2:; @$(MAKE) $(MFLAGS) --no-print-directory -f helper2.mk
+def_3:; @$(MAKE) $(MFLAGS) --no-print-directory -f helper3.mk
+!,
+        '', "file ONE\nwait ONE\nfile FOUR\nwait FOUR\nfile THREE\nwait THREE\nTWO");
+
+rmfiles(qw(ONE TWO THREE FOUR));
+
+# Command line should take precedence
+run_make_test(q!
+MAKEFLAGS += -j2
+all : def_1 def_2 def_3
+def_1:; @$(MAKE) $(MFLAGS) --no-print-directory -f helper1.mk
+def_2:; @$(MAKE) $(MFLAGS) --no-print-directory -f helper2.mk
+def_3:; @$(MAKE) $(MFLAGS) --no-print-directory -f helper3.mk
+!,
+        '-j4', "file ONE\nwait ONE\nfile FOUR\nwait FOUR\nfile THREE\nwait THREE\nTWO");
+
+rmfiles(qw(ONE TWO THREE FOUR));
+rmfiles(qw(helper1.mk helper2.mk helper3.mk));
 
 1;

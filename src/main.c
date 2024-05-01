@@ -3554,6 +3554,8 @@ stringify_switches (int makefile, int avoid_dash_j)
           break;
 
         case positive_int:
+          if (cs->c == 'j' && avoid_dash_j)
+            break;
           if ((cs->default_value != 0
                && (*(unsigned int *) cs->value_ptr
                    == *(unsigned int *) cs->default_value)))
