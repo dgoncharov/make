@@ -177,4 +177,28 @@ all:;
 # #MAKEFILE#:9: reference to undefined variable 'undef'\nenabled2:
 # #MAKE#: 'all' is up to date.");
 
+# sv xxx. Circular dependency.
+run_make_test(q!
+.WARNINGS = circular-dep:error
+hello: hello; @:
+!,
+              '', "#MAKE#: *** circular hello <- hello dependency dropped.  Stop.\n", 512);
+
+run_make_test(q!
+.WARNINGS = circular-dep:ignore
+hello: hello; @:
+!,
+              '', '');
+
+run_make_test(q!
+.WARNINGS = circular-dep:warn
+hello: hello; @:
+!,
+              '', "#MAKE#: circular hello <- hello dependency dropped\n");
+
+run_make_test(q!
+hello: hello; @:
+!,
+              '', "#MAKE#: circular hello <- hello dependency dropped\n");
+
 1;

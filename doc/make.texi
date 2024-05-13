@@ -9465,6 +9465,14 @@ Using an invalid variable name in a variable reference.  The default action is
 Referencing a variable that has not been defined.  The default action is
 @samp{ignore}.  Note the deprecated @code{--warn-undefined-variables} option
 sets the action for this warning to @samp{warn}.
+
+@item circular-dep
+@findex circular-dep
+@cindex warning circular dependency
+This means that @code{make} detected a loop in the dependency graph:
+after tracing the prerequisite @var{yyy} of target @var{xxx}, and its
+prerequisites, etc., one of them depended on @var{xxx} again.
+The default action is @samp{warn}.
 @end table
 
 The actions for these warnings can be changed by specifying warning control
