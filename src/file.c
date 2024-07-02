@@ -484,7 +484,7 @@ split_prereqs (char *p)
 /* Given a list of prerequisites, enter them into the file database.
    If STEM is set then first expand patterns using STEM.  */
 struct dep *
-enter_prereqs (struct dep *deps, const char *stem)
+enter_prereqs (struct dep *deps, const char *stem, const char *target_pattern)
 {
   struct dep *d1;
 
@@ -497,13 +497,27 @@ enter_prereqs (struct dep *deps, const char *stem)
     {
       const char *pattern = "%";
       struct dep *dp = deps, *dl = 0;
+      const char *dirname = "";
+      size_t dlen = 0;
+
+      if (!strchr (target_pattern, '/'))
+        {
+          char *basename = strrchr (stem, '/');
+          if (basename)
+            {
+              ++basename;
+              dirname = stem;
+              dlen = basename - dirname;
+              stem = strcache_add (basename);
+           }
+        }
 
       while (dp != 0)
         {
           char *percent;
           size_t nl = strlen (dp->name) + 1;
-          char *nm = alloca (nl);
-          memcpy (nm, dp->name, nl);
+          char *nm = alloca (nl + dlen);
+          mempcpy (mempcpy (nm, dirname, dlen), dp->name, nl);
           percent = find_percent (nm);
           if (percent)
             {

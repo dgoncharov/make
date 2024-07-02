@@ -123,7 +123,8 @@ extern struct file *default_file;
 struct file *lookup_file (const char *name);
 struct file *enter_file (const char *name);
 struct dep *split_prereqs (char *prereqstr);
-struct dep *enter_prereqs (struct dep *prereqs, const char *stem);
+struct dep *enter_prereqs (struct dep *prereqs, const char *stem,
+                           const char *target_pattern);
 void expand_deps (struct file *f);
 struct dep *expand_extra_prereqs (const struct variable *extra);
 void remove_intermediates (int sig);

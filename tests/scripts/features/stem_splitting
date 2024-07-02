@@ -1,0 +1,95 @@
+#                                                                    -*-perl-*-
+
+use warnings;
+
+my $description = "Test stem splitting";
+
+
+=pod
+When the target pattern carries no slash.
+
+$ ls
+a  makefile  p
+$ cat makefile
+all: a/.b.timestamp
+.%.timestamp: %.x; $(info building $@ from $<)
+$ make -rR --debug=i |tail +14 |head -4
+  Looking for an implicit rule for 'a/.b.timestamp'.
+   Trying pattern rule '.%.timestamp: %.x' with stem 'b'.
+   Trying implicit prerequisite 'a/b.x'.
+   Found 'a/b.x'.
+
+
+
+1. make compares the target ('a/.b.timestamp') against the target pattern
+('.%.timestamp') of a potential rule.
+2. make calculates the stem. In the case of target 'a/.b.timestamp' and target
+pattern '.%.timestamp' the stem is 'a/b'.
+3. make splits the stem to dirname 'a/' and basename 'b'.
+4. make replaces '%' in the prerequisite pattern '%.x' with the
+basename part of the
+stem ('b'). Make prepends the dirname part of the stem ('a/') to the
+prerequisite and ends up with prerequisite 'a/b.x'.
+5. make checks if file 'a/b.x' exists or can be made.
+In our case 'a/b.x' exists and therefore the rule matches.
+
+When the target pattern carries a slash, e.g. if the pattern was
+'a/.%.timestamp', then
+
+$ ls
+a  makefile  p
+$ cat makefile
+all: a/.b.timestamp
+a/.%.timestamp: %.x; $(info building $@ from $<)
+$
+$
+$ make -rR --debug=i |tail +14 |head -4
+make: *** No rule to make target 'a/.b.timestamp', needed by 'all'.  Stop.
+  Looking for an implicit rule for 'a/.b.timestamp'.
+   Trying pattern rule 'a/.%.timestamp: %.x' with stem 'b'.
+   Trying implicit prerequisite 'b.x'.
+   Not found 'b.x'.
+
+
+1. make compares the target ('a/.b.timestamp') against the target pattern
+('a/.%.timestamp') of a potential rule.
+2. make calculates the stem. In the case of target 'a/.b.timestamp' and target
+pattern 'a/.%.timestamp' the stem is 'b'.
+3. make replaces '%' in the prerequisite pattern '%.x' with the
+stem ('b') and ends up with prerequisite 'b.x'.
+4. make checks if file 'b.x' exists or can be made.
+In our case there is no 'b.x' and it cannot be made and therefore the rule does
+not match.
+
+
+Make performs stem splitting for both pattern rules and static pattern rules.
+=cut
+
+mkdir('a');
+mkdir('p');
+mkdir('p/q');
+touch('a/.b.mod', 'p/q/.r.mod');
+
+# Test stem splitting for pattern rules and static pattern rules.
+my @rules = ('', 'a/b.o p/q/r.o: ');
+for my $r (@rules) {
+run_make_test("
+all: a/b.o p/q/r.o
+$r%.o: .%.mod; \$(info \$@ from \$<)
+", '', "a/b.o from a/.b.mod\np/q/r.o from p/q/.r.mod\n#MAKE#: Nothing to be done for 'all'.");
+}
+
+# Test stem splitting for pattern rules and static pattern rules with second expansion.
+for my $r (@rules) {
+run_make_test("
+.SECONDEXPANSION:
+prereq:=.mod
+all: a/b.o p/q/r.o
+$r%.o: .%\$\$(prereq); \$(info \$@ from \$<)
+", '', "a/b.o from a/.b.mod\np/q/r.o from p/q/.r.mod\n#MAKE#: Nothing to be done for 'all'.");
+}
+
+rmdir('p/q');
+rmdir('a');
+rmdir('p');
+1;
