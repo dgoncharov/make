@@ -75,8 +75,8 @@ my @rules = ('', 'a/b.o p/q/r.o: ');
 for my $r (@rules) {
 run_make_test("
 all: a/b.o p/q/r.o
-$r%.o: .%.mod; \$(info \$@ from \$<)
-", '', "a/b.o from a/.b.mod\np/q/r.o from p/q/.r.mod\n#MAKE#: Nothing to be done for 'all'.");
+$r%.o: .%.mod; \$(info \$@ from \$<, \$\$* = \$*)
+", '', "a/b.o from a/.b.mod, \$* = a/b\np/q/r.o from p/q/.r.mod, \$* = p/q/r\n#MAKE#: Nothing to be done for 'all'.");
 }
 
 # Test stem splitting for pattern rules and static pattern rules with second expansion.
@@ -85,8 +85,8 @@ run_make_test("
 .SECONDEXPANSION:
 prereq:=.mod
 all: a/b.o p/q/r.o
-$r%.o: .%\$\$(prereq); \$(info \$@ from \$<)
-", '', "a/b.o from a/.b.mod\np/q/r.o from p/q/.r.mod\n#MAKE#: Nothing to be done for 'all'.");
+$r%.o: .%\$\$(prereq); \$(info \$@ from \$<, \$\$* = \$*)
+", '', "a/b.o from a/.b.mod, \$* = a/b\np/q/r.o from p/q/.r.mod, \$* = p/q/r\n#MAKE#: Nothing to be done for 'all'.");
 }
 
 rmdir('p/q');
