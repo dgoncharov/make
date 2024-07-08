@@ -114,6 +114,11 @@ struct file
     unsigned int snapped:1;     /* True if the deps of this file have been
                                    secondary expanded.  */
     unsigned int suffix:1;      /* True if this is a suffix rule. */
+
+    unsigned int need_stem_splitting:1; /* True if this file is a prerequisite
+                                           of an implicit rule or a static
+                                           pattern rule and the target pattern
+                                           of the rule carries no slash.  */
   };
 
 
@@ -123,8 +128,7 @@ extern struct file *default_file;
 struct file *lookup_file (const char *name);
 struct file *enter_file (const char *name);
 struct dep *split_prereqs (char *prereqstr);
-struct dep *enter_prereqs (struct dep *prereqs, const char *stem,
-                           const char *target_pattern);
+struct dep *enter_prereqs (struct dep *prereqs, struct file *file);
 void expand_deps (struct file *f);
 struct dep *expand_extra_prereqs (const struct variable *extra);
 void remove_intermediates (int sig);

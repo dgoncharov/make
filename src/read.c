@@ -2056,7 +2056,7 @@ record_files (struct nameseq *filenames, int are_also_makes,
              think that they ought to exist (make manual "Implicit Rule Search
              Algorithm", item 5c).  */
           if (! pattern && ! implicit_percent)
-            deps = enter_prereqs (deps, NULL, NULL);
+            deps = enter_prereqs (deps, NULL);
         }
     }
 
@@ -2229,8 +2229,9 @@ record_files (struct nameseq *filenames, int are_also_makes,
           f->stem = strcache_add_len (variable_buffer, o - variable_buffer);
           if (this)
             {
+              f->need_stem_splitting = !strchr (pattern, '/');
               if (! this->need_2nd_expansion)
-                this = enter_prereqs (this, f->stem, pattern);
+                this = enter_prereqs (this, f);
               else
                 this->stem = f->stem;
             }

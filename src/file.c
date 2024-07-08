@@ -484,32 +484,33 @@ split_prereqs (char *p)
 /* Given a list of prerequisites, enter them into the file database.
    If STEM is set then first expand patterns using STEM.  */
 struct dep *
-enter_prereqs (struct dep *deps, const char *stem, const char *target_pattern)
+enter_prereqs (struct dep *deps, struct file *file)
 {
   struct dep *d1;
+  const char *stem = "";
 
   if (deps == 0)
     return 0;
 
   /* If we have a stem, expand the %'s.  We use patsubst_expand to translate
      the prerequisites' patterns into plain prerequisite names.  */
-  if (stem)
+  if (file && file->stem)
     {
       const char *pattern = "%";
       struct dep *dp = deps, *dl = 0;
       const char *dirname = "";
       size_t dlen = 0;
 
-      if (!strchr (target_pattern, '/'))
+      if (file->need_stem_splitting)
         {
-          char *basename = strrchr (stem, '/');
+          char *basename = strrchr (file->stem, '/');
           if (basename)
             {
               ++basename;
-              dirname = stem;
+              dirname = file->stem;
               dlen = basename - dirname;
               stem = strcache_add (basename);
-           }
+            }
         }
 
       while (dp != 0)
@@ -517,6 +518,7 @@ enter_prereqs (struct dep *deps, const char *stem, const char *target_pattern)
           char *percent;
           size_t nl = strlen (dp->name) + 1;
           char *nm = alloca (nl + dlen);
+//printf("old dep name %s\n", dp->name);
           mempcpy (mempcpy (nm, dirname, dlen), dp->name, nl);
           percent = find_percent (nm);
           if (percent)
@@ -551,6 +553,7 @@ enter_prereqs (struct dep *deps, const char *stem, const char *target_pattern)
               /* Save the name.  */
               dp->name = strcache_add_len (variable_buffer,
                                            o - variable_buffer);
+//printf("new dep name %s\n", dp->name);
             }
           dp->stem = stem;
           dp->staticpattern = 1;
@@ -662,10 +665,13 @@ expand_deps (struct file *f)
           initialized = 1;
         }
 
+//printf("file %s, f->stem = %s, dep %s, d->stem = %s\n", f->name, f->stem, dep_name (d), d->stem);
       set_file_variables (f, d->stem ? d->stem : f->stem);
 
       /* Perform second expansion.  */
+//printf("2nd expanding %s\n", d->name);
       p = expand_string_for_file (d->name, f);
+//printf("2nd expanded list of prereqs = %s\n", p);
 
       /* Free the un-expanded name.  */
       free ((char*)d->name);
@@ -691,9 +697,12 @@ expand_deps (struct file *f)
       *dp = new;
       for (dp = &new, d = new; d != 0; dp = &d->next, d = d->next)
         {
+//printf("entering newly added prereq d->name = %s, d->file = %p, d->stem = %s, fstem = %s\n", d->name, d->file, d->stem, fstem);
+
           d->file = lookup_file (d->name);
           if (d->file == 0)
             d->file = enter_file (d->name);
+//printf("entered newly added prereq d->name = %s, d->file->name = %s, d->stem = %s, fstem = %s\n", d->name, d->file->name, d->stem, fstem);
           d->name = 0;
           d->stem = fstem;
           if (!fstem)

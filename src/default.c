@@ -691,7 +691,7 @@ set_default_suffixes (void)
       struct dep *d;
       const char *p = default_suffixes;
       suffix_file->deps = enter_prereqs (PARSE_SIMPLE_SEQ ((char **)&p, struct dep),
-                                         NULL, NULL);
+                                         NULL);
       for (d = suffix_file->deps; d; d = d->next)
         d->file->builtin = 1;
 
