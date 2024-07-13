@@ -590,6 +590,8 @@ expand_deps (struct file *f)
   struct dep *d;
   struct dep **dp;
   const char *fstem;
+  const char *dirname = "";
+  size_t dlen = 0;
   int initialized = 0;
   int changed_dep = 0;
 
@@ -665,8 +667,24 @@ expand_deps (struct file *f)
           initialized = 1;
         }
 
+      /* Stem splitting has to take place before $* is set.  */
+      fstem = d->stem ? d->stem : f->stem;
+//printf("fstem = %s, f->stem = %s\n", fstem, f->stem);
+      if (f->need_stem_splitting)
+        {
+          char *basename = strrchr (f->stem, '/');
+          if (basename)
+            {
+              ++basename;
+              dirname = f->stem;
+              dlen = basename - dirname;
+              fstem = strcache_add (basename);
+//printf("new fstem = %s\n", fstem);
+            }
+        }
+
 //printf("file %s, f->stem = %s, dep %s, d->stem = %s\n", f->name, f->stem, dep_name (d), d->stem);
-      set_file_variables (f, d->stem ? d->stem : f->stem);
+      set_file_variables (f, fstem);
 
       /* Perform second expansion.  */
 //printf("2nd expanding %s\n", d->name);
@@ -708,6 +726,17 @@ expand_deps (struct file *f)
           if (!fstem)
             /* This file is explicitly mentioned as a prereq.  */
             d->file->is_explicit = 1;
+
+          if (dlen)
+            {
+              const char *name = d->file->name;
+              size_t nl = strlen (name) + 1;
+              char *newname = alloca (nl + dlen);
+//printf("old d->file->name %s\n", name);
+              mempcpy (mempcpy (newname, dirname, dlen), name, nl);
+              d->file->name = d->file->hname = strcache_add (newname);
+//printf("d->file at %p, new d->file->name %s at %p\n", d->file, d->file->name, d->file->name);
+            }
         }
       *dp = next;
       d = *dp;
@@ -718,6 +747,7 @@ expand_deps (struct file *f)
        refer to stale data.  */
     if (changed_dep)
       shuffle_deps_recursive (f->deps);
+//printf("exiting expand_deps\n");
 }
 
 /* Add extra prereqs to the file in question.  */
