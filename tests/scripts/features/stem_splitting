@@ -89,6 +89,13 @@ $r%.o: .%\$\$(prereq); \$(info \$@ from \$<, \$\$* = \$*)
 ", '', "a/b.o from a/.b.mod, \$* = a/b\np/q/r.o from p/q/.r.mod, \$* = p/q/r\n#MAKE#: Nothing to be done for 'all'.");
 }
 
+# TODO:
+# 1.patterns with a slash.
+# 2. patterns that end with a slash, e.g. .%.dir/.
+# 3. targets that end with a slash, e.g. a/.
+# 4. double colon.
+# 5. grouped targets.
+
 rmdir('p/q');
 rmdir('a');
 rmdir('p');

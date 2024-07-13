@@ -675,6 +675,7 @@ expand_deps (struct file *f)
           char *basename = strrchr (f->stem, '/');
           if (basename)
             {
+              /* A slash is a part of the directory, rather than basename.  */
               ++basename;
               dirname = f->stem;
               dlen = basename - dirname;
