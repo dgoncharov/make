@@ -573,7 +573,7 @@ enter_prereqs (struct dep *deps, struct file *file)
         d1->file = enter_file (d1->name);
       d1->staticpattern = 0;
       d1->name = 0;
-      if (!stem)
+      if (!file || !file->stem)
         /* This file is explicitly mentioned as a prereq.  */
         d1->file->is_explicit = 1;
     }
