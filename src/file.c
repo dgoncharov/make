@@ -487,14 +487,14 @@ struct dep *
 enter_prereqs (struct dep *deps, struct file *file)
 {
   struct dep *d1;
-  const char *stem = "";
+  const char *stem = file && file->stem ? file->stem : NULL;
 
   if (deps == 0)
     return 0;
 
   /* If we have a stem, expand the %'s.  We use patsubst_expand to translate
      the prerequisites' patterns into plain prerequisite names.  */
-  if (file && file->stem)
+  if (stem)
     {
       const char *pattern = "%";
       struct dep *dp = deps, *dl = 0;
@@ -504,6 +504,7 @@ enter_prereqs (struct dep *deps, struct file *file)
       if (file->need_stem_splitting)
         {
           char *basename = strrchr (file->stem, '/');
+//printf("file %s, file->stem = %s, basename = %s\n", file->name, file->stem, basename);
           if (basename)
             {
               ++basename;
@@ -520,6 +521,7 @@ enter_prereqs (struct dep *deps, struct file *file)
           char *nm = alloca (nl + dlen);
 //printf("old dep name %s\n", dp->name);
           mempcpy (mempcpy (nm, dirname, dlen), dp->name, nl);
+//printf("nm = %s\n", nm);
           percent = find_percent (nm);
           if (percent)
             {
