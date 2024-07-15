@@ -719,6 +719,15 @@ expand_deps (struct file *f)
       for (dp = &new, d = new; d != 0; dp = &d->next, d = d->next)
         {
 //printf("entering newly added prereq d->name = %s, d->file = %p, d->stem = %s, fstem = %s\n", d->name, d->file, d->stem, fstem);
+          if (dlen)
+            {
+              size_t nl = strlen (d->name) + 1;
+              char *newname = alloca (nl + dlen);
+//printf("old d->file->name %s\n", d->name);
+              mempcpy (mempcpy (newname, dirname, dlen), d->name, nl);
+              d->name = strcache_add (newname);
+//printf("new d->name = %s\n", d->name);
+            }
 
           d->file = lookup_file (d->name);
           if (d->file == 0)
@@ -730,16 +739,6 @@ expand_deps (struct file *f)
             /* This file is explicitly mentioned as a prereq.  */
             d->file->is_explicit = 1;
 
-          if (dlen)
-            {
-              const char *name = d->file->name;
-              size_t nl = strlen (name) + 1;
-              char *newname = alloca (nl + dlen);
-//printf("old d->file->name %s\n", name);
-              mempcpy (mempcpy (newname, dirname, dlen), name, nl);
-              d->file->name = d->file->hname = strcache_add (newname);
-//printf("d->file at %p, new d->file->name %s at %p\n", d->file, d->file->name, d->file->name);
-            }
         }
       *dp = next;
       d = *dp;
