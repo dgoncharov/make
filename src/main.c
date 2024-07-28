@@ -3108,8 +3108,19 @@ decode_switches (int argc, const char **argv, enum variable_origin origin)
   int bad = 0;
   struct command_switch *cs;
   struct stringlist *sl;
+  /* Targets and command line definitions.  */
+  struct stringlist targets;
   int c;
   unsigned int found_wait = 0;
+  const char **a;
+  static int using_getopt = 0;
+
+  assert (using_getopt == 0);
+  using_getopt = 1;
+
+  targets.list = alloca ((argc + 1) * sizeof (const char **));
+  targets.idx = targets.max = 0;
+  /* Cannot call handle_non_switch_argument until getopt is done.  */
 
   /* getopt does most of the parsing for us.
      First, get its vectors set up.  */
@@ -3138,14 +3149,8 @@ decode_switches (int argc, const char **argv, enum variable_origin origin)
            see all he did wrong.  */
         bad = 1;
       else if (c == 1)
-        {
-          /* An argument not starting with a dash.  */
-          const unsigned int prior_found_wait = found_wait;
-          found_wait = handle_non_switch_argument (coptarg, origin);
-          if (prior_found_wait && lastgoal)
-            /* If the argument before this was .WAIT, wait here.  */
-            lastgoal->wait_here = 1;
-        }
+        /* An argument not starting with a dash.  */
+        targets.list[targets.idx++] = coptarg;
       else
         /* An option starting with a dash.  */
         for (cs = switches; cs->c != '\0'; ++cs)
@@ -3339,9 +3344,22 @@ decode_switches (int argc, const char **argv, enum variable_origin origin)
      to be returned in order, this only happens when there is a "--"
      argument to prevent later arguments from being options.  */
   while (optind < argc)
+    targets.list[targets.idx++] = argv[optind++];
+  targets.list[targets.idx] = NULL;
+
+  /* Cannot call getopt below this line.  */
+  using_getopt = 0;
+
+  /* handle_non_switch_argument can only be called after getopt is done,
+     because if MAKEFLAGS=<value> is specified on the command line, then
+     handle_non_switch_argument calls decode_switches through
+     try_variable_definition, set_special_var, reset_makeflags.
+     This recursive call to decode_switches would call getopt and mess up
+     state (optind, nextchar, etc) of the outer call to getopt.  */
+  for (a = targets.list; *a; ++a)
     {
       const int prior_found_wait = found_wait;
-      found_wait = handle_non_switch_argument (argv[optind++], origin);
+      found_wait = handle_non_switch_argument (*a, origin);
       if (prior_found_wait && lastgoal)
         lastgoal->wait_here = 1;
     }
