@@ -586,6 +586,7 @@ enter_prereqs (struct dep *deps, struct file *file)
 /* Expand and parse each dependency line.
    For each dependency of the file, make the 'struct dep' point
    at the appropriate 'struct file' (which may have to be created).  */
+
 void
 expand_deps (struct file *f)
 {
@@ -619,115 +620,6 @@ expand_deps (struct file *f)
           continue;
         }
 
-      fstem = d->stem ? d->stem : f->stem;
-      /* If it's from a static pattern rule, convert the initial pattern in
-         each word to "$*" so they'll expand properly.  */
-      if (d->staticpattern)
-        {
-          const char *cs = d->name;
-          size_t nperc = 0;
-
-          /* Stem splitting has to take place before $* is set.  */
-    //printf("fstem = %s, f->stem = %s\n", fstem, f->stem);
-          if (f->need_stem_splitting)
-            {
-              basename = strrchr (f->stem, '/');
-              if (basename)
-                {
-                  /* A slash is a part of the directory, rather than basename.  */
-                  ++basename;
-                  blen = strlen (basename);
-                  dirname = f->stem;
-                  dlen = basename - dirname;
-                  fstem = strcache_add (basename);
-    //printf("new fstem = %s\n", fstem);
-                }
-            }
-
-          /* Count the number of % in the string.  */
-          while ((cs = strchr (cs, '%')) != NULL)
-            {
-              ++nperc;
-              ++cs;
-            }
-
-          if (nperc)
-            {
-              /* Allocate enough space to replace all % with $*.  */
-              size_t slen = (strlen (d->name) + nperc * dlen + nperc + 1);
-              char *name = xmalloc (slen);
-              char *s = name;
-              const char *b, *e;
-
-              assert (dlen == 0 || dirname[dlen - 1] == '/');
-//printf("d->name = %s\n", d->name);
-              for (e = b = d->name; *e; b = e)
-                {
-//printf("1 name = \"%.*s\", b = \"%s\", e = \"%s\"\n", (int) (s - name), name, b, e);
-                  e += strcspn (e, " \t\n%$");
-                  /* Prepend the value of dirname to each word that has a %.
-                     Substitute the first % in each word with $*.  */
-                  if (*e == '$')
-                    {
-                      if (basename && e[1] == '(' && e[2] == '%' && e[3] == ')')
-                        {
-                          /* The prerequisite contains $(%).
-                             Make will substitude % for stem and then expand the
-                             stem. If the stem expands to anything, then the
-                             dirname needs to be prepended. If the stem expands to
-                             nothing, then the prerequisite has to be left intact
-                             without prepending the dirname.  */
-                             char *buf = alloca (blen + 4);
-                             char *a = buf;
-                             buf = mempcpy (buf, "$(", 2);
-                             buf = mempcpy (buf, basename, blen);
-                             buf = mempcpy (buf, ")", 2);
-//printf("expanding %s\n", a);
-                             if (*expand_string_for_file (a, NULL) || *expand_string_for_file (a, f))
-{
-//printf("%s expanded to \"%s\" at %p\n", basename, a, a);
-                               s = mempcpy (s, dirname, dlen);
-}
-                             /* Copy over $(.  */
-                             e += 2;
-                             s = mempcpy (s, b, e - b);
-//printf("2 name = \"%.*s\", b = \"%s\", e = \"%s\"\n", (int) (s - name), name, b, e);
-                             s = mempcpy (s, "$*)", 3);
-//printf("3 name = \"%.*s\", b = \"%s\", e = \"%s\"\n", (int) (s - name), name, b, e);
-                             /* Skip %).  */
-                             e += 2;
-                             b = e;
-                             e += strcspn (e, " \t\n");
-                        }
-//TODO: take care of $$%.
-                      else
-                        {
-                          /* Copy over $. */
-                          ++e;
-                          s = mempcpy (s, b, e - b);
-                          continue;
-                        }
-                    }
-                  else if (*e == '%')
-                    {
-                      s = mempcpy (s, dirname, dlen);
-                      s = mempcpy (s, b, e - b);
-                      s = mempcpy (s, "$*", 2);
-                      /* Skip %. */
-                      ++e;
-                      b = e;
-                      e += strcspn (e, " \t\n");
-                    }
-                    e += strspn (e, " \t\n");
-                    s = mempcpy (s, b, e - b);
-                }
-                *s = '\0';
-
-              free ((char*)d->name);
-              d->name = name;
-            }
-        }
-
       /* We're going to do second expansion so initialize file variables for
          the file. Since the stem for static pattern rules comes from
          individual dep lines, we will temporarily set f->stem to d->stem.  */
@@ -738,11 +630,63 @@ expand_deps (struct file *f)
         }
 
 //printf("file %s, f->stem = %s, dep %s, d->stem = %s\n", f->name, f->stem, dep_name (d), d->stem);
+          /* Stem splitting has to take place before $* is set.  */
+    //printf("fstem = %s, f->stem = %s\n", fstem, f->stem);
+      fstem = d->stem ? d->stem : f->stem;
+      if (d->staticpattern && f->need_stem_splitting)
+        {
+          basename = strrchr (f->stem, '/');
+          if (basename)
+            {
+              /* A slash is a part of the directory, rather than basename.  */
+              ++basename;
+              blen = strlen (basename);
+              dirname = f->stem;
+              dlen = basename - dirname;
+              fstem = strcache_add (basename);
+//printf("new fstem = %s\n", fstem);
+            }
+        }
+
       set_file_variables (f, fstem);
 
-      /* Perform second expansion.  */
+      /* If it's from a static pattern rule, convert the initial pattern in
+         each word to "$*" so they'll expand properly.  */
+      if (d->staticpattern)
+        {
+          const char *cs = d->name;
+          size_t nperc = 0;
+
+          /* Count the number of % in the string.  */
+          while ((cs = strchr (cs, '%')) != NULL)
+            {
+              ++nperc;
+              ++cs;
+            }
+
+          if (nperc)
+            {
+              /* Allocate enough space to replace each % with ($*).  */
+              size_t slen = strlen (d->name) + 4*nperc + 1;
+              const char *pcs = d->name;
+              char *name = xmalloc (slen);
+              char *s = name;
+
+              while (*pcs)
+                {
+                  s = expand_dep (s, pcs, f, dirname, basename);
+                  pcs = next_token (pcs);
+                }
+              s[0] = '\0';
+
+              free ((char*)d->name);
+              d->name = name;
+            }
+        }
+      else
+        /* Perform second expansion.  */
 //printf("2nd expanding %s\n", d->name);
-      p = expand_string_for_file (d->name, f);
+        p = expand_string_for_file (d->name, f);
 //printf("2nd expanded list of prereqs = %s\n", p);
 
       /* Free the un-expanded name.  */
@@ -750,25 +694,119 @@ expand_deps (struct file *f)
 
       /* Parse the prerequisites and enter them into the file database.  */
       new = split_prereqs (p);
+      enter_deps (f, new);
 
-      /* If there were no prereqs here (blank!) then throw this one out.  */
-      if (new == 0)
-        {
-          *dp = d->next;
-          changed_dep = 1;
-          free_dep (d);
-          d = *dp;
-          continue;
-        }
+      *dp = next;
+      d = *dp;
+    }
 
-      /* Add newly parsed prerequisites.  */
-      fstem = d->stem;
-      next = d->next;
-      changed_dep = 1;
-      free_dep (d);
-      *dp = new;
-      for (dp = &new, d = new; d != 0; dp = &d->next, d = d->next)
-        {
+    /* Shuffle mode assumes '->next' and '->shuf' links both traverse the same
+       dependencies (in different sequences).  Regenerate '->shuf' so we don't
+       refer to stale data.  */
+    if (changed_dep)
+      shuffle_deps_recursive (f->deps);
+//printf("exiting expand_deps\n");
+}
+
+
+char *
+expand_dep (char *buf, const char *input, struct file *f, const char *dirname,
+            const char *basename)
+{
+    const char *in = input;
+    char *buf;
+
+
+
+    assert (!ISSPACE (*input));
+    assert (*input);
+
+    while (;;)
+      {
+        in += strcspn (in, " \t\n$%");
+        c = *in;
+        if (c == '\0' || strchr (" \t\n", c))
+          {
+            assert (in > input);
+            /* There is no %. Do not prepend dirname.  */
+            dirname = NULL;
+            buf = mempcpy (buf, input, in - input);
+            break;
+          }
+        else if (c == '%')
+          {
+            buf = mempcpy (buf, input, in - input);
+            buf = mempcpy (buf, "$*", 2);
+            ++in;
+            end = end_of_token (in);
+            buf = mempcpy (buf, in, end - in);
+            break;
+          }
+        else 
+          {
+            assert (c == '$');
+            if (in[1] == '%')
+              {
+                const char *end;
+               if (*expand_string_for_file (a, NULL) || *expand_string_for_file (a, f))
+                 {
+//printf("%s expanded to \"%s\" at %p\n", basename, a, a);
+                    const char *d;
+                    for (d = dirname; *d; )
+                      {
+                        if (*d == '$')
+                          *buf++ = '$';
+                        *buf++ = *d++;
+                      }
+                  }
+                buf = mempcpy (buf, input, in - input);
+                buf = mempcpy (buf, "($*)", 4);
+                ++in;
+                end = end_of_token (in);
+                buf = mempcpy (buf, in, end - in);
+              }
+            else
+              ++in;
+          }
+      }
+    *buf = '\0';
+
+    /* Perform second expansion before prepending dirname.
+       This ensures the contents of dirname does not get expanded.
+       This avoids prepending dirname, if buf second expands to nothing.  */
+//printf("2nd expanding %s\n", d->name);
+    p = expand_string_for_file (buf, f);
+//printf("2nd expanded list of prereqs = %s\n", p);
+    if (dirname && *p)
+      {
+        /* Prepend dirname to p once, regardless of the number of tokens in p.
+         */
+      }
+
+    return buf;
+}
+
+void
+enter_deps (struct file *f, struct dep *new)
+{
+    /* If there were no prereqs here (blank!) then throw this one out.  */
+    if (new == 0)
+      {
+        *dp = d->next;
+        changed_dep = 1;
+        free_dep (d);
+        d = *dp;
+        continue;
+      }
+
+    /* Add newly parsed prerequisites.  */
+    fstem = d->stem;
+    next = d->next;
+    changed_dep = 1;
+    free_dep (d);
+    *dp = new;
+    for (dp = &new, d = new; d != 0; dp = &d->next, d = d->next)
+      {
 //printf("entering newly added prereq d->name = %s, d->file = %p, d->stem = %s, fstem = %s\n", d->name, d->file, d->stem, fstem);
 //          if (dlen)
 //            {
@@ -780,27 +818,17 @@ expand_deps (struct file *f)
 ////printf("new d->name = %s\n", d->name);
 //            }
 //
-          d->file = lookup_file (d->name);
-          if (d->file == 0)
-            d->file = enter_file (d->name);
+        d->file = lookup_file (d->name);
+        if (d->file == 0)
+          d->file = enter_file (d->name);
 //printf("entered newly added prereq d->name = %s, d->file->name = %s, d->stem = %s, fstem = %s\n", d->name, d->file->name, d->stem, fstem);
-          d->name = 0;
-          d->stem = fstem;
-          if (!fstem)
-            /* This file is explicitly mentioned as a prereq.  */
-            d->file->is_explicit = 1;
+        d->name = 0;
+        d->stem = fstem;
+        if (!fstem)
+          /* This file is explicitly mentioned as a prereq.  */
+          d->file->is_explicit = 1;
 
-        }
-      *dp = next;
-      d = *dp;
-    }
-
-    /* Shuffle mode assumes '->next' and '->shuf' links both traverse the same
-       dependencies (in different sequences).  Regenerate '->shuf' so we don't
-       refer to stale data.  */
-    if (changed_dep)
-      shuffle_deps_recursive (f->deps);
-//printf("exiting expand_deps\n");
+      }
 }
 
 /* Add extra prereqs to the file in question.  */
