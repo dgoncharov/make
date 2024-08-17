@@ -451,9 +451,10 @@ remove_intermediates (int sig)
    a struct dep list.  Enter each of these prereqs into the file database.
  */
 struct dep *
-split_prereqs (char *p)
+split_prereqs (char *p, const char *dirname)
 {
-  struct dep *new = PARSE_FILE_SEQ (&p, struct dep, MAP_PIPE, NULL, PARSEFS_WAIT);
+  struct dep *new = PARSE_FILE_SEQ (&p, struct dep, MAP_NUL, dirname,
+                                    PARSEFS_WAIT);
 
   if (*p)
     {
@@ -462,7 +463,7 @@ split_prereqs (char *p)
       struct dep *ood;
 
       ++p;
-      ood = PARSE_FILE_SEQ (&p, struct dep, MAP_NUL, NULL, PARSEFS_WAIT);
+      ood = PARSE_FILE_SEQ (&p, struct dep, MAP_NUL, dirname, PARSEFS_WAIT);
 
       if (! new)
         new = ood;
@@ -484,9 +485,10 @@ split_prereqs (char *p)
 /* Given a list of prerequisites, enter them into the file database.
    If STEM is set then first expand patterns using STEM.  */
 struct dep *
-enter_prereqs (struct dep *deps, const char *stem)
+enter_prereqs (struct dep *deps, struct file *file)
 {
   struct dep *d1;
+  const char *stem = file && file->stem ? file->stem : NULL;
 
   if (deps == 0)
     return 0;
@@ -497,13 +499,30 @@ enter_prereqs (struct dep *deps, const char *stem)
     {
       const char *pattern = "%";
       struct dep *dp = deps, *dl = 0;
+      const char *dirname = "";
+      size_t dlen = 0;
+
+      if (file->need_stem_splitting)
+        {
+          const char *basename = strrchr (file->stem, '/');
+//printf("file %s, file->stem = %s, basename = %s\n", file->name, file->stem, basename);
+          if (basename)
+            {
+              ++basename;
+              dirname = file->stem;
+              dlen = basename - dirname;
+              stem = strcache_add (basename);
+            }
+        }
 
       while (dp != 0)
         {
           char *percent;
           size_t nl = strlen (dp->name) + 1;
-          char *nm = alloca (nl);
-          memcpy (nm, dp->name, nl);
+          char *nm = alloca (nl + dlen);
+//printf("old dep name %s\n", dp->name);
+          mempcpy (mempcpy (nm, dirname, dlen), dp->name, nl);
+//printf("nm = %s\n", nm);
           percent = find_percent (nm);
           if (percent)
             {
@@ -537,6 +556,7 @@ enter_prereqs (struct dep *deps, const char *stem)
               /* Save the name.  */
               dp->name = strcache_add_len (variable_buffer,
                                            o - variable_buffer);
+//printf("new dep name %s\n", dp->name);
             }
           dp->stem = stem;
           dp->staticpattern = 1;
@@ -556,7 +576,7 @@ enter_prereqs (struct dep *deps, const char *stem)
         d1->file = enter_file (d1->name);
       d1->staticpattern = 0;
       d1->name = 0;
-      if (!stem)
+      if (!file || !file->stem)
         /* This file is explicitly mentioned as a prereq.  */
         d1->file->is_explicit = 1;
     }
@@ -571,8 +591,6 @@ void
 expand_deps (struct file *f)
 {
   struct dep *d;
-  struct dep **dp;
-  const char *fstem;
   int initialized = 0;
   int changed_dep = 0;
 
@@ -582,62 +600,18 @@ expand_deps (struct file *f)
 
   /* Walk through the dependencies.  For any dependency that needs 2nd
      expansion, expand it then insert the result into the list.  */
-  dp = &f->deps;
-  d = f->deps;
-  while (d != 0)
+  for (d = f->deps; d != 0; d = next)
     {
       char *p;
-      struct dep *new, *next;
+      struct dep *next;
+      const char *fstem;
 
+      next = d->next;
       if (! d->name || ! d->need_2nd_expansion)
-        {
-          /* This one is all set already.  */
-          dp = &d->next;
-          d = d->next;
-          continue;
-        }
+        /* This one is all set already.  */
+        continue;
 
-      /* If it's from a static pattern rule, convert the initial pattern in
-         each word to "$*" so they'll expand properly.  */
-      if (d->staticpattern)
-        {
-          const char *cs = d->name;
-          size_t nperc = 0;
-
-          /* Count the number of % in the string.  */
-          while ((cs = strchr (cs, '%')) != NULL)
-            {
-              ++nperc;
-              ++cs;
-            }
-
-          if (nperc)
-            {
-              /* Allocate enough space to replace all % with $*.  */
-              size_t slen = strlen (d->name) + nperc + 1;
-              const char *pcs = d->name;
-              char *name = xmalloc (slen);
-              char *s = name;
-
-              /* Substitute the first % in each word.  */
-              cs = strchr (pcs, '%');
-
-              while (cs)
-                {
-                  s = mempcpy (s, pcs, cs - pcs);
-                  *(s++) = '$';
-                  *(s++) = '*';
-                  pcs = ++cs;
-
-                  /* Find the first % after the next whitespace.  */
-                  cs = strchr (end_of_token (cs), '%');
-                }
-              strcpy (s, pcs);
-
-              free ((char*)d->name);
-              d->name = name;
-            }
-        }
+      changed_dep = 1;
 
       /* We're going to do second expansion so initialize file variables for
          the file. Since the stem for static pattern rules comes from
@@ -648,46 +622,14 @@ expand_deps (struct file *f)
           initialized = 1;
         }
 
-      set_file_variables (f, d->stem ? d->stem : f->stem);
+      /* If it's from a static pattern rule, convert the initial pattern in
+         each word to "$*" so they'll expand properly.  */
+      if (d->staticpattern)
+        second_expand_pattern_dep (f, d);
+      else
+        second_expand_dep (f, d, d->stem ? d->stem : f->stem, NULL);
 
-      /* Perform second expansion.  */
-      p = expand_string_for_file (d->name, f);
-
-      /* Free the un-expanded name.  */
-      free ((char*)d->name);
-
-      /* Parse the prerequisites and enter them into the file database.  */
-      new = split_prereqs (p);
-
-      /* If there were no prereqs here (blank!) then throw this one out.  */
-      if (new == 0)
-        {
-          *dp = d->next;
-          changed_dep = 1;
-          free_dep (d);
-          d = *dp;
-          continue;
-        }
-
-      /* Add newly parsed prerequisites.  */
-      fstem = d->stem;
-      next = d->next;
-      changed_dep = 1;
       free_dep (d);
-      *dp = new;
-      for (dp = &new, d = new; d != 0; dp = &d->next, d = d->next)
-        {
-          d->file = lookup_file (d->name);
-          if (d->file == 0)
-            d->file = enter_file (d->name);
-          d->name = 0;
-          d->stem = fstem;
-          if (!fstem)
-            /* This file is explicitly mentioned as a prereq.  */
-            d->file->is_explicit = 1;
-        }
-      *dp = next;
-      d = *dp;
     }
 
     /* Shuffle mode assumes '->next' and '->shuf' links both traverse the same
@@ -697,13 +639,155 @@ expand_deps (struct file *f)
       shuffle_deps_recursive (f->deps);
 }
 
+struct dep *
+second_expand_pattern_dep (struct file *f, struct dep *d, const char *fstem)
+{
+  const char *s = d->name;
+  const char *name;
+  size_t nperc = 0;
+  char *buf;
+  size_t len;
+  const char *dirname = NULL;
+
+  /* Count the number of % in the string.  */
+  while ((s = strchr (s, '%')) != NULL)
+    {
+      ++nperc;
+      ++s;
+    }
+
+  if (nperc == 0)
+    return second_expand_dep (f, d, fstem, NULL);
+
+  /* Stem splitting has to take place before $* is set.  */
+//printf("fstem = %s, f->stem = %s\n", fstem, f->stem);
+  if (f->need_stem_splitting)
+    {
+      const char *basename = strrchr (f->stem, '/');
+      if (basename)
+        {
+          size_t dlen;
+          /* A slash is a part of the directory, rather than basename.  */
+          ++basename;
+          dlen = basename - f->stem;
+          dirname = alloca (dlen + 1);
+          memcpy (dirname, f->stem, dlen);
+          dirname[dlen] = '\0';
+          fstem = strcache_add (basename);
+//printf("new fstem = %s\n", fstem);
+        }
+    }
+
+  /* Allocate enough space to append a null a replace each % with ($(*F)).  */
+  name = s = d->name;
+  buf = xmalloc (strlen (name) + 7*nperc + 1);
+  while ((s = get_next_word (s, &len)))
+    {
+      const char *dir_name;
+      const char *b;
+
+      b = buf;
+      buf = substitude_stem (b, s, len, dirname);
+//printf("dep old name %s, new name %s, dirname = %s\n", d->name, name, dirname);
+      d->name = b;
+      second_expand_dep (f, d, fstem, dir_name);
+      s += len;
+    }
+  free ((char*) name);
+  return d;
+}
+
+/* Copy input of size len to buf with the first % in each white space
+   separated word substituded with $* or $(*F).
+   Null terminate buf.
+   Return a pointer to the byte in buf immediately following the null
+   terminator.  */
+const char *
+substitude_stem (char *buf, const char *input, size_t len, const char *dirname)
+{
+  char *s = input;
+  const char *end = input + len;
+  const char *dir_name = NULL;
+
+  while ((s = memchr (s, '%', end - s)))
+    {
+      dir_name = dirname;
+      buf = mempcpy (buf, input, s - input);
+      if (s > input && *(s - 1) == '$')
+        {
+          if (dirname)
+            buf = mempcpy (buf, "($(*F))", 7);
+          else
+            buf = mempcpy (buf, "($*)", 4);
+        }
+      else
+        {
+          if (dirname)
+            buf = mempcpy (buf, "$(*F)", 5);
+          else
+            buf = mempcpy (buf, "$*", 2);
+        }
+        input = ++s;
+      /* Find the first % after the next whitespace.
+         No need to worry about order-only, or nested
+         functions: input went though get_next_word.  */
+//TODO: order-only?
+      while (s < end && ! END_OF_TOKEN (*s))
+        ++s;
+    }
+  buf = mempcpy (buf, input, end - input);
+  buf[0] = '\0';
+  return buf + 1;
+}
+
+/* Perform second expansion. The dep can be explicit or the result of stem
+   substitution in a static pattern dep.  */
+struct dep *
+second_expand_dep (struct file *f, struct dep *d, const char *stem, const char *dirname)
+{
+  struct dep *new;
+  char *p;
+//printf("file %s, f->stem = %s, dep %s, d->stem = %s\n", f->name, f->stem, dep_name (d), d->stem);
+  set_file_variables (f, stem);
+
+  /* Perform second expansion.  */
+//printf("2nd expanding %s\n", d->name);
+  p = expand_string_for_file (d->name, f);
+//printf("2nd expanded list of prereqs = %s\n", p);
+
+  /* Free the un-expanded name.  */
+  free ((char*)d->name);
+  d->name = NULL;
+
+  /* Parse the prerequisites and enter them into the file database.  */
+  new = split_prereqs (p, dirname);
+
+  /* Add newly parsed prerequisites.  */
+  stem = d->stem;
+  for (d = new; d != 0; d = d->next)
+    {
+      d->file = lookup_file (d->name);
+      if (d->file == 0)
+        d->file = enter_file (d->name);
+      d->name = 0; //TODO: why? free?
+      d->stem = fstem;
+      if (!fstem)
+        /* This file is explicitly mentioned as a prereq.  */
+        d->file->is_explicit = 1;
+    }
+
+  return d;
+}
+
 /* Add extra prereqs to the file in question.  */
 
 struct dep *
 expand_extra_prereqs (const struct variable *extra)
 {
   struct dep *d;
-  struct dep *prereqs = extra ? split_prereqs (expand_string (extra->value)) : NULL;
+  struct dep *prereqs;
+
+  prereqs = extra ? split_prereqs (expand_string (extra->value), NULL) : NULL;
 
   for (d = prereqs; d; d = d->next)
     {

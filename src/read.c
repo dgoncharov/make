@@ -2048,7 +2048,7 @@ record_files (struct nameseq *filenames, int are_also_makes,
         }
       else
         {
-          deps = split_prereqs (depstr);
+          deps = split_prereqs (depstr, NULL);
           free (depstr);
 
           /* We'll enter static pattern prereqs later when we have the stem.
@@ -2228,8 +2228,9 @@ record_files (struct nameseq *filenames, int are_also_makes,
           f->stem = strcache_add_len (variable_buffer, o - variable_buffer);
           if (this)
             {
+              f->need_stem_splitting = !strchr (pattern, '/');
               if (! this->need_2nd_expansion)
-                this = enter_prereqs (this, f->stem);
+                this = enter_prereqs (this, f);
               else
                 this->stem = f->stem;
             }
