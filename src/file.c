@@ -600,6 +600,7 @@ expand_deps (struct file *f)
 
   /* Walk through the dependencies.  For any dependency that needs 2nd
      expansion, expand it then insert the result into the list.  */
+//TODO: need to restore that *dp business.
   for (d = f->deps; d != 0; d = next)
     {
       char *p;
@@ -684,16 +685,16 @@ second_expand_pattern_dep (struct file *f, struct dep *d, const char *fstem)
   while ((s = get_next_word (s, &len)))
     {
       const char *dir_name;
-      const char *b;
 
-      b = buf;
-      buf = substitude_stem (b, s, len, dirname);
+//TODO: this messes up d->name set on the prior iteration.
+      d->name = buf;
+      buf = substitude_stem (buf, s, len, dirname);
 //printf("dep old name %s, new name %s, dirname = %s\n", d->name, name, dirname);
-      d->name = b;
       second_expand_dep (f, d, fstem, dir_name);
       s += len;
     }
   free ((char*) name);
+//  d->name = NULL;
   return d;
 }
 
@@ -756,6 +757,7 @@ second_expand_dep (struct file *f, struct dep *d, const char *stem, const char *
 //printf("2nd expanded list of prereqs = %s\n", p);
 
   /* Free the un-expanded name.  */
+//TODO: needed?
   free ((char*)d->name);
   d->name = NULL;
 
