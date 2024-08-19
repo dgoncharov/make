@@ -591,6 +591,7 @@ void
 expand_deps (struct file *f)
 {
   struct dep *d;
+  struct dep **dp;
   int initialized = 0;
   int changed_dep = 0;
 
@@ -601,12 +602,14 @@ expand_deps (struct file *f)
   /* Walk through the dependencies.  For any dependency that needs 2nd
      expansion, expand it then insert the result into the list.  */
 //TODO: need to restore that *dp business.
-  for (d = f->deps; d != 0; d = next)
+  dp = &f->deps;
+  for (d = f->deps; d != 0; d = *dp = next)
     {
       char *p;
       struct dep *next;
       const char *fstem;
 
+      dp = &d->next;
       next = d->next;
       if (! d->name || ! d->need_2nd_expansion)
         /* This one is all set already.  */
@@ -625,11 +628,14 @@ expand_deps (struct file *f)
 
       /* If it's from a static pattern rule, convert the initial pattern in
          each word to "$*" so they'll expand properly.  */
+      fstem = d->stem ? d->stem : f->stem;
       if (d->staticpattern)
-        second_expand_pattern_dep (f, d);
+        dp = second_expand_pattern_dep (f, d, dp, fstem);
       else
-        second_expand_dep (f, d, d->stem ? d->stem : f->stem, NULL);
+        dp = second_expand_dep (f, dp, d->name, fstem, NULL);
 
+      /* Free the un-expanded name.  */
+      free ((char*) d->name);
       free_dep (d);
     }
 
@@ -640,11 +646,10 @@ expand_deps (struct file *f)
       shuffle_deps_recursive (f->deps);
 }
 
-struct dep *
-second_expand_pattern_dep (struct file *f, struct dep *d, const char *fstem)
+struct dep **
+second_expand_pattern_dep (struct file *f, struct dep *d, struct dep **dp, const char *fstem)
 {
   const char *s = d->name;
-  const char *name;
   size_t nperc = 0;
   char *buf;
   size_t len;
@@ -658,7 +663,7 @@ second_expand_pattern_dep (struct file *f, struct dep *d, const char *fstem)
     }
 
   if (nperc == 0)
-    return second_expand_dep (f, d, fstem, NULL);
+    return second_expand_dep (f, dp, d->name, fstem, d->stem, NULL);
 
   /* Stem splitting has to take place before $* is set.  */
 //printf("fstem = %s, f->stem = %s\n", fstem, f->stem);
@@ -679,23 +684,25 @@ second_expand_pattern_dep (struct file *f, struct dep *d, const char *fstem)
         }
     }
 
-  /* Allocate enough space to append a null a replace each % with ($(*F)).  */
-  name = s = d->name;
-  buf = xmalloc (strlen (name) + 7*nperc + 1);
+  /* Allocate enough space to replace each % with ($(*F)) and append a null to
+     each word. Assuming the minimal word is 1 char, 2*strlen (s) is sufficient
+     for all null terminated words. */
+  s = d->name;
+  buf = alloca (2*strlen (s) + 7*nperc);
   while ((s = get_next_word (s, &len)))
     {
+//TODO: set dir_name
       const char *dir_name;
+      const char *depword;
 
-//TODO: this messes up d->name set on the prior iteration.
-      d->name = buf;
+      dir_name = memchr (s, '%', len) ? dirname : NULL;
+      depword = buf;
       buf = substitude_stem (buf, s, len, dirname);
 //printf("dep old name %s, new name %s, dirname = %s\n", d->name, name, dirname);
-      second_expand_dep (f, d, fstem, dir_name);
+      dp = second_expand_dep (f, dp, depword, fstem, d->stem, dir_name);
       s += len;
     }
-  free ((char*) name);
-//  d->name = NULL;
-  return d;
+  return dp;
 }
 
 /* Copy input of size len to buf with the first % in each white space
@@ -743,42 +750,37 @@ substitude_stem (char *buf, const char *input, size_t len, const char *dirname)
 
 /* Perform second expansion. The dep can be explicit or the result of stem
    substitution in a static pattern dep.  */
-struct dep *
-second_expand_dep (struct file *f, struct dep *d, const char *stem, const char *dirname)
+struct dep **
+second_expand_dep (struct file *f, struct dep **dp, const char *name,
+                   const char *fstem, const char *dstem, const char *dirname)
 {
-  struct dep *new;
+  struct dep *new, *d;
   char *p;
 //printf("file %s, f->stem = %s, dep %s, d->stem = %s\n", f->name, f->stem, dep_name (d), d->stem);
-  set_file_variables (f, stem);
+  set_file_variables (f, fstem);
 
   /* Perform second expansion.  */
 //printf("2nd expanding %s\n", d->name);
-  p = expand_string_for_file (d->name, f);
+  p = expand_string_for_file (name, f);
 //printf("2nd expanded list of prereqs = %s\n", p);
-
-  /* Free the un-expanded name.  */
-//TODO: needed?
-  free ((char*)d->name);
-  d->name = NULL;
 
   /* Parse the prerequisites and enter them into the file database.  */
   new = split_prereqs (p, dirname);
 
   /* Add newly parsed prerequisites.  */
-  stem = d->stem;
-  for (d = new; d != 0; d = d->next)
+  *dp = new;
+  for (dp = &new, d = new; d != 0; dp = &d->next, d = d->next)
     {
       d->file = lookup_file (d->name);
       if (d->file == 0)
         d->file = enter_file (d->name);
-      d->name = 0; //TODO: why? free?
-      d->stem = fstem;
-      if (!fstem)
+      /* d->file->name now owns name.  */
+      d->stem = dstem;
+      if (!dstem)
         /* This file is explicitly mentioned as a prereq.  */
         d->file->is_explicit = 1;
     }
-
-  return d;
+  return dp;
 }
 
 /* Add extra prereqs to the file in question.  */
