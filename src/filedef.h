@@ -122,8 +122,8 @@ extern struct file *default_file;
 
 struct file *lookup_file (const char *name);
 struct file *enter_file (const char *name);
-struct dep *split_prereqs (char *prereqstr);
-struct dep *enter_prereqs (struct dep *prereqs, const char *stem);
+struct dep *split_prereqs (char *prereqstr, const char *dirname);
+struct dep *enter_prereqs (struct dep *prereqs, struct file *file);
 void expand_deps (struct file *f);
 struct dep *expand_extra_prereqs (const struct variable *extra);
 void remove_intermediates (int sig);
@@ -138,6 +138,7 @@ char *build_target_list (char *old_list);
 void print_file_data_base (void);
 void print_targets (void);
 int try_implicit_rule (struct file *file, unsigned int depth);
+const char *get_next_word (const char *buffer, size_t *length);
 int stemlen_compare (const void *v1, const void *v2);
 
 #if FILE_TIMESTAMP_HI_RES

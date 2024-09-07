@@ -241,7 +241,7 @@ ${d}bye.x: $r%.x: $dollar\$(wordlist 1, 99, $dollar\$(wordlist 1, 99, %.1 %.2)) 
 # various corner cases.
 # Make should substitute the first % and only the first % in each word with the
 # stem.
-$prereqs = "${pdir}bye1%2% ${pdir}bye 3${pdir}bye4%5 6${pdir}bye ${pdir}bye7%8 ${pdir}bye9 ${pdir}bye10% 11${pdir}bye12 13";
+$prereqs = "${pdir}bye1%2% ${pdir}bye ${pdir}3bye4%5 ${pdir}6bye ${pdir}bye7%8 ${pdir}bye9 ${pdir}bye10% ${pdir}11bye12 13";
 run_make_test("
 $se
 .PHONY: $prereqs
@@ -255,7 +255,7 @@ if ($port_type eq 'UNIX') {
 # Long prerequisite name. This prerequisite name is over 66K long.
 my $prefix = 'abcdefgh' x 128 x 33; # 33K long.
 my $suffix = 'stuvwxyz' x 128 x 33; # 33K long.
-$prereqs = "${prefix}${pdir}bye${suffix}.1 ${prefix}${pdir}bye${suffix}.2";
+$prereqs = "${pdir}${prefix}bye${suffix}.1 ${pdir}${prefix}bye${suffix}.2";
 run_make_test("
 $se
 .PHONY: $prereqs

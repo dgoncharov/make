@@ -2048,7 +2048,7 @@ record_files (struct nameseq *filenames, int are_also_makes,
         }
       else
         {
-          deps = split_prereqs (depstr);
+          deps = split_prereqs (depstr, NULL);
           free (depstr);
 
           /* We'll enter static pattern prereqs later when we have the stem.
@@ -2226,12 +2226,54 @@ record_files (struct nameseq *filenames, int are_also_makes,
           char *o = patsubst_expand_pat (variable_buffer, name, pattern,
                                          percent, pattern_percent+1, percent+1);
           f->stem = strcache_add_len (variable_buffer, o - variable_buffer);
+//printf("parsing file %s, f->stem = %s, this = %p\n", f->name, f->stem, this);
           if (this)
             {
+              /* Keep stem in struct dep rather than in file, because a depline
+                 defines stem. E.g. here
+                 lib/hello.debug.x: lib/%.debug.x: pre-%.z
+                 lib/hello.debug.x: %.x: pre-%.q
+                 lib/hello.debug.x:; $(info $@ from $^)
+                 The first line has stem "hello",
+                 the second line has stem "lib/hello.debug".  */
+              struct dep *d;
+              const char *basename;
+              this->stem = f->stem;
+              this->stem_basename = this->stem;
+              this->stem_dirname = "";
+//printf("this->name = %s, this->stem = %s, pattern = %s\n", this->name, this->stem, pattern);
+
+              if (this->stem && (basename = strrchr (this->stem, '/')))
+                {
+                  /* Stem carries a slash. Need to split the stem.
+                     Stem splitting has to take place before $* is set.
+                     Split the stem now, at parse time. This allows to do the
+                     work of splitting once and init stem_dirname and
+                     stem_basename of all deps on the same depline.  */
+                  size_t dlen;
+                  char *dirname;
+                  /* A slash is a part of the directory, rather than
+                     basename.  */
+                  ++basename;
+                  dlen = basename - this->stem;
+                  dirname = alloca (dlen + 1);
+                  memcpy (dirname, this->stem, dlen);
+                  dirname[dlen] = '\0';
+                  this->stem_dirname = strcache_add (dirname);
+                  this->stem_basename = basename;
+//printf("this->name = %s, this->stem_dirname = %s, this->stem_basename = %s\n", this->name, this->stem_dirname, this->stem_basename);
+                }
+
+              /* All prerequisites on a dep line have the same stem.  */
+              for (d = this->next; d; d = d->next)
+                {
+                  d->stem = this->stem;
+                  d->stem_dirname = this->stem_dirname;
+                  d->stem_basename = this->stem_basename;
+                }
+
               if (! this->need_2nd_expansion)
-                this = enter_prereqs (this, f->stem);
-              else
-                this->stem = f->stem;
+                this = enter_prereqs (this, f);
             }
         }
 

@@ -1,0 +1,849 @@
+#                                                                    -*-perl-*-
+
+use warnings;
+my $description = "Test stem splitting";
+
+# $dollar\$(strip <dep>) is used in these tests to ensure there is a $ on the
+# depline after first expansion. This $ is needed to have make run second
+# expansion.
+
+my $dir = 'a/';
+mkdir($dir);
+
+my @second_expansion = ('', '.SECONDEXPANSION:');
+my @phoniness = (0, 1);
+my @prefix = ('', 'pre-');
+my @dirs = ('', $dir);
+# 0 - test implicit rules.
+# 1 - test static pattern rules.
+my @rules = (0, 1);
+
+
+# Test target and pattern mismatch.
+touch('hello.q');
+for my $se (@second_expansion) {
+
+my $target = "hello.x";
+my $dollar = $se ? '$' : '';
+
+run_make_test("
+# Test that static pattern rules warn when the target does not have a slash and
+# the pattern has a slash.
+$se
+all: $target
+$target: $dir%.x: $dollar\$(strip $dir%.q); \$(info \$@ from \$^, \$\$* = \$*)
+", '', "#MAKEFILE#:6: target '$target' doesn't match the target pattern\n" .
+       "$target from , \$* = $target\n" .
+	   "#MAKE#: Nothing to be done for 'all'.\n");
+
+run_make_test("
+# Test that implicit rules do not match when the target does not have a slash
+# and the pattern has a slash.
+$se
+all: $target
+$dir%.x: $dollar\$(strip $dir%.q); \$(info \$@ from \$^, \$\$* = \$*)
+", '', "#MAKE#: *** No rule to make target '$target', needed by 'all'.  Stop.", 512);
+}
+unlink('hello.q');
+
+# Test stem splitting.
+for my $se (@second_expansion) {
+for my $ph (@phoniness) {
+for my $pre (@prefix) {
+for my $pd (@dirs) {
+for my $td (@dirs) {
+for my $r (@rules) {
+
+# Target has no slash, pattern has a slash. Tested earlier.
+$pd && !$td && next;
+
+my $target = "${td}hello.x";
+my $dd = $td && !$pd ? $td : '';
+my $dep = "$dd${pre}hello.q";
+my $rd = $r ? "$target: " : '';
+
+touch($dep);
+touch('moon');
+my $phony = '';
+$ph and $phony .= ".PHONY: $dep moon";
+
+my $dollar = $se ? '$' : '';
+run_make_test("
+# Test that for target '$target' and pattern '$pd%.x' prerequisite '$pre%.q'
+# expands to '$dep'. This tests that stem '${dd}hello' gets split to
+# dirname and basename and the the prerequisite name is constructed from
+# dirname and basename.
+# pre=$pre
+# pd=$pd
+# td=$td
+# dd=$dd
+# rd=$rd
+# target=$target
+# dep=$dep
+$phony
+$se
+all: $target
+$rd$pd%.x: $dollar\$(undef) $dollar\$(strip $dollar\$(undef) $pre%.q) $dollar\$(undef) moon $dollar\$(undef); \$(info \$@ from \$^, \$\$* = \$*)
+", '', "$target from $dep moon, \$* = ${dd}hello\n" .
+	   "#MAKE#: Nothing to be done for 'all'.");
+unlink($dep, 'moon');
+}
+}
+}
+}
+}
+}
+
+# Test multiple dependency specifications for a target.
+# Among implicit and static pattern rules, this test makes sense for static
+# pattern rules only.
+for my $se (@second_expansion) {
+for my $pre (@prefix) {
+for my $pd (@dirs) {
+for my $td (@dirs) {
+
+# Target has no slash, pattern has a slash. Tested earlier.
+$pd && !$td && next;
+
+my $target = "${td}hello.debug.x";
+my $dd = $td && !$pd ? $td : '';
+my $dep1 = "$dd${pre}hello.qq";
+my $dep2 = "${dd}p-hello.debug.q";
+touch ($dep1);
+touch ($dep2);
+
+my $dollar = $se ? '$' : '';
+run_make_test("
+# Test multiple dependency specifications for a target.
+# pre=$pre
+# pd=$pd
+# td=$td
+# dd=$dd
+# target=target
+# dep1=$dep1
+# dep2=$dep2
+$se
+$target:
+$target: ${pd}%.debug.x: $dollar\$(strip $pre%.qq)
+$target: ${pd}%.x: $dollar\$(strip p-%.q)
+$target:; \$(info \$@ from \$^)
+", '', "$target from $dep1 $dep2\n" .
+       "#MAKE#: '${td}hello.debug.x' is up to date.\n");
+
+unlink($dep1, $dep2);
+}
+}
+}
+}
+
+
+
+
+# Test order-only prerequisites.
+for my $se (@second_expansion) {
+for my $ph (@phoniness) {
+for my $pre (@prefix) {
+for my $pd (@dirs) {
+for my $td (@dirs) {
+for my $r (@rules) {
+
+# Target has no slash, pattern has a slash. Tested earlier.
+$pd && !$td && next;
+
+my $target = "${td}hello.x";
+my $dd = $td && !$pd ? $td : '';
+my $dep1 = "$dd${pre}hello.q";
+my $dep2 = "$dd${pre}hello.qq";
+
+my $rd = $r ? "$target: " : '';
+# dep1 is always a phony file in this test.
+# dep2 and moon can be phony or phony prerequisites in this test.
+# Among other things, this tests that order-only attribute has priority over
+# phony attribute of a prerequisite.
+touch($dep1);
+touch($dep2);
+touch('moon');
+my $phony = '';
+$ph and $phony .= ".PHONY: $dep2 moon";
+
+my $dollar = $se ? '$' : '';
+run_make_test("
+# Test order-only prerequisites.
+# pre=$pre
+# pd=$pd
+# td=$td
+# dd=$dd
+# rd=$rd
+# dep1=$dep1
+# dep2=$dep2
+$phony
+$se
+all: $target
+$rd$pd%.x: $dollar\$(undef) $dollar\$(strip $dollar\$(undef) $pre%.q) $dollar\$(undef) | $dollar\$(undef) $pre%.qq moon $dollar\$(undef)
+	\$(info \$@ from \$^ \$|, \$\$* = \$*)
+	touch \$@
+", '', "$target from $dep1 $dep2 moon, \$* = ${dd}hello\n" .
+       "touch $target\n");
+
+# Touch order-only prerequsites and observe that hello.x is not rebuilt.
+touch(-10, $dep2);
+touch(-10, 'moon');
+
+run_make_test("
+# Test order-only prerequisites.
+# pre=$pre
+# pd=$pd
+# td=$td
+# dd=$dd
+# rd=$rd
+# dep1=$dep1
+# dep2=$dep2
+$phony
+$se
+all: $target
+$rd$pd%.x: $dollar\$(undef) $dollar\$(strip $pre%.q $dollar\$(undef)) $dollar\$(undef) | $dollar\$(undef) $pre%.qq moon $dollar\$(undef)
+	\$(info \$@ from \$^ \$|, \$\$* = \$*)
+	touch \$@
+", '', "#MAKE#: Nothing to be done for 'all'.");
+
+unlink("$target", $dep1, $dep2, 'moon');
+}
+}
+}
+}
+}
+}
+
+# Test escaped % in a prerequisite.
+for my $se (@second_expansion) {
+for my $pre (@prefix) {
+for my $pd (@dirs) {
+for my $td (@dirs) {
+
+# Target has no slash, pattern has a slash. Tested earlier.
+$pd && !$td && next;
+
+my $target = "${td}hello.x";
+my $dd = $td && !$pd ? $td : '';
+my $dep = "$dd$pre%-hello.q";
+my $dollar = $se ? '$' : '';
+
+run_make_test("
+# Test escaped % in a prerequisite.
+# Static pattern rules allow escaping % in a prerequisite.
+# pre=$pre
+# pd=$pd
+# td=$td
+# dd=$dd
+# target=$target
+# dep=$dep
+$se
+all: $target
+#TODO: get rid of undef
+# Have most of the test simple with one dep.
+# Add dedicated tests with wordlist, \$(undef), etc.
+$target: $pd%.x: $dollar\$(strip $pre\\%-%.q); \$(info \$@ from \$^, \$\$* = \$*)
+$dep:;
+", '', "$target from $dep, \$* = ${dd}hello\n" .
+	   "#MAKE#: Nothing to be done for 'all'.");
+
+# Test a backslash escaped with a backlash.
+$dep = "$dd$pre\\hello-%.q";
+run_make_test("
+# Test escaped % in a prerequisite.
+# Implicit rules do not allow escaping % in a prerequisite.
+# pre=$pre
+# pd=$pd
+# td=$td
+# dd=$dd
+# target=$target
+# dep=$dep
+$se
+all: $target
+$target: $pd%.x: $dollar\$(strip $pre\\\\%-%.q); \$(info \$@ from \$^, \$\$* = \$*)
+$dep:;
+", '', "$target from $dep, \$* = ${dd}hello\n" .
+	   "#MAKE#: Nothing to be done for 'all'.");
+}
+}
+}
+}
+
+# Test $$*.
+# This test only makes sense with second expansion.
+for my $pre (@prefix) {
+for my $pd (@dirs) {
+for my $td (@dirs) {
+for my $r (@rules) {
+
+# Target has no slash, pattern has a slash. Tested earlier.
+$pd && !$td && next;
+
+my $target = "${td}hello.x";
+my $rd = $r ? "$target: " : '';
+my $dd = $td && !$pd ? $td : '';
+my $dep = "$pre${dd}hello.q";
+
+run_make_test("
+# Test \$\$*.
+# pre=$pre
+# pd=$pd
+# td=$td
+# dd=$dd
+# target=$target
+# dep=$dep
+.PHONY: $dep
+.SECONDEXPANSION:
+all: $target
+$rd$pd%.x: $pre\$\$*.q; \$(info \$@ from \$^, \$\$* = \$*)
+", '', "$target from $dep, \$* = ${dd}hello\n" .
+	   "#MAKE#: Nothing to be done for 'all'.");
+}
+}
+}
+}
+
+
+
+# Test reading prerequisites from a .d file.
+# The techniques are either $$(file %.d) or $$(file $$*.d).
+# $(file %.d) won't work, because % is substituted after first expansion.
+# Splitting the stem to dirname and basename and then having dirname prepended
+# won't work  whether it is %.d or $$*.d.
+# Splitting does not work, because $(file) has to read the file before second
+# expansion and dirname is prepended after second expansion.
+# The same limitation applies to similar cases like $$(shell cat %.d), etc.
+# In the case of $$*.d no stem splitting takes place by design.
+# Therefore, test what is supposed to work:
+#     - target directory matches pattern directory (whether empty or not) in
+#       the case of $$(file %.d).
+#     - no stem splitting in the case of $$(file $$*.d).
+
+# Test reading prerequisites from a .d file specified as %.d.
+for my $pre (@prefix) {
+for my $td (@dirs) {
+for my $r (@rules) {
+
+my $target = "${td}hello.x";
+my $rd = $r ? "$target: " : '';
+my $dep = "${pre}hello.d";
+
+create_file("$dep", "hello.h bye.h");
+run_make_test("
+# Test reading prerequisites from a .d file specified as %.d.
+# pre=$pre
+# td=$td
+# target=$target
+# dep=$dep
+.SECONDEXPANSION:
+all: $target
+$rd$td%.x: \$\$(file <$pre%.d); \$(info \$@ from \$^, \$\$* = \$*)
+hello.h bye.h:;
+", '', "$target from hello.h bye.h, \$* = hello\n" .
+       "#MAKE#: Nothing to be done for 'all'.\n");
+unlink("$dep");
+}
+}
+}
+
+# Test reading prerequisites from a .d file specified as $$*.d.
+for my $pd (@dirs) {
+for my $td (@dirs) {
+for my $r (@rules) {
+
+# Target has no slash, pattern has a slash. Tested earlier.
+$pd && !$td && next;
+
+my $target = "${td}hello.x";
+my $rd = $r ? "$target: " : '';
+my $dd = $td && !$pd ? $td : '';
+my $dep = "${dd}hello.d";
+
+create_file("$dep", "hello.h bye.h");
+run_make_test("
+# Test reading prerequisites from a .d file specified as \$\$*.d.
+# pd=$pd
+# td=$td
+# dd=$dd
+# target=$target
+# dep=$dep
+.SECONDEXPANSION:
+all: $target
+$rd$pd%.x: \$\$(file <\$\$*.d); \$(info \$@ from \$^, \$\$* = \$*)
+hello.h bye.h:;
+", '', "$target from hello.h bye.h, \$* = ${dd}hello\n" .
+       "#MAKE#: Nothing to be done for 'all'.\n");
+unlink("$dep");
+}
+}
+}
+
+
+# Implicit rules forbid an empty stem.
+# Static pattern rules allow an empty stem.
+for my $se (@second_expansion) {
+for my $pre (@prefix) {
+for my $td (@dirs) {
+
+my $target = "${td}hello.x";
+my $dep = "${pre}hello.q";
+my $dollar = $se ? '$' : '';
+
+run_make_test("
+# Test empty stem in static pattern rules.
+# pre=$pre
+# td=$td
+# target=$target
+# dep=$dep
+$se
+all: $target
+$target: ${td}hello%.x: $dollar\$(strip ${pre}hello%.q); \$(info \$@ from \$^, \$\$* = \$*)
+$dep:;
+", '', "$target from $dep, \$* = \n" .
+       "#MAKE#: Nothing to be done for 'all'.\n");
+}
+}
+}
+
+# Test empty basename part of the stem.
+for my $se (@second_expansion) {
+for my $pre (@prefix) {
+for my $r (@rules) {
+
+my $target = "${dir}hello.x";
+my $dep = "$dir${pre}hello.q";
+my $rd = $r ? "$target: " : '';
+my $dollar = $se ? '$' : '';
+
+run_make_test("
+# Test empty basename part of the stem.
+$se
+all: $target
+$rd%hello.x: $dollar\$(strip $pre%hello.q); \$(info \$@ from \$^, \$\$* = \$*)
+$dep:;
+", '', "$target from $dep, \$* = $dir\n" .
+       "#MAKE#: Nothing to be done for 'all'.\n");
+}
+}
+}
+
+# Stem matches the directory part of the target.
+for my $se (@second_expansion) {
+for my $r (@rules) {
+my $target = "${dir}hello.x";
+my $dep = "${dir}hello.q";
+my $rd = $r ? "$target: " : '';
+my $dollar = $se ? '$' : '';
+
+run_make_test("
+# Stem matches the directory part of the target.
+$se
+all: $target
+$rd%/hello.x: $dollar\$(strip %/hello.q); \$(info \$@ from \$^, \$\$* = \$*)
+$dep:;
+", '', "$target from $dep, \$* = a\n" .
+       "#MAKE#: Nothing to be done for 'all'.\n");
+}
+}
+
+# Stem matches directories and there is no prefix before %.
+for my $se (@second_expansion) {
+for my $pre (@prefix) {
+for my $r (@rules) {
+
+my $target = "drivers/video/hello.x";
+my $dep = "drivers/video/${pre}hello.q";
+my $rd = $r ? "$target: " : '';
+my $dollar = $se ? '$' : '';
+
+run_make_test("
+# Stem matches directories and there is no prefix before %.
+$se
+all: $target
+$rd%.x: $dollar\$(strip $pre%.q); \$(info \$@ from \$^, \$\$* = \$*)
+$dep:;
+", '', "$target from $dep, \$* = drivers/video/hello\n" .
+       "#MAKE#: Nothing to be done for 'all'.\n");
+}
+}
+}
+
+# Stem matches directories and there is a prefix before %.
+# Implicit rules fail this test.
+for my $se (@second_expansion) {
+for my $pre (@prefix) {
+
+my $target = "drivers/video/hello.x";
+my $dep = "video/${pre}hello.q";
+my $dollar = $se ? '$' : '';
+
+run_make_test("
+# Stem matches directories and there is a prefix before %.
+$se
+all: $target
+$target: drivers/%.x: $dollar\$(strip $pre%.q); \$(info \$@ from \$^, \$\$* = \$*)
+$dep:;
+", '', "$target from $dep, \$* = video/hello\n" .
+       "#MAKE#: Nothing to be done for 'all'.\n");
+
+$dep = "/video/${pre}hello.q";
+run_make_test("
+# Stem matches directories and there is a prefix before %.
+$se
+all: $target
+$target: drivers%.x: $dollar\$(strip $pre%.q); \$(info \$@ from \$^, \$\$* = \$*)
+$dep:;
+", '', "$target from $dep, \$* = /video/hello\n" .
+       "#MAKE#: Nothing to be done for 'all'.\n");
+}
+}
+
+# Expansion splits the depline to multiple deps.
+for my $pre (@prefix) {
+for my $pd (@dirs) {
+for my $td (@dirs) {
+for my $r (@rules) {
+
+# Target has no slash, pattern has a slash. Tested earlier.
+$pd && !$td && next;
+
+my $target = "${td}hello.x";
+my $dd = $td && !$pd ? $td : '';
+my $dep = "$dd${pre}hello.q moon";
+my $rd = $r ? "$target: " : '';
+
+run_make_test("
+# Expansion splits the depline to multiple deps.
+empty:=
+space:=\$(empty) \$(empty)
+all: $target
+$rd$pd%.x: $pre%.q\$(space)moon; \$(info \$@ from \$^, \$\$* = \$*)
+$dep:;
+", '', "$target from $dep, \$* = ${dd}hello\n" .
+       "#MAKE#: Nothing to be done for 'all'.\n");
+}
+}
+}
+}
+
+for my $se (@second_expansion) {
+for my $pre (@prefix) {
+for my $td (@dirs) {
+for my $r (@rules) {
+
+my $target = "${td}hello.x";
+my $dep = "${pre}hello.q moon";
+my $rd = $r ? "$target: " : '';
+my $dollar = $se ? '$' : '';
+
+run_make_test("
+# Expansion splits the depline to multiple deps.
+$se
+empty:=
+space:=\$(empty) \$(empty)
+all: $target
+$rd$td%.x: $pre%.q$dollar\$(space)moon; \$(info \$@ from \$^, \$\$* = \$*)
+$dep:;
+", '', "$target from $dep, \$* = hello\n" .
+       "#MAKE#: Nothing to be done for 'all'.\n");
+}
+}
+}
+}
+
+run_make_test(q!
+.SECONDEXPANSION:
+hello.x: %.x: %$$(undef).q; $(info $@ from $^, $$* = $*)
+hello.q:; $(info $@)
+!, '', "hello.q\n" .
+       "hello.x from hello.q, \$* = hello\n" .
+       "#MAKE#: 'hello.x' is up to date.\n");
+
+
+
+# Target and pattern end with a slash.
+run_make_test(q!
+.SECONDEXPANSION:
+.debug.dir/: .%.dir/: pre-%; $(info $@ from $^, $$* = $*)
+pre-debug:; $(info $@)
+!, '', "pre-debug\n" .
+       ".debug.dir/ from pre-debug, \$* = debug\n" .
+       "#MAKE#: '.debug.dir/' is up to date.\n");
+
+# Target ends with a slash.
+run_make_test(q!
+.SECONDEXPANSION:
+.debug.dir/: .debug.dir%: pre-%; $(info $@ from $^, $$* = $*)
+/pre-:; $(info $@)
+!, '', "/pre-\n" .
+       ".debug.dir/ from /pre-, \$* = /\n" .
+       "#MAKE#: '.debug.dir/' is up to date.\n");
+
+# It is possible to second expand the result of substitution of the basename of
+# the stem.
+# If the result of substitution of the basename of the stem second expands to
+# nothing, then there is no prerequisite and the dirname of the stem is not
+# prepended.
+# If the result of substitution of the basename of the stem second expands to
+# something, then the dirname of the stem is prepended to the resultant
+# prerequisite.
+#
+# The loop below generates variations of this second expansion of the result
+# of substitution of the basename of the stem.
+# For example
+#
+# .SECONDEXPANSION:
+# h:=
+# all: a/hello.x
+# %ello.x: $$(%); $(info $@ from $^, $$* = $*)
+#
+# Here the stem is 'a/h'. The basename of the stem is 'h'. The dirname of the
+# stem is 'a/'.
+# After first expansion the rule becomes
+# %ello.x: $(%); $(info $@ from $^, $$* = $*)
+#
+# After substitution of the basename of the stem the rule becomes
+# %ello.x: $(h); $(info $@ from $^, $$* = $*)
+#
+# In this case 'h' is empty and '$(h)' second expands to nothing.
+# Therefore, there is no prerequisite and the dirname of the stem is not
+# preprended and the rule becomes
+# hello.x:; $(info $@ from $^, $$* = $*)
+#
+# On the other, hand if 'h' is set to something, then
+#
+# .SECONDEXPANSION:
+# h:=hello.q
+# all: a/hello.x
+# %ello.x: $$(%); $(info $@ from $^, $$* = $*)
+#
+# In this case 'h' is not empty and '$(h)' second expands to 'hello.q'.
+# Therefore, there is a prerequisite and the dirname of the stem
+# preprended and the rule becomes
+# hello.x: a/hello.q; $(info $@ from $^, $$* = $*)
+#
+
+# Test prerequisites with $%.
+my @varef = ('$(%)', '$%');
+my @hello = ('', 'hello.q');
+
+for my $vr (@varef) {
+for my $h (@hello) {
+for my $ph (@phoniness) {
+for my $pre (@prefix) {
+for my $pd (@dirs) {
+for my $td (@dirs) {
+for my $r (@rules) {
+
+# Target has no slash, pattern has a slash. Tested earlier.
+$pd && !$td && next;
+
+# This is the case of %ello.x: $$%.
+# Implicit rules fail this one.
+# Fix implicit rules and enable this test.
+$r == 0 && $vr eq '$%' && next;
+
+my $target = "${td}hello.x";
+my $dd = $td && !$pd ? $td : '';
+my $dep = $h eq '' && $pre eq '' ? '' : "$dd$pre$h";
+
+my $rd = $r ? "$target: " : '';
+$dep && touch("$dep");
+my $phony = '';
+$ph and $phony .= ".PHONY: $dep";
+
+run_make_test("
+# Test prerequisites with \$%.
+# pre=$pre
+# pd=$pd
+# td=$td
+# dd=$dd
+# rd=$rd
+# dep=$dep
+$phony
+.SECONDEXPANSION:
+h:=$h
+all: $target
+$rd$pd%ello.x: $pre\$$vr; \$(info \$@ from \$^, \$\$* = \$*)
+", '', "$target from $dep, \$* = ${dd}h\n" .
+       "#MAKE#: Nothing to be done for 'all'.");
+unlink("$dep");
+}
+}
+}
+}
+}
+}
+}
+
+#TODO: test multiple prerequisites.
+# a/hello.x: %.x: %.q %ello.z
+
+#TODO: test a prerequisite w/o % in front of the one with %. 
+# a/hello.x: %.x: moon %.q
+
+# The manual says
+# "the '%' matches any nonempty substring" and later
+# "There must be at least one character to match the '%'."
+# There are cases where make's behavior diverges from this
+# at-least-one-character goal and % matches an empty stem.
+# However, there is no need to worry about those cases in the context of this
+# change.
+
+#my @rules = ('', 'a/hello.x: ');
+#
+#for my $r (@rules) {
+#
+## A pattern with a slash. No stem splitting takes place.
+#touch('hello.q');
+#run_make_test("
+#all: a/hello.x
+#${r}a/%.x: %.q; \$(info \$@ from \$^, \$\$* = \$*)
+#", '', "a/hello.x from hello.q, \$* = hello\n#MAKE#: Nothing to be done for 'all'.");
+#unlink('hello.q');
+#
+#
+## A pattern without a slash. Stem splitting takes place.
+#touch('a/hello.q');
+#run_make_test("
+#all: a/hello.x
+#${r}%.x: %.q; \$(info \$@ from \$^, \$\$* = \$*)
+#", '', "a/hello.x from a/hello.q, \$* = a/hello\n#MAKE#: Nothing to be done for 'all'.");
+#unlink('a/hello.q');
+#
+#
+## A pattern with a slash. A prefix before %. No stem splitting takes place.
+#touch('pre-hello.q');
+#run_make_test("
+#all: a/hello.x
+#${r}a/%.x: pre-%.q; \$(info \$@ from \$^, \$\$* = \$*)
+#", '', "a/hello.x from pre-hello.q, \$* = hello\n#MAKE#: Nothing to be done for 'all'.");
+#unlink('pre-hello.q');
+#
+#
+## A pattern without a slash. A prefix before %. Stem splitting takes place.
+#touch('a/pre-hello.q');
+#run_make_test("
+#all: a/hello.x
+#${r}%.x: pre-%.q; \$(info \$@ from \$^, \$\$* = \$*)
+#", '', "a/hello.x from a/pre-hello.q, \$* = a/hello\n#MAKE#: Nothing to be done for 'all'.");
+#unlink('a/pre-hello.q');
+#
+#
+## A pattern without a slash. A prefix before %. Stem splitting takes place.
+## A prerequisite that carries no %.
+#touch('a/pre-hello.q');
+#touch('moon');
+#run_make_test("
+#all: a/hello.x
+#${r}%.x: \$(strip pre-%.q moon); \$(info \$@ from \$^, \$\$* = \$*)
+#", '', "a/hello.x from a/pre-hello.q moon, \$* = a/hello\n#MAKE#: Nothing to be done for 'all'.");
+#unlink('a/pre-hello.q', 'moon');
+#
+#
+## A pattern with a slash. A prefix before %. Stem splitting takes place.
+## A prerequisite that carries no %.
+#touch('pre-hello.q');
+#touch('moon');
+#run_make_test("
+#all: a/hello.x
+#${r}a/%.x: \$(strip pre-%.q moon); \$(info \$@ from \$^, \$\$* = \$*)
+#", '', "a/hello.x from pre-hello.q moon, \$* = hello\n#MAKE#: Nothing to be done for 'all'.");
+#unlink('pre-hello.q');
+#
+#
+## A pattern without a slash. A prefix before %. No stem splitting takes place.
+## Empty stem.
+#touch('hello.q');
+#if ($r) {
+#    #TODO: fix implicit search and uncomment this test.
+#    run_make_test("
+#all: hello.x
+#${r}hello%.x: hello%.q; \$(info \$@ from \$^, \$\$* = \$*)
+#    ", '', "hello.x from hello.q, \$* = \n#MAKE#: Nothing to be done for 'all'.");
+#    unlink('hello.q');
+#}
+#
+## A pattern without a slash. A prefix before %. Stem splitting takes place.
+## Empty basename part of stem.
+##TODO: static pattern rules fail this one. However, this is not a regression.
+#touch('a/hello.q');
+#run_make_test("
+#all: a/hello.x
+#${r}hello%.x: hello%.q; \$(info \$@ from \$^, \$\$* = \$*)
+#", '', "a/hello.x from a/hello.q, \$* = a/\n#MAKE#: Nothing to be done for 'all'.");
+#unlink('a/hello.q');
+#
+#
+## A pattern with a slash. A prefix before %. No stem splitting takes place.
+## Empty stem.
+## Implicit rules fails this one.
+## However, this is not a regression.
+## Implicit rules and static pattern rules work with empty basename.
+## Therefore this test should also work.
+#touch('a/hello.q');
+#if ($r) {
+##TODO: fix implicit search and uncomment this test.
+#    run_make_test("
+#all: a/hello.x
+#${r}a/hello%.x: a/hello%.q; \$(info \$@ from \$^, \$\$* = \$*)
+#    ", '', "a/hello.x from a/hello.q, \$* = \n#MAKE#: Nothing to be done for 'all'.");
+#    unlink('a/hello.q');
+#}
+#}
+
+# TODO:
+# v for proper prerequisities, phony prerequisites.
+#   for regular targets, grouped targets.
+#   for single colon, double colon
+#   for single expansion, second expansion
+# v  for static pattern rules, implicit rules
+# v 1. patterns with a slash. a/.%.o.
+# v 2. patterns without a slash .%.o.
+#   3. patterns that end with a slash, e.g. .%.dir/.
+#   4. targets that end with a slash, e.g. a/.
+# v  5. expansion of $(%).
+# v  5.1 expansion of $%.
+# 6. empty stem basename.
+# 6.1 empty stem.
+# v 7. prefix before stem.
+# v 8. suffix after stem.
+# v 9. a prerequisite that carries no %.
+#   10. multiple tokens $(strip %.q phobos) deimos.
+#   11. order only.
+#   12. multiple dep lines per target.
+# For each test case check
+# prerequisites discovery in multiple directories.
+# automatic variables.
+
+
+# Abandoned tests below. Remove them.
+
+#mkdir('p');
+#mkdir('p/y');
+
+# Test stem splitting for pattern rules and static pattern rules.
+# A pattern without a slash. Stem splitting takes place.
+#my @rules = ('', 'a/b.o p/y/r.o: ');
+#for my $r (@rules) {
+#run_make_test("
+#all: a/b.o p/y/r.o
+#$r%.o: .%.q; \$(info \$@ from \$<, \$\$* = \$*)
+#", '', "a/b.o from a/.b.q, \$* = a/b\np/y/r.o from p/y/.r.q, \$* = p/y/r\n#MAKE#: Nothing to be done for 'all'.");
+#}
+
+# Test stem splitting for pattern rules and static pattern rules with second expansion.
+#for my $r (@rules) {
+#run_make_test("
+#.SECONDEXPANSION:
+#prereq:=.q
+#all: a/b.o p/y/r.o
+#$r%.o: .%\$\$(prereq); \$(info \$@ from \$<, \$\$* = \$*)
+#", '', "a/b.o from a/.b.q, \$* = a/b\np/y/r.o from p/y/.r.q, \$* = p/y/r\n#MAKE#: Nothing to be done for 'all'.");
+#}
+
+
+#rmdir('p/y');
+#rmdir('a');
+#rmdir('p');
+1;

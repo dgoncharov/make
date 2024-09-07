@@ -40,13 +40,20 @@ struct nameseq
    Each struct file's 'deps' points to a chain of these, through 'next'.
    'stem' is the stem for this dep line of static pattern rule or NULL.
    explicit is set when implicit rule search is performed and the prerequisite
-   does not contain %. When explicit is set the file is not intermediate.  */
+   does not contain %. When explicit is set the file is not intermediate.
+   stem_dirname is the dirname portion of the stem, including the last slash.
+   stem_basename is the basename portion of the stem. If set, points within
+   d->stem. The distance from d->stem to d->stem_basename equals the length of
+   d->stem_dirname. */
+
 
 #define DEP(_t)                                 \
     NAMESEQ (_t);                               \
     struct file *file;                          \
     _t *shuf;                                   \
     const char *stem;                           \
+    const char *stem_dirname;                   \
+    const char *stem_basename;                  \
     unsigned int flags : 8;                     \
     unsigned int changed : 1;                   \
     unsigned int ignore_mtime : 1;              \
