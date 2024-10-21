@@ -1,0 +1,548 @@
+#                                                                    -*-perl-*-
+
+use warnings;
+my $description = "Test stem splitting";
+
+# $dollar\$(strip <dep>) is used in these tests to ensure there is a $ on the
+# depline after first expansion. This $ is needed to have make perform second
+# expansion.
+
+my $dir = 'drivers';
+mkdir($dir);
+my @second_expansion = ('', '.SECONDEXPANSION:');
+my @phoniness = (0, 1);
+# 0 - test implicit rules.
+# 1 - test static pattern rules.
+my @rules = (0, 1);
+my @prefix = ('', 'pre-');
+my @dirs = ('', "$dir/");
+
+sub test
+{
+  test_static_pattern (@_);
+  test_implicit (@_);
+}
+
+sub test_static_pattern
+{
+  my ($target, $pattern, $prereq, $dep, $stem) = @_;
+
+  for my $se (@second_expansion) {
+    my $dollar = $se ? '$' : '';
+    run_make_test("
+.SPLIT_STEM_FOR_STATIC_PATTERN_RULES:
+$se
+all: $target
+$target: $pattern: $dollar\$(strip $prereq); \$(info \$@ from \$^, \$\$* = \$*)
+$dep:;
+", '', "$target from $dep, \$* = $stem\n" .
+       "#MAKE#: Nothing to be done for 'all'.");
+  }
+}
+
+sub test_implicit
+{
+  my ($target, $pattern, $prereq, $dep, $stem) = @_;
+
+  for my $se (@second_expansion) {
+    my $dollar = $se ? '$' : '';
+    run_make_test("
+$se
+all: $target
+$pattern: $dollar\$(strip $prereq); \$(info \$@ from \$^, \$\$* = \$*)
+$dep:;
+", '', "$target from $dep, \$* = $stem\n" .
+       "#MAKE#: Nothing to be done for 'all'.");
+  }
+}
+
+# Test stem splitting and directory prefix reconstruction with various inputs.
+# Such as targets and patterns with and without a directory, empty basename, %
+# matching directory or basename or both, empty stem, presence and absence of
+# prefix and suffix, etc.
+# Implicit rules forbid an empty stem.
+# Static pattern rules allow an empty stem.
+for my $td (@dirs) {
+  for my $pre (@prefix) {
+    my $target = "${td}hello.x";
+    test ($target, "%.x", "${pre}%.q", "$td${pre}hello.q", "${td}hello");
+    test ($target, "${td}%.x", "${pre}%.q", "${pre}hello.q", "hello");
+    test ($target, "%", "${pre}%.q", "$td${pre}hello.x.q", "${td}hello.x");
+    test ($target, "${td}%", "${pre}%.q", "${pre}hello.x.q", "hello.x");
+    test ($target, "${td}hello%", "${pre}hello%.q", "${pre}hello.x.q", ".x");
+    test ($target, "${td}h%.x", "${pre}h%.q", "${pre}hello.q", "ello");
+    test_static_pattern ($target, "%hello.x", "${pre}%hello.q", "$pre${td}hello.q", "${td}");
+    test_static_pattern ($target, "${td}%hello.x", "${pre}%hello.q", "${pre}hello.q", "");
+    test_static_pattern ($target, "${td}hello.x%", "${pre}hello.q", "${pre}hello.q", "");
+    test_static_pattern ($target, "${td}hello%.x", "${pre}hello.q", "${pre}hello.q", "");
+  }
+}
+
+# Make sure the examples presented in the manual work.
+test_static_pattern ("drivers/hello.x", "%.x", "pre-%.q .%.d",
+                     "drivers/pre-hello.q drivers/.hello.d", "drivers/hello");
+test_static_pattern ("pilots/video/world.x", "%.x", "pre-%.q .%.d",
+                     "pilots/video/pre-world.q pilots/video/.world.d",
+                     "pilots/video/world");
+test_implicit ("src/eat", "e%t", "c%r", "src/car", "src/a");
+
+for my $pre (@prefix) {
+  my $target = "drivers/hello.x";
+  test_static_pattern ($target, "drivers%", "${pre}%.q", "/${pre}hello.x.q", "/hello.x");
+  test_static_pattern ($target, "%drivers/hello.x", "${pre}%hello.q", "${pre}hello.q", "");
+  test_static_pattern ($target, "drivers%/hello.x", "${pre}%hello.q", "${pre}hello.q", "");
+  test_static_pattern ($target, "drive%rs/hello.x", "${pre}%hello.q", "${pre}hello.q", "");
+  test ($target, "drive%/hello.x", "${pre}%hello.q", "${pre}rshello.q", "rs");
+  test ($target, "drive%s/hello.x", "${pre}%hello.q", "${pre}rhello.q", "r");
+  test ($target, "%rs/hello.x", "${pre}%hello.q", "${pre}drivehello.q", "drive");
+  test ($target, "%/hello.x", "${pre}%hello.q", "${pre}drivershello.q", "drivers");
+  test_static_pattern ($target, "drive%.x", "${pre}%.q", "rs/${pre}hello.q", "rs/hello");
+  test_static_pattern ($target, "drive%", "${pre}%.q", "rs/${pre}hello.x.q", "rs/hello.x");
+  test_static_pattern ($target, "drivers%hello.x", "${pre}%hello.q", "${pre}/hello.q", "/");
+}
+
+for my $pre (@prefix) {
+  my $target = "drivers/video/hello.x";
+  test_static_pattern ($target, "drivers%", "${pre}%.q", "/video/${pre}hello.x.q", "/video/hello.x");
+  test_static_pattern ($target, "drivers/%", "${pre}%.q", "video/${pre}hello.x.q", "video/hello.x");
+  test_static_pattern ($target, "drive%", "${pre}%.q", "rs/video/${pre}hello.x.q", "rs/video/hello.x");
+  test_static_pattern ($target, "drivers/video%", "${pre}%.q", "/${pre}hello.x.q", "/hello.x");
+  test_static_pattern ($target, "drivers/video/%", "${pre}%.q", "${pre}hello.x.q", "hello.x");
+  test_static_pattern ($target, "%drivers/video/hello.x", "${pre}%hello.q", "${pre}hello.q", "");
+  test_static_pattern ($target, "drivers/video/hello.x%", "${pre}%hello.q", "${pre}hello.q", "");
+  test_static_pattern ($target, "drivers/video/%hello.x", "${pre}%hello.q", "${pre}hello.q", "");
+  test_static_pattern ($target, "drivers/video%hello.x", "${pre}%hello.q", "${pre}/hello.q", "/");
+  test_static_pattern ($target, "drivers/video/%.x", "${pre}%.q", "${pre}hello.q", "hello");
+  test_static_pattern ($target, "drivers/video%.x", "${pre}%.q", "/${pre}hello.q", "/hello");
+  test_static_pattern ($target, "drivers/video%hello.x", "${pre}%hello.q", "${pre}/hello.q", "/");
+  test_static_pattern ($target, "drivers/%/hello.x", "${pre}%hello.q", "${pre}videohello.q", "video");
+  test_static_pattern ($target, "drivers/v%o/hello.x", "${pre}%hello.q", "${pre}idehello.q", "ide");
+  test_static_pattern ($target, "drivers%/hello.x", "${pre}%hello.q", "/${pre}videohello.q", "/video");
+  test_static_pattern ($target, "drivers%hello.x", "${pre}%hello.q", "${pre}/video/hello.q", "/video/");
+  test_static_pattern ($target, "drive%/hello.x", "${pre}%hello.q", "rs/${pre}videohello.q", "rs/video");
+  test_static_pattern ($target, "drive%hello.x", "${pre}%hello.q", "${pre}rs/video/hello.q", "rs/video/");
+  test_static_pattern ($target, "%hello.x", "${pre}%hello.q", "${pre}drivers/video/hello.q", "drivers/video/");
+  test_static_pattern ($target, "%/hello.x", "${pre}%hello.q", "drivers/${pre}videohello.q", "drivers/video");
+  test_static_pattern ($target, "%video/hello.x", "${pre}%hello.q", "${pre}drivers/hello.q", "drivers/");
+  test_static_pattern ($target, "%/video/hello.x", "${pre}%hello.q", "${pre}drivershello.q", "drivers");
+  test_static_pattern ($target, "drive%/video/hello.x", "${pre}%hello.q", "${pre}rshello.q", "rs");
+  test_static_pattern ($target, "drive%s/video/hello.x", "${pre}%hello.q", "${pre}rhello.q", "r");
+  test_static_pattern ($target, "drivers%video/hello.x", "${pre}%hello.q", "${pre}/hello.q", "/");
+}
+
+for my $pre (@prefix) {
+  test ("/", "%", "${pre}%hello.q", "${pre}/hello.q", "/");
+}
+
+for my $pre (@prefix) {
+  my $target = "/hello.x";
+  test_static_pattern ($target, "/%hello.x", "${pre}%hello.q", "${pre}hello.q", "");
+  test_static_pattern ($target, "/hello.x%", "${pre}%hello.q", "${pre}hello.q", "");
+  test_static_pattern ($target, "/hello%.x", "${pre}%hello.q", "${pre}hello.q", "");
+  test_static_pattern ($target, "%/hello.x", "${pre}%hello.q", "${pre}hello.q", "");
+  test ($target, "/hello%", "${pre}hello%.q", "${pre}hello.x.q", ".x");
+  test ($target, "/%.x", "${pre}%.q", "${pre}hello.q", "hello");
+  test ($target, "/h%.x", "${pre}h%.q", "${pre}hello.q", "ello");
+  test ($target, "/%", "${pre}%.q", "${pre}hello.x.q", "hello.x");
+  test ($target, "%", "${pre}%.q", "/${pre}hello.x.q", "/hello.x");
+  test ($target, "%.x", "${pre}%.q", "/${pre}hello.q", "/hello");
+}
+
+for my $pre (@prefix) {
+  my $target = "drivers/";
+  test_static_pattern ($target, "%drivers/", "${pre}%pilots", "${pre}pilots", "");
+  test_static_pattern ($target, "drivers%/", "${pre}%pilots", "${pre}pilots", "");
+  test_static_pattern ($target, "drivers/%", "${pre}%pilots", "${pre}pilots", "");
+  test_static_pattern ($target, "drive%rs/", "${pre}%pilots", "${pre}pilots", "");
+  test ($target, "drivers%", "${pre}%pilots", "${pre}/pilots", "/");
+  test ($target, "drive%", "${pre}%pilots", "${pre}rs/pilots", "rs/");
+  test ($target, "%rs/", "${pre}%/pilots", "${pre}drive/pilots", "drive");
+  test ($target, "%/", "${pre}%/pilots", "${pre}drivers/pilots", "drivers");
+  test ($target, "%", "${pre}%pilots", "${pre}drivers/pilots", "drivers/");
+}
+
+# Test a target-pattern mismatch.
+for my $se (@second_expansion) {
+  my $target = "hello.x";
+  my $dollar = $se ? '$' : '';
+
+  run_make_test("
+# Test a target-pattern mismatch.
+.SPLIT_STEM_FOR_STATIC_PATTERN_RULES:
+$se
+all: $target
+$target: $dir/%.x: $dollar\$(strip $dir%.q); \$(info \$@ from \$^, \$\$* = \$*)
+hello.q:;
+", '', "#MAKEFILE#:6: target '$target' doesn't match target pattern '$dir/%.x'\n" .
+       "$target from , \$* = $target\n" .
+	   "#MAKE#: Nothing to be done for 'all'.\n");
+
+  run_make_test("
+# Test a target-pattern mismatch.
+.SPLIT_STEM_FOR_STATIC_PATTERN_RULES:
+$se
+all: $target
+$dir/%.x: $dollar\$(strip $dir%.q); \$(info \$@ from \$^, \$\$* = \$*)
+hello.q:;
+", '', "#MAKE#: *** No rule to make target '$target', needed by 'all'.  Stop.", 512);
+}
+
+# Test multiple dependency specifications for a target.
+# Among implicit and static pattern rules, this test makes sense for static
+# pattern rules only.
+for my $se (@second_expansion) {
+  for my $pre (@prefix) {
+    for my $pd (@dirs) {
+      for my $td (@dirs) {
+        # Target has no slash, pattern has a slash. Tested earlier.
+        $pd && !$td && next;
+
+        my $target = "${td}hello.debug.x";
+        my $dd = $td && !$pd ? $td : '';
+        my $dep1 = "$dd${pre}hello.qq";
+        my $dep2 = "${dd}p-hello.debug.q";
+
+        my $dollar = $se ? '$' : '';
+        run_make_test("
+# Test multiple dependency specifications for a target.
+# pre=$pre
+# pd=$pd
+# td=$td
+# dd=$dd
+# target=target
+# dep1=$dep1
+# dep2=$dep2
+.SPLIT_STEM_FOR_STATIC_PATTERN_RULES:
+$se
+$target:
+$target: ${pd}%.debug.x: $dollar\$(strip $pre%.qq)
+$target: ${pd}%.x: $dollar\$(strip p-%.q)
+$target:; \$(info \$@ from \$^)
+$dep1 $dep2:;
+:;
+", '', "$target from $dep1 $dep2\n" .
+       "#MAKE#: '${td}hello.debug.x' is up to date.\n");
+      }
+    }
+  }
+}
+
+# Test order-only prerequisites.
+for my $se (@second_expansion) {
+  for my $ph (@phoniness) {
+    for my $pre (@prefix) {
+      for my $pd (@dirs) {
+        for my $td (@dirs) {
+          for my $r (@rules) {
+            # Target has no slash, pattern has a slash. Tested earlier.
+            $pd && !$td && next;
+
+            my $target = "${td}hello.x";
+            my $dd = $td && !$pd ? $td : '';
+            my $dep1 = "$dd${pre}hello.q";
+            my $dep2 = "$dd${pre}hello.qq";
+
+            my $rd = $r ? "$target: " : '';
+            # dep1 is always a phony file in this test.  dep2 and moon can be
+            # phony or phony prerequisites in this test.  Among other things,
+            # this tests that order-only attribute has priority over phony
+            # attribute of a prerequisite.
+            touch($dep1);
+            touch($dep2);
+            touch('moon');
+            my $phony = '';
+            $ph and $phony .= ".PHONY: $dep2 moon";
+
+            my $dollar = $se ? '$' : '';
+            run_make_test("
+# Test order-only prerequisites.
+# pre=$pre
+# pd=$pd
+# td=$td
+# dd=$dd
+# rd=$rd
+# dep1=$dep1
+# dep2=$dep2
+.RECIPEPREFIX = >
+.SPLIT_STEM_FOR_STATIC_PATTERN_RULES:
+$phony
+$se
+all: $target
+$rd$pd%.x: $dollar\$(strip $pre%.q) | $dollar\$(strip $pre%.qq) moon
+> \$(info \$@ from \$^ \$|, \$\$* = \$*)
+> touch \$@
+", '', "$target from $dep1 $dep2 moon, \$* = ${dd}hello\n" .
+       "touch $target\n");
+
+            # Touch order-only prerequsites and observe that hello.x is not
+            # rebuilt.
+            touch(-10, $dep2);
+            touch(-10, 'moon');
+            run_make_test(undef, '', "#MAKE#: Nothing to be done for 'all'.");
+            unlink("$target", $dep1, $dep2, 'moon');
+          }
+        }
+      }
+    }
+  }
+}
+
+# Test escaped % in a prerequisite.
+# Static pattern rules allow escaping % in a prerequisite.
+# Implicit rules do not allow escaping % in a prerequisite.
+for my $se (@second_expansion) {
+  for my $pre (@prefix) {
+    for my $pd (@dirs) {
+      for my $td (@dirs) {
+        # Target has no slash, pattern has a slash. Tested earlier.
+        $pd && !$td && next;
+
+        my $target = "${td}hello.x";
+        my $dd = $td && !$pd ? $td : '';
+        my $dep = "$dd$pre%-hello.q";
+        my $dollar = $se ? '$' : '';
+
+        run_make_test("
+# Test escaped % in a prerequisite.
+# pre=$pre
+# pd=$pd
+# td=$td
+# dd=$dd
+# target=$target
+# dep=$dep
+.SPLIT_STEM_FOR_STATIC_PATTERN_RULES:
+$se
+all: $target
+$target: $pd%.x: $dollar\$(strip $pre\\%-%.q); \$(info \$@ from \$^, \$\$* = \$*)
+$dep:;
+", '', "$target from $dep, \$* = ${dd}hello\n" .
+	   "#MAKE#: Nothing to be done for 'all'.");
+
+        $dep = "$dd$pre\\hello-%.q";
+        run_make_test("
+# Test a backslash escaped with a backlash.
+# pre=$pre
+# pd=$pd
+# td=$td
+# dd=$dd
+# target=$target
+# dep=$dep
+.SPLIT_STEM_FOR_STATIC_PATTERN_RULES:
+$se
+all: $target
+$target: $pd%.x: $dollar\$(strip $pre\\\\%-%.q); \$(info \$@ from \$^, \$\$* = \$*)
+$dep:;
+", '', "$target from $dep, \$* = ${dd}hello\n" .
+	   "#MAKE#: Nothing to be done for 'all'.");
+      }
+    }
+  }
+}
+
+# Test $$*.
+# This test only makes sense with second expansion.
+for my $pre (@prefix) {
+  for my $pd (@dirs) {
+    for my $td (@dirs) {
+      for my $r (@rules) {
+        # Target has no slash, pattern has a slash. Tested earlier.
+        $pd && !$td && next;
+
+        my $target = "${td}hello.x";
+        my $rd = $r ? "$target: " : '';
+        my $dd = $td && !$pd ? $td : '';
+        my $dep = "$pre${dd}hello.q";
+
+        run_make_test("
+# Test \$\$*.
+# pre=$pre
+# pd=$pd
+# td=$td
+# dd=$dd
+# target=$target
+# dep=$dep
+.SPLIT_STEM_FOR_STATIC_PATTERN_RULES:
+.PHONY: $dep
+.SECONDEXPANSION:
+all: $target
+$rd$pd%.x: $pre\$\$*.q; \$(info \$@ from \$^, \$\$* = \$*)
+", '', "$target from $dep, \$* = ${dd}hello\n" .
+	   "#MAKE#: Nothing to be done for 'all'.");
+      }
+    }
+  }
+}
+
+# Test reading prerequisites from a .d file.
+# The techniques are either $$(file <%.d) or $$(file <$$*.d).
+# $(file <%.d) won't work, because % is substituted after first expansion.
+# Splitting the stem to dirname and basename and then having dirname prepended
+# won't work with these techniques, whether %.d or $$*.d.
+# Splitting does not work, because $$(file <%.d) has to read the file during
+# second expansion and dirname is prepended after second expansion.
+# The same limitation applies to similar cases like $$(shell cat %.d), etc.
+# In the case of $$*.d no stem splitting takes place by design.
+# Therefore, test what is supposed to work:
+#     - target directory matches pattern directory (whether empty or not) in
+#       the case of $$(file <%.d).
+#     - no stem splitting in the case of $$(file <$$*.d).
+
+# Test reading prerequisites from a .d file specified as %.d.
+for my $pre (@prefix) {
+  for my $td (@dirs) {
+    for my $r (@rules) {
+
+      my $target = "${td}hello.x";
+      my $rd = $r ? "$target: " : '';
+      my $dep = "${pre}hello.d";
+
+      create_file("$dep", "hello.h bye.h");
+      run_make_test("
+# Test reading prerequisites from a .d file specified as %.d.
+# pre=$pre
+# td=$td
+# target=$target
+# dep=$dep
+.SPLIT_STEM_FOR_STATIC_PATTERN_RULES:
+.SECONDEXPANSION:
+all: $target
+$rd$td%.x: \$\$(file <$pre%.d); \$(info \$@ from \$^, \$\$* = \$*)
+hello.h bye.h:;
+", '', "$target from hello.h bye.h, \$* = hello\n" .
+       "#MAKE#: Nothing to be done for 'all'.\n");
+
+      unlink("$dep");
+    }
+  }
+}
+
+# Test reading prerequisites from a .d file specified as $$*.d.
+for my $pd (@dirs) {
+  for my $td (@dirs) {
+    for my $r (@rules) {
+
+      # Target has no slash, pattern has a slash. Tested earlier.
+      $pd && !$td && next;
+
+      my $target = "${td}hello.x";
+      my $rd = $r ? "$target: " : '';
+      my $dd = $td && !$pd ? $td : '';
+      my $dep = "${dd}hello.d";
+
+      create_file("$dep", "hello.h bye.h");
+      run_make_test("
+# Test reading prerequisites from a .d file specified as \$\$*.d.
+# pd=$pd
+# td=$td
+# dd=$dd
+# target=$target
+# dep=$dep
+.SPLIT_STEM_FOR_STATIC_PATTERN_RULES:
+.SECONDEXPANSION:
+all: $target
+$rd$pd%.x: \$\$(file <\$\$*.d); \$(info \$@ from \$^, \$\$* = \$*)
+hello.h bye.h:;
+", '', "$target from hello.h bye.h, \$* = ${dd}hello\n" .
+       "#MAKE#: Nothing to be done for 'all'.\n");
+
+      unlink("$dep");
+    }
+  }
+}
+
+# Expansion splits the depline to multiple deps.
+# This also tests that the dirname from the stem (if present) is only appended
+# to those prerequisites which carry a %.
+for my $pre (@prefix) {
+  for my $pd (@dirs) {
+    for my $td (@dirs) {
+      for my $r (@rules) {
+
+        # Target has no slash, pattern has a slash. Tested earlier.
+        $pd && !$td && next;
+
+        my $target = "${td}hello.x";
+        my $dd = $td && !$pd ? $td : '';
+        my $dep = "$dd${pre}hello.q moon";
+        my $rd = $r ? "$target: " : '';
+
+        run_make_test("
+# Expansion splits the depline to multiple deps.
+.SPLIT_STEM_FOR_STATIC_PATTERN_RULES:
+empty:=
+space:=\$(empty) \$(empty)
+all: $target
+$rd$pd%.x: $pre%.q\$(space)moon; \$(info \$@ from \$^, \$\$* = \$*)
+$dep:;
+", '', "$target from $dep, \$* = ${dd}hello\n" .
+       "#MAKE#: Nothing to be done for 'all'.\n");
+      }
+    }
+  }
+}
+
+# Expansion splits the depline to multiple deps.
+for my $se (@second_expansion) {
+  for my $pre (@prefix) {
+    for my $td (@dirs) {
+      for my $r (@rules) {
+
+        my $target = "${td}hello.x";
+        my $dep = "${pre}hello.q moon";
+        my $rd = $r ? "$target: " : '';
+        my $dollar = $se ? '$' : '';
+
+        run_make_test("
+# Expansion splits the depline to multiple deps.
+.SPLIT_STEM_FOR_STATIC_PATTERN_RULES:
+$se
+empty:=
+space:=\$(empty) \$(empty)
+all: $target
+$rd$td%.x: $pre%.q$dollar\$(space)moon; \$(info \$@ from \$^, \$\$* = \$*)
+$dep:;
+", '', "$target from $dep, \$* = hello\n" .
+       "#MAKE#: Nothing to be done for 'all'.\n");
+
+        $dep = "${pre}hello.q";
+        run_make_test("
+# Expansion removes a portion of the depline.
+.SPLIT_STEM_FOR_STATIC_PATTERN_RULES:
+$se
+all: $target
+$rd$td%.x: $pre%$dollar\$(undef).q; \$(info \$@ from \$^, \$\$* = \$*)
+$dep:;
+", '', "$target from $dep, \$* = hello\n" .
+       "#MAKE#: Nothing to be done for 'all'.\n");
+      }
+    }
+  }
+}
+
+# Test multiple prerequisites in different directories with and without a %.
+for my $se (@second_expansion) {
+  for my $pre (@prefix) {
+    for my $r (@rules) {
+
+      my $target = "$dir/hello.x";
+      my $dep1 = "$dir/${pre}hello.q";
+      my $dep2 = "$dir/pilots/${pre}hello.qq";
+      my $rd = $r ? "$target: " : '';
+      my $dollar = $se ? '$' : '';
+      run_make_test("
+# Test multiple prerequisites in different directories.
+# pre=$pre
+# rd=$rd
+.SPLIT_STEM_FOR_STATIC_PATTERN_RULES:
+$se
+all: $target
+$rd%.x: moon $dollar\$(strip $pre%.q) $dollar\$(strip pilots/$pre%.qq); \$(info \$@ from \$^, \$\$* = \$*)
+moon $dep1 $dep2:;
+", '', "$target from moon $dep1 $dep2, \$* = ${dir}/hello\n" .
+       "#MAKE#: Nothing to be done for 'all'.\n");
+    }
+  }
+}
+
+rmdir($dir);
+1;
