@@ -71,7 +71,7 @@ try_implicit_rule (struct file *file, unsigned int depth)
    Returns the pointer to the beginning of the word. LENGTH hold the
    length of the word.  */
 
-static const char *
+const char *
 get_next_word (const char *buffer, size_t *length)
 {
   const char *p = buffer, *beg;

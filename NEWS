@@ -16,6 +16,24 @@ A complete list of bugs fixed in this version is available here:
 
 https://sv.gnu.org/bugs/index.php?group=make&report_id=111&fix_release_id=111&set=custom
 
+* New feature: Stem splitting for static pattern rules
+  When a prerequisite pattern of a static pattern rule contains a prefix in
+  front of %, the directory part of the stem is prepended (if present) in
+  front of this prefix.
+  For example, given
+  .SPLIT_STEM_FOR_STATIC_PATTERN_RULES:
+  drivers/hello.x:
+  drivers/hello.x: %.x: pre-%.q; $(info $@ from $<)
+  make constructs prerequisite drivers/pre-hello.q.
+  Special target .SPLIT_STEM_FOR_STATIC_PATTERN_RULES needs to be defined for
+  stem splitting to take place.
+  See https://savannah.gnu.org/bugs/index.php?XXX.
+
+* WARNING: Backward-incompatibility!
+  A backslash immediately followed by a % escapes this % in a prerequisite
+  pattern of a static pattern rule when second expansion is enabled.
+  See https://savannah.gnu.org/bugs/index.php?XXX.
+
 * WARNING: Removed AmigaOS support!
   This version of GNU Make no longer supports AmigaOS.  If you need support
   for AmigaOS please use one of the older versions of GNU Make.

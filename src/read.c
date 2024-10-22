@@ -129,6 +129,10 @@ const floc *reading_file = 0;
 
 static struct goaldep *read_files = 0;
 
+/* Whether stem splitting for static pattern rules is enabled. */
+
+static int split_stem;
+
 static struct goaldep *eval_makefile (const char *filename, unsigned short flags);
 static void eval (struct ebuffer *buffer, int flags);
 
@@ -2048,7 +2052,7 @@ record_files (struct nameseq *filenames, int are_also_makes,
         }
       else
         {
-          deps = split_prereqs (depstr);
+          deps = split_prereqs (depstr, NULL);
           free (depstr);
 
           /* We'll enter static pattern prereqs later when we have the stem.
@@ -2124,8 +2128,8 @@ record_files (struct nameseq *filenames, int are_also_makes,
          'targets: target%pattern: prereq%pattern; recipe',
          make sure the pattern matches this target name.  */
       if (pattern && !pattern_matches (pattern, pattern_percent, name))
-        OS (error, flocp,
-            _("target '%s' doesn't match the target pattern"), name);
+        OSS (error, flocp,
+            _("target '%s' doesn't match target pattern '%s'"), name, pattern);
       else if (deps)
         /* If there are multiple targets, copy the chain DEPS for all but the
            last one.  It is not safe for the same deps to go in more than one
@@ -2225,10 +2229,58 @@ record_files (struct nameseq *filenames, int are_also_makes,
           f->stem = strcache_add_len (variable_buffer, o - variable_buffer);
           if (this)
             {
+              /* Keep stem in struct dep rather than in file, because a depline
+                 defines stem. E.g. here
+                 lib/hello.debug.x: lib/%.debug.x: pre-%.z
+                 lib/hello.debug.x: %.x: pre-%.q
+                 lib/hello.debug.x:; $(info $@ from $^)
+                 The first line has stem "hello",
+                 the second line has stem "lib/hello.debug".  */
+              struct dep *d;
+              const char *basename;
+              this->stem = f->stem;
+              this->stem_basename = this->stem;
+              this->stem_dirname = "";
+
+              split_stem = split_stem ||
+                           lookup_file (".SPLIT_STEM_FOR_STATIC_PATTERN_RULES");
+              /* If stem splitting is enabled and there is a stem and there is
+                 dirname and there is basename.  */
+              if (split_stem && this->stem &&
+                  (basename = strrchr (this->stem, '/')) && basename[1])
+                {
+                  /* Stem carries a slash. Need to split the stem.
+                     Stem splitting has to take place before $* is set.
+                     Split the stem now, at parse time. This allows to do the
+                     work of splitting once and init stem_dirname and
+                     stem_basename of all deps on the same depline.  */
+                  size_t dlen;
+                  char *dirname;
+
+                  /* A slash is a part of the directory, rather than
+                     basename.  */
+                  ++basename;
+                  /* Stem carries both dirname and basename.
+                     Set this->stem_dirname and this->stem_basename to have
+                     directory prefix reconstruction.  */
+                  dlen = basename - this->stem;
+                  dirname = alloca (dlen + 1);
+                  memcpy (dirname, this->stem, dlen);
+                  dirname[dlen] = '\0';
+                  this->stem_dirname = strcache_add (dirname);
+                  this->stem_basename = basename;
+                }
+
+              /* All prerequisites on a dep line have the same stem.  */
+              for (d = this->next; d; d = d->next)
+                {
+                  d->stem = this->stem;
+                  d->stem_dirname = this->stem_dirname;
+                  d->stem_basename = this->stem_basename;
+                }
+
               if (! this->need_2nd_expansion)
-                this = enter_prereqs (this, f->stem);
-              else
-                this->stem = f->stem;
+                this = enter_prereqs (this, f);
             }
         }
 
