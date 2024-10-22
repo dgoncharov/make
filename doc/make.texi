@@ -3239,6 +3239,16 @@ built all lines of the recipe will be given to a single invocation of
 the shell rather than each line being invoked separately.
 @xref{Execution, ,Recipe Execution}.
 
+@findex .SPLIT_STEM_FOR_STATIC_PATTERN_RULES
+@item .SPLIT_STEM_FOR_STATIC_PATTERN_RULES
+@cindex Static Pattern
+
+When special target @code{.SPLIT_STEM_FOR_STATIC_PATTERN_RULES} is present in a
+makefile, @code{make} splits the stem to dirname and basename, substitutes
+@code{%} in each prerequisite pattern with the basename of the stem and
+prepends the dirname of the stem to the resultant prerequisite.
+@xref{Static Pattern, ,Stem Splitting}.
+
 @findex .POSIX
 @item .POSIX
 @cindex POSIX-conforming mode, setting
@@ -3469,6 +3479,7 @@ be @emph{analogous}, but not necessarily @emph{identical}.
 
 @menu
 * Static Usage::                The syntax of static pattern rules.
+* Stem Splitting::
 * Static versus Implicit::      When are they better than implicit rules?
 @end menu
 
@@ -3582,6 +3593,72 @@ bigoutput littleoutput : %output : text.g
 @noindent
 When the @code{generate} command is run, @code{$*} will expand to the
 stem, either @samp{big} or @samp{little}.
+
+@node Stem Splitting
+@subsection Stem Splitting
+When special target @code{.SPLIT_STEM_FOR_STATIC_PATTERN_RULES} is present in a
+makefile, @code{make} splits the stem to dirname and basename, substitutes the
+first not escaped @code{%} in each prerequisite pattern with the basename of
+the stem and prepends the dirname of the stem to each resultant prerequisite.
+If a prerequisite does not contain a @code{%}, then no dirname is prepended to
+that prerequisite. Special target @code{.SPLIT_STEM_FOR_STATIC_PATTERN_RULES}
+affects those static pattern rules that appear in the makefile below the
+definition of @code{.SPLIT_STEM_FOR_STATIC_PATTERN_RULES}.
+
+Consider this makefile, where stem contains both dirname and basename
+@example
+.SPLIT_STEM_FOR_STATIC_PATTERN_RULES:
+all: drivers/hello.x
+drivers/hello.x: %.x: pre-%.q; $(info $@@ from $<)
+@end example
+
+@enumerate
+@item
+@code{Make} compares target @file{drivers/hello.x} against rule pattern
+@file{%.x}.
+@item
+@code{Make} calculates the stem. In the case of target @file{drivers/hello.x}
+and rule pattern @file{%.x} the stem is @file{drivers/hello}.
+@item
+@code{Make} splits the stem to dirname @file{drivers/} and basename
+@file{hello}.
+@item
+@code{Make} substitutes @code{%} in the prerequisite pattern @file{pre-%.q}
+with the basename part of stem @file{hello}.
+@item
+@code{Make} prepends the dirname part of the stem @file{drivers/} to the
+prerequisite and ends up with prerequisite @file{drivers/pre-hello.x}.
+@end enumerate
+
+This behavior allows one rule to build targets that depends on prerequisites
+with different prefixes, located in different directories.
+
+@example
+.SPLIT_STEM_FOR_STATIC_PATTERN_RULES:
+obj:=drivers/hello.x pilots/video/world.x
+all:$(obj)
+$(obj): %.x: pre-%.q .%.d; $(info $@@ from $<)
+@end example
+
+In the makefile above the same rule is used to build @file{drivers/hello.x}
+from @file{drivers/pre-hello.q}, @file{drivers/.hello.d} and
+@file{pilots/video/world.x} from @file{pilots/video/pre-world.q},
+@file{pilots/video/.world.d}.
+
+When second expansion is enabled, stem substitution and directory prefix
+reconstruction takes place between first and second expansions.
+
+On the other hand, if the stem does not contain both dirname and basename, or
+if special target @code{.SPLIT_STEM_FOR_STATIC_PATTERN_RULES} is absent, then
+@code{make} substitutes the first not escaped @code{%} in the prerequisite
+pattern with the stem.
+So, if the same makefile above didn't have special target
+@code{.SPLIT_STEM_FOR_STATIC_PATTERN_RULES}, then @file{drivers/hello.x} would
+end up with prerequisites @file{pre-drivers/hello.q}, @file{.drivers/hello.d}
+and @file{pilots/video/world.x} would end up with prerequisites
+@file{pre-pilots/video/world.q}, @file{.pilots/video/world.d}.  Absence of
+special target @code{.SPLIT_STEM_FOR_STATIC_PATTERN_RULES} is usually not
+useful, but it is the default for backward compatibility.
 
 @node Static versus Implicit
 @subsection Static Pattern Rules versus Implicit Rules
@@ -7138,6 +7215,10 @@ Supports exporting @code{make} variables to @code{shell} functions.
 Uses the ``shortest stem'' method of choosing which pattern, of
 multiple applicable options, will be used.  @xref{Pattern Match, ,How
 Patterns Match}.
+
+@item split-stem
+Supports the @code{.SPLIT_STEM_FOR_STATIC_PATTERN_RULES} special target.
+@xref{Static Pattern, ,Stem Splitting}.
 
 @item target-specific
 Supports target-specific and pattern-specific variable assignments.
