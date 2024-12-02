@@ -771,6 +771,7 @@ extern unsigned int no_intermediates;
 
 extern char *jobserver_auth;
 extern unsigned int job_slots;
+extern int extra_jobserver_slots;
 extern double max_load_average;
 
 extern const char *program;

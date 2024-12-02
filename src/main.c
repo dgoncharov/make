@@ -226,6 +226,10 @@ struct rlimit stack_limit;
 
 unsigned int job_slots;
 
+/* The number of requested slots above pipe capacity.  */
+
+int extra_jobserver_slots;
+
 #define INVALID_JOB_SLOTS (-1)
 static unsigned int master_job_slots = 0;
 static int arg_job_slots = INVALID_JOB_SLOTS;
@@ -3822,7 +3826,7 @@ clean_jobserver (int status)
       /* We didn't write one for ourself, so start at 1.  */
       unsigned int tokens = 1 + jobserver_acquire_all ();
 
-      if (tokens != master_job_slots)
+      if (tokens + extra_jobserver_slots != master_job_slots)
         ONN (error, NILF,
              "INTERNAL: exiting with %u jobserver tokens available; should be %u!",
              tokens, master_job_slots);

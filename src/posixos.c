@@ -122,10 +122,8 @@ make_job_rfd ()
 }
 
 static void
-set_blocking (int fd, int blocking)
+set_blocking_impl (int fd, int blocking)
 {
-  /* If we're not using pselect() don't change the blocking.  */
-#ifdef HAVE_PSELECT
   int flags;
   EINTRLOOP (flags, fcntl (fd, F_GETFL));
   if (flags >= 0)
@@ -136,6 +134,14 @@ set_blocking (int fd, int blocking)
       if (r < 0)
         pfatal_with_name ("fcntl(O_NONBLOCK)");
     }
+}
+
+static void
+set_blocking (int fd, int blocking)
+{
+  /* If we're not using pselect() don't change the blocking.  */
+#ifdef HAVE_PSELECT
+  set_blocking_impl (fd, blocking);
 #else
   (void) fd;
   (void) blocking;
@@ -145,7 +151,7 @@ set_blocking (int fd, int blocking)
 unsigned int
 jobserver_setup (int slots, const char *style)
 {
-  int r;
+  int r, k;
 
 #if JOBSERVER_USE_FIFO
   if (!style || strcmp (style, "fifo") == 0)
@@ -208,12 +214,22 @@ jobserver_setup (int slots, const char *style)
   if (make_job_rfd () < 0)
     pfatal_with_name (_("duping jobs pipe"));
 
-  while (slots--)
+  /* Set the write side of the pipe to non blocking in case the number of
+     slots specified by the user exceeds pipe capacity.  */
+  set_blocking_impl (job_fds[1], 0);
+  for (k = 0; k < slots; ++k)
     {
       EINTRLOOP (r, write (job_fds[1], &token, 1));
-      if (r != 1)
+      if (r != 1 && errno != EAGAIN)
         pfatal_with_name (_("init jobserver pipe"));
+      if (r != 1)
+        {
+          ON (error, NILF, _("warning: number of jobs is limited to %d"), k);
+          extra_jobserver_slots = slots - k;
+          break;
+        }
     }
+  set_blocking_impl (job_fds[1], 1);
 
   /* When using pselect() we want the read to be non-blocking.  */
   set_blocking (job_fds[0], 0);
