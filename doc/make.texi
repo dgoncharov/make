@@ -2187,6 +2187,31 @@ Now the rule to create the @file{objdir} directory will be run, if
 needed, before any @samp{.o} is built, but no @samp{.o} will be built
 because the @file{objdir} directory timestamp changed.
 
+@code{make} will not rebuilt an order-only prerequisite when building a target
+that depends on this order-only prerequisite, as long as the prerequisite
+exists, even if prerequisites of this order-only prerequisite are newer than
+the order-only prerequisite itself.
+In the following example building target @file{green} will not cause
+prerequisite @file{red} to be rebuilt, as long as @file{red} exists, even when
+@file{yellow} is newer than @file{red}.
+
+@example
+all: green
+green: |red; touch $@@
+red: yellow; touch $@@
+@end example
+
+If you need a top level target to rebuild an order-only prerequisite even when
+the prerequisite exists, you can introduce another top level target that has
+that order-only prerequisite as a regular prerequisite.
+
+@example
+all: green
+all_yall: red all
+green: |red; touch $@@
+red: yellow; touch $@@
+@end example
+
 @node Wildcards
 @section Using Wildcard Characters in File Names
 @cindex wildcard

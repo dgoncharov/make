@@ -114,5 +114,64 @@ foo:;@:
 baz:;@:',
               '', "foo foo baz\n");
 
+# sv 66915.
+# No need to remake existing order-only prerequisite 'red'.
+utouch(-10, 'red', 'green', 'blue', 'pink');
+&touch('yellow');
+run_make_test(q!
+green: |red; touch $@
+red: yellow; touch $@
+!, '', "#MAKE#: 'green' is up to date.\n");
+
+# However, 'red' gets rebuilt when specified as a target.
+run_make_test(undef, 'red', "touch red");
+
+# 'red' also gets rebuilt when specified as both order-only and regular.
+utouch(-10, 'red', 'green', 'blue', 'pink');
+run_make_test(q!
+green: red |red; touch $@
+red: yellow; touch $@
+!, '', "touch red\ntouch green");
+
+# No need to remake order-only prerequisites 'red' and 'pink'.
+run_make_test(q!
+green: |red pink; touch $@
+red pink: yellow; touch $@
+!, '', "#MAKE#: 'green' is up to date.\n");
+
+# No need to remake order-only prerequisite 'red' even when target 'green' does
+# not exist.
+unlink('green');
+&touch('yellow');
+run_make_test(q!
+green: |red; cp $| $@
+red: yellow; touch $@
+!, '', "cp red green\n");
+
+# Mix or regular and order-only prerequisites.
+&touch('yellow');
+run_make_test(q!
+green: blue |red; touch $@
+blue red: yellow; touch $@
+!, '', "touch blue\ntouch green\n");
+
+# Prerequisite 'red' is both order-only and regular, depending on target.
+# 'green' does not cause 'red' to be rebuilt. 'white' causes 'red' to be
+# rebuilt.
+# However, how to write a test that ensures that it is 'white', rather than
+# 'green', that cause the recipe of 'red' to run?  That is what 'grey' is for.
+# grey demonstrates that it is target 'white' that causes 'red' to be rebuilt.
+utouch(-10, 'red', 'green', 'blue');
+utouch(-20, 'white');
+&touch('yellow');
+run_make_test(q!
+all: green white
+green: |red; touch $@
+red: yellow; touch $@
+white: grey red; touch $@
+grey:; $(info $@)
+!, '', "grey\ntouch red\ntouch white\n");
+
+unlink('red', 'blue', 'green', 'white', 'yellow', 'pink');
 
 1;

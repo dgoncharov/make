@@ -683,6 +683,17 @@ update_file_1 (struct file *file, unsigned int depth)
               d->file->dontcare = file->dontcare;
             }
 
+          if (d->ignore_mtime &&
+              mtime != NONEXISTENT_MTIME && mtime != UNKNOWN_MTIME)
+            {
+              DBS (DB_VERBOSE, (_("No need to remake existing order-only "
+                                 "prerequisite '%s' of target '%s'.\n"),
+                                dep_name (d), file->name));
+              lastd = du;
+              du = du->next;
+              continue;
+            }
+
           new = check_dep (d->file, depth, this_mtime, &maybe_make);
           if (new > dep_status)
             dep_status = new;
