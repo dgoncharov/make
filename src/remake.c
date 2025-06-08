@@ -59,6 +59,12 @@ this program.  If not, see <https://www.gnu.org/licenses/>.  */
                              ->updating)
 
 
+/* Return the mtime of file F (a struct file *), caching it.
+   The value is NONEXISTENT_MTIME if the file does not exist.  */
+#define file_mtime(f, depth)\
+  ((f)->last_mtime == UNKNOWN_MTIME ? f_mtime_impl ((f), 1, depth)\
+                                    : (f)->last_mtime)
+
 /* Incremented when a command is started (under -n, when one would be).  */
 unsigned int commands_started = 0;
 
@@ -82,9 +88,12 @@ static enum update_status update_file_1 (struct file *file, unsigned int depth);
 static enum update_status check_dep (struct file *file, unsigned int depth,
                                      FILE_TIMESTAMP this_mtime, int *must_make);
 static enum update_status touch_file (struct file *file);
-static void remake_file (struct file *file);
+static void remake_file (struct file *file, int depth);
 static FILE_TIMESTAMP name_mtime (const char *name);
-static const char *library_search (const char *lib, FILE_TIMESTAMP *mtime_ptr);
+static const char *library_search (const char *lib, FILE_TIMESTAMP *mtime_ptr,
+                                   int depth);
+static FILE_TIMESTAMP f_mtime_impl (struct file *file, int search, int depth);
+static void notice_finished_file_impl (struct file *file, int depth);
 
 
 static void
@@ -128,8 +137,8 @@ update_goal_chain (struct goaldep *goaldeps)
 
   goal_list = rebuilding_makefiles ? goaldeps : NULL;
 
-#define MTIME(file) (rebuilding_makefiles ? file_mtime_no_search (file) \
-                     : file_mtime (file))
+#define MTIME(file, depth) (rebuilding_makefiles ? file_mtime_no_search (file) \
+                            : file_mtime (file, depth))
 
   /* Start a fresh batch of consideration.  */
   ++considered;
@@ -231,7 +240,7 @@ update_goal_chain (struct goaldep *goaldeps)
                     }
                   else
                     {
-                      FILE_TIMESTAMP mtime = MTIME (file);
+                      FILE_TIMESTAMP mtime = MTIME (file, depth);
                       check_renamed (file);
 
                       if (file->updated && mtime != file->mtime_before_update)
@@ -542,7 +551,7 @@ update_file_1 (struct file *file, unsigned int depth)
      might get implicit commands that apply to its initial name, only
      to have that name replaced with another found by VPATH search.  */
 
-  this_mtime = file_mtime (file);
+  this_mtime = file_mtime (file, depth);
   check_renamed (file);
   noexist = this_mtime == NONEXISTENT_MTIME;
   if (noexist)
@@ -569,7 +578,7 @@ update_file_1 (struct file *file, unsigned int depth)
   for (ad = file->also_make; ad && !noexist; ad = ad->next)
     {
       struct file *adfile = ad->file;
-      FILE_TIMESTAMP fmtime = file_mtime (adfile);
+      FILE_TIMESTAMP fmtime = file_mtime (adfile, depth);
 
       noexist = fmtime == NONEXISTENT_MTIME;
       if (noexist)
@@ -641,7 +650,7 @@ update_file_1 (struct file *file, unsigned int depth)
 
           check_renamed (d->file);
 
-          mtime = file_mtime (d->file);
+          mtime = file_mtime (d->file, depth);
           check_renamed (d->file);
 
           if (is_updating (d->file))
@@ -715,7 +724,7 @@ update_file_1 (struct file *file, unsigned int depth)
           if (!running)
             /* The prereq is considered changed if the timestamp has changed
                while it was built, OR it doesn't exist.  */
-            d->changed = ((file_mtime (d->file) != mtime)
+            d->changed = ((file_mtime (d->file, depth) != mtime)
                           || (mtime == NONEXISTENT_MTIME));
 
           lastd = du;
@@ -740,7 +749,7 @@ update_file_1 (struct file *file, unsigned int depth)
               enum update_status new;
               int dontcare = 0;
 
-              FILE_TIMESTAMP mtime = file_mtime (d->file);
+              FILE_TIMESTAMP mtime = file_mtime (d->file, depth);
               check_renamed (d->file);
               d->file->parent = file;
 
@@ -784,7 +793,7 @@ update_file_1 (struct file *file, unsigned int depth)
 
               if (!running)
                 d->changed = ((file->phony && file->cmds != 0)
-                              || file_mtime (d->file) != mtime);
+                              || file_mtime (d->file, depth) != mtime);
             }
         }
     }
@@ -810,7 +819,7 @@ update_file_1 (struct file *file, unsigned int depth)
     {
       /* I'm not sure if we can't just assign dep_status...  */
       file->update_status = dep_status == us_none ? us_failed : dep_status;
-      notice_finished_file (file);
+      notice_finished_file_impl (file, depth);
 
       DBF (DB_VERBOSE, _("Giving up on target file '%s'.\n"));
 
@@ -839,7 +848,7 @@ update_file_1 (struct file *file, unsigned int depth)
   deps_changed = 0;
   for (d = file->deps; d != 0; d = d->next)
     {
-      FILE_TIMESTAMP d_mtime = file_mtime (d->file);
+      FILE_TIMESTAMP d_mtime = file_mtime (d->file, depth);
       check_renamed (d->file);
 
       if (! d->ignore_mtime)
@@ -934,7 +943,7 @@ update_file_1 (struct file *file, unsigned int depth)
       if (!file->notintermediate && no_intermediates == 0)
         file->secondary = 1;
 
-      notice_finished_file (file);
+      notice_finished_file_impl (file, depth);
 
       /* Since we don't need to remake the file, convert it to use the
          VPATH filename if we found one.  hfile will be either the
@@ -960,7 +969,7 @@ update_file_1 (struct file *file, unsigned int depth)
     }
 
   /* Now, take appropriate actions to remake the file.  */
-  remake_file (file);
+  remake_file (file, depth);
 
   if (file->command_state != cs_finished)
     {
@@ -986,6 +995,12 @@ update_file_1 (struct file *file, unsigned int depth)
   file->updated = 1;
   return file->update_status;
 }
+
+void
+notice_finished_file (struct file *file)
+{
+  return notice_finished_file_impl (file, 0);
+}
 
 /* Set FILE's 'updated' flag and re-check its mtime and the mtime's of all
    files listed in its 'also_make' member.  Under -t, this function also
@@ -993,8 +1008,8 @@ update_file_1 (struct file *file, unsigned int depth)
 
    On return, FILE->update_status will no longer be us_none if it was.  */
 
-void
-notice_finished_file (struct file *file)
+static void
+notice_finished_file_impl (struct file *file, int depth)
 {
   struct dep *d;
   int ran = file->command_state == cs_running;
@@ -1117,7 +1132,7 @@ notice_finished_file (struct file *file)
                  We do this instead of just invalidating the cached time
                  so that a vpath_search can happen.  Otherwise, it would
                  never be done because the target is already updated.  */
-              f_mtime (d->file, 0);
+              f_mtime_impl (d->file, 0, depth);
 
               if (just_print_flag)
                 /* Nothing got updated, but pretend it did.  */
@@ -1163,7 +1178,7 @@ check_dep (struct file *file, unsigned int depth,
       FILE_TIMESTAMP mtime;
       dep_status = update_file (file, depth);
       check_renamed (file);
-      mtime = file_mtime (file);
+      mtime = file_mtime (file, depth);
       check_renamed (file);
       if (mtime == NONEXISTENT_MTIME || mtime > this_mtime)
         *must_make_ptr = 1;
@@ -1186,7 +1201,7 @@ check_dep (struct file *file, unsigned int depth,
         }
 
       check_renamed (file);
-      mtime = file_mtime (file);
+      mtime = file_mtime (file, depth);
       check_renamed (file);
       if (mtime != NONEXISTENT_MTIME && mtime > this_mtime)
         /* If the intermediate file actually exists and is newer, then we
@@ -1348,7 +1363,7 @@ touch_file (struct file *file)
    Return the status from executing FILE's commands.  */
 
 static void
-remake_file (struct file *file)
+remake_file (struct file *file, int depth)
 {
   if (file->cmds == 0)
     {
@@ -1383,7 +1398,13 @@ remake_file (struct file *file)
     }
 
   /* This does the touching under -t.  */
-  notice_finished_file (file);
+  notice_finished_file_impl (file, depth);
+}
+
+FILE_TIMESTAMP
+f_mtime (struct file *file, int search)
+{
+  return f_mtime_impl (file, search, 0);
 }
 
 /* Return the mtime of a file, given a 'struct file'.
@@ -1394,8 +1415,8 @@ remake_file (struct file *file)
    the library's actual name (/lib/libLIBNAME.a, etc.) is substituted into
    FILE.  */
 
-FILE_TIMESTAMP
-f_mtime (struct file *file, int search)
+static FILE_TIMESTAMP
+f_mtime_impl (struct file *file, int search, int depth)
 {
   FILE_TIMESTAMP mtime;
   unsigned int propagate_timestamp;
@@ -1422,7 +1443,7 @@ f_mtime (struct file *file, int search)
       arfile = lookup_file (arname);
       if (arfile == 0)
         arfile = enter_file (strcache_add (arname));
-      mtime = f_mtime (arfile, search);
+      mtime = f_mtime_impl (arfile, search, depth);
       check_renamed (arfile);
       if (search && strcmp (arfile->hname, arname))
         {
@@ -1479,11 +1500,12 @@ f_mtime (struct file *file, int search)
       if (mtime == NONEXISTENT_MTIME && search && !file->ignore_vpath)
         {
           /* If name_mtime failed, search VPATH.  */
-          const char *name = vpath_search (file->name, &mtime, NULL, NULL);
+          const char *name = vpath_search (file->name, &mtime, NULL, NULL,
+                                           depth);
           if (name
               /* Last resort, is it a library (-lxxx)?  */
               || (file->name[0] == '-' && file->name[1] == 'l'
-                  && (name = library_search (file->name, &mtime)) != 0))
+                  && (name = library_search (file->name, &mtime, depth)) != 0))
             {
               size_t name_len;
 
@@ -1506,7 +1528,7 @@ f_mtime (struct file *file, int search)
                 {
                   rename_file (file, name);
                   check_renamed (file);
-                  return file_mtime (file);
+                  return file_mtime (file, depth);
                 }
 
               rehash_file (file, name);
@@ -1749,7 +1771,7 @@ name_mtime (const char *name)
    directories.  */
 
 static const char *
-library_search (const char *lib, FILE_TIMESTAMP *mtime_ptr)
+library_search (const char *lib, FILE_TIMESTAMP *mtime_ptr, int depth)
 {
   static const char *const dirs[] =
     {
@@ -1838,7 +1860,7 @@ library_search (const char *lib, FILE_TIMESTAMP *mtime_ptr)
       {
         unsigned int vpath_index, path_index;
         const char* f = vpath_search (libbuf, mtime_ptr ? &mtime : NULL,
-                                      &vpath_index, &path_index);
+                                      &vpath_index, &path_index, depth);
         if (f)
           {
             /* If we have a better match, record it.  */

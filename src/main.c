@@ -851,6 +851,9 @@ decode_debug_flags (void)
               case 'w':
                 db_level |= DB_WHY;
                 break;
+              case 's':
+                db_level |= DB_SEARCH;
+                break;
               default:
                 OS (fatal, NILF,
                     _("unknown debug level specification '%s'"), p);

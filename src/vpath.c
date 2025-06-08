@@ -17,6 +17,7 @@ this program.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "makeint.h"
 #include "filedef.h"
 #include "variable.h"
+#include "debug.h"
 #if MK_OS_W32
 #include "pathstuff.h"
 #endif
@@ -309,7 +310,8 @@ gpath_search (const char *file, size_t len)
 
 static const char *
 selective_vpath_search (struct vpath *path, const char *file,
-                        FILE_TIMESTAMP *mtime_ptr, unsigned int* path_index)
+                        FILE_TIMESTAMP *mtime_ptr, unsigned int* path_index,
+                        int depth)
 {
   int not_target;
   char *name;
@@ -360,6 +362,9 @@ selective_vpath_search (struct vpath *path, const char *file,
       int exists_in_cache = 0;
       char *p = name;
       size_t vlen = strlen (vpath[i]);
+
+      DBS (DB_SEARCH,
+           (_("Directory searching for '%s' in '%s'.\n"), file, vpath[i]));
 
       /* Put the next VPATH entry into NAME at P and increment P past it.  */
       p = mempcpy (p, vpath[i], vlen);
@@ -508,6 +513,7 @@ selective_vpath_search (struct vpath *path, const char *file,
           if (path_index)
             *path_index = i;
 
+          DBS (DB_SEARCH, (_("Found '%s' as VPATH '%s'.\n"), file, name));
           return strcache_add_len (name, (p + 1 - name) + flen);
         }
     }
@@ -524,7 +530,7 @@ selective_vpath_search (struct vpath *path, const char *file,
 
 const char *
 vpath_search (const char *file, FILE_TIMESTAMP *mtime_ptr,
-              unsigned int* vpath_index, unsigned int* path_index)
+              unsigned int* vpath_index, unsigned int* path_index, int depth)
 {
   struct vpath *v;
 
@@ -538,6 +544,7 @@ vpath_search (const char *file, FILE_TIMESTAMP *mtime_ptr,
       || (vpaths == 0 && general_vpath == 0))
     return 0;
 
+  DBS (DB_SEARCH, (_("Directory searching for '%s'.\n"), file));
   if (vpath_index)
     {
       *vpath_index = 0;
@@ -548,8 +555,10 @@ vpath_search (const char *file, FILE_TIMESTAMP *mtime_ptr,
     {
       if (pattern_matches (v->pattern, v->percent, file))
         {
-          const char *p = selective_vpath_search (
-            v, file, mtime_ptr, path_index);
+          const char *p;
+          DBS (DB_SEARCH, (_("'%s' matches vpath pattern '%s'.\n"), file,
+                           v->pattern));
+          p = selective_vpath_search (v, file, mtime_ptr, path_index, depth);
           if (p)
             return p;
         }
@@ -562,10 +571,12 @@ vpath_search (const char *file, FILE_TIMESTAMP *mtime_ptr,
   if (general_vpath != 0)
     {
       const char *p = selective_vpath_search (
-        general_vpath, file, mtime_ptr, path_index);
+        general_vpath, file, mtime_ptr, path_index, depth);
       if (p)
         return p;
     }
+
+  DBS (DB_SEARCH, (_("'%s' not found by directory search.\n"), file));
 
   return 0;
 }

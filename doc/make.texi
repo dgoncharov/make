@@ -9686,6 +9686,9 @@ silent (due to @code{.SILENT} or @samp{@@}).
 Explains why each target must be remade by showing which prerequisites
 are more up to date than the target.
 
+@item s (@i{search})
+Enable logging of directory search.  @xref{Directory Search, , Searching Directories for Prerequisites}.
+
 @item n (@i{none})
 Disable all debugging currently enabled.  If additional debugging
 flags are encountered after this they will still take effect.

@@ -6,4 +6,10 @@ $description = "Test make -d option.\n";
 # Test that debug output is printed when both -d and --trace are specified.
 run_make_test('all: ; :', '-d --trace', "/GNU Make/");
 
+# sv 67195.
+# Test --debug=s switch.
+run_make_test(q!
+vpath %.x /usr/include
+all:;
+!, '--debug=s', "/Directory searching for 'all'./");
 1;

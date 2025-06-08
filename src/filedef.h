@@ -184,16 +184,12 @@ FILE_TIMESTAMP file_timestamp_now (int *);
 void file_timestamp_sprintf (char *p, FILE_TIMESTAMP ts);
 
 /* Return the mtime of file F (a struct file *), caching it.
-   The value is NONEXISTENT_MTIME if the file does not exist.  */
-#define file_mtime(f) file_mtime_1 ((f), 1)
-/* Return the mtime of file F (a struct file *), caching it.
    Don't search using vpath for the file--if it doesn't actually exist,
    we don't find it.
    The value is NONEXISTENT_MTIME if the file does not exist.  */
-#define file_mtime_no_search(f) file_mtime_1 ((f), 0)
+#define file_mtime_no_search(f)\
+  ((f)->last_mtime == UNKNOWN_MTIME ? f_mtime ((f), 0) : (f)->last_mtime)
 FILE_TIMESTAMP f_mtime (struct file *file, int search);
-#define file_mtime_1(f, v) \
-  ((f)->last_mtime == UNKNOWN_MTIME ? f_mtime ((f), v) : (f)->last_mtime)
 
 /* Special timestamp values.  */
 

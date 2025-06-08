@@ -21,6 +21,7 @@ this program.  If not, see <https://www.gnu.org/licenses/>.  */
 #define DB_IMPLICIT     (0x008)
 #define DB_PRINT        (0x010)
 #define DB_WHY          (0x020)
+#define DB_SEARCH       (0x040)
 #define DB_MAKEFILES    (0x100)
 
 #define DB_ALL          (0xfff)

@@ -840,12 +840,10 @@ pattern_search (struct file *file, int archive,
                      "lib/foo.c", and VPATH=src, searches for
                      "src/lib/foo.c".  */
                   {
-                    const char *vname = vpath_search (d->name, 0, NULL, NULL);
+                    const char *vname = vpath_search (d->name, 0, NULL, NULL,
+                                                      depth);
                     if (vname)
                       {
-                        DBS (DB_IMPLICIT,
-                             (_("Found prerequisite '%s' as VPATH '%s'.\n"),
-                              d->name, vname));
                         (pat++)->name = d->name;
                         continue;
                       }

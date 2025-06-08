@@ -644,7 +644,8 @@ void install_default_implicit_rules (void);
 void build_vpath_lists (void);
 void construct_vpath_list (char *pattern, char *dirpath);
 const char *vpath_search (const char *file, FILE_TIMESTAMP *mtime_ptr,
-                          unsigned int* vpath_index, unsigned int* path_index);
+                          unsigned int* vpath_index, unsigned int* path_index,
+                          int depth);
 int gpath_search (const char *file, size_t len);
 
 void construct_include_path (const char **arg_dirs);
