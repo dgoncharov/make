@@ -220,6 +220,39 @@ all:; $(info hello, world)
     run_make_test(q!
 all:; $(info hello, world)
     !, '-j688777 --jobserver-style=pipe', '/requested job count \(688777\) is larger than system limit/', 512);
+
+    # sv 67687.
+    # Test that make releases all jobserver tokens upon a fatal signal.
+    #
+    # When the submake releases all its tokens make prints something like
+    #
+    # "make[1]: *** [child.mk:2: a] Terminated
+    #  make[1]: *** [child.mk:2: b] Terminated
+    #  make: *** [t001.mk:2: all] Terminated".
+    #
+    # When make detects lost jobserver tokens, make prints something like
+    #
+    # "make[1]: *** [child.mk:2: a] Terminated
+    #  make[1]: *** [child.mk:2: b] Terminated
+    #  make: *** [t001.mk:2: all] Terminated
+    #  INTERNAL: exiting with 1 jobserver tokens available; should be 3!".
+    #
+    # This test has to fail if the last line is "exiting with ...".
+    # Anchor \Z ensures that the regex won't match when the "exiting with ..."
+    # message is present, because the preceding "Terminated" message is
+    # followed by a new line.
+    #
+    # "[\w\d ]*" after "Terminated" is for macos.
+    create_file('child.mk',
+'all: a b c
+a b:; @sleep 180
+c:; @sleep 2 && kill -term $$PPID');
+    my $re = '/#MAKE#: \*\*\* \[#MAKEFILE#:2: all\] Terminated[\w\d ]*\Z/';
+    run_make_test(q!
+all:; @$(MAKE) --no-print-directory -f child.mk
+!, '-j3', $re, 512);
+    run_make_test(undef, '--jobserver-style=pipe -j3', $re, 512);
+    unlink('child.mk') unless $keep;
 }
 
 1;

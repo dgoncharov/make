@@ -527,7 +527,6 @@ fatal_error_signal (int sig)
 
   temp_stdin_unlink ();
   osync_clear ();
-  jobserver_clear ();
 
   /* A termination signal won't be sent to the entire
      process group, but it means we want to kill the children.  */
@@ -572,6 +571,8 @@ fatal_error_signal (int sig)
     /* Wait for our children to die.  */
     while (job_slots_used > 0)
       reap_children (1, 1);
+
+  jobserver_clear ();
 
   /* Delete any non-precious intermediate files that were made.  */
 
