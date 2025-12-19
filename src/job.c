@@ -1105,6 +1105,14 @@ free_childbase (struct childbase *child)
 }
 
 static void
+swap (char *x, char *y)
+{
+    char tmp = *x;
+    *x = *y;
+    *y = tmp;
+}
+
+static void
 free_child (struct child *child)
 {
   output_close (&child->output);
@@ -1118,9 +1126,30 @@ free_child (struct child *child)
 
   if (jobserver_enabled () && jobserver_tokens > 1)
     {
-      jobserver_release (1);
-      DB (DB_JOBS, (_("Released token for child %p (%s).\n"),
-                    child, child->file->name));
+      if (!child->has_jobtoken)
+        {
+          /* This child is using the free job slot.
+             child->jobtoken is *NOT* holding a token from jobserver.
+             However, one authentic token from jobserver has to be returned to jobserver.
+             Since joberver_tokens is greater than one, there is atleast one
+             other child. Return the token that the other child is holding.  */
+          struct child *c;
+
+          assert (children);
+          if (children == child)
+            c = child->next;
+          else
+            c = children;
+          assert (c->has_jobtoken);
+
+          swap (&child->jobtoken, &c->jobtoken);
+          child->has_jobtoken = 1;
+          c->has_jobtoken = 0;
+        }
+      jobserver_release (child->jobtoken, 1);
+      /* No need to reset child->has_jobtoken, child is getting deallocated.  */
+      DB (DB_JOBS, (_("Released token 0x%x of child %p (%s).\n"),
+                    (unsigned char) child->jobtoken, child, child->file->name));
     }
 
   --jobserver_tokens;
@@ -1822,7 +1851,10 @@ new_job (struct file *file)
 
         /* If we don't already have a job started, use our "free" token.  */
         if (!jobserver_tokens)
-          break;
+          {
+            DB (DB_JOBS, (_("Using the free job slot.\n")));
+            break;
+          }
 
         /* Prepare for jobserver token acquisition.  */
         jobserver_pre_acquire ();
@@ -1836,7 +1868,10 @@ new_job (struct file *file)
 
         /* If our "free" slot is available, use it; we don't need a token.  */
         if (!jobserver_tokens)
-          break;
+          {
+            DB (DB_JOBS, (_("Using the free job slot.\n")));
+            break;
+          }
 
         /* There must be at least one child already, or we have no business
            waiting for a token. */
@@ -1844,13 +1879,14 @@ new_job (struct file *file)
           O (fatal, NILF, "INTERNAL: no children as we go to sleep on read");
 
         /* Get a token.  */
-        got_token = jobserver_acquire (waiting_jobs != NULL);
+        got_token = jobserver_acquire (&c->jobtoken, waiting_jobs != NULL);
 
         /* If we got one, we're done here.  */
         if (got_token == 1)
           {
-            DB (DB_JOBS, (_("Obtained token for child %p (%s).\n"),
-                          c, c->file->name));
+            c->has_jobtoken = 1;
+            DB (DB_JOBS, (_("Obtained token 0x%x for child %p (%s).\n"),
+                          (unsigned char) c->jobtoken, c, c->file->name));
             break;
           }
       }

@@ -55,6 +55,7 @@ struct child
     unsigned int  command_line; /* Index into command_lines.  */
 
     pid_t pid;                  /* Child process's ID number.  */
+    char jobtoken;              /* A token from jobserver, to be returned.  */
 
     unsigned int  remote:1;     /* Nonzero if executing remotely.  */
     unsigned int  noerror:1;    /* Nonzero if commands contained a '-'.  */
@@ -63,6 +64,9 @@ struct child
     unsigned int  recursive:1;  /* Nonzero for recursive command ('+' etc.)  */
     unsigned int  jobslot:1;    /* Nonzero if it's reserved a job slot.  */
     unsigned int  dontcare:1;   /* Saved dontcare flag.  */
+    unsigned int  has_jobtoken:1;  /* If set, 'jobtoken' is holding a token
+                                      from jobserver.  If zero, this child is
+                                      using the free jobserver slot.  */
   };
 
 extern struct child *children;

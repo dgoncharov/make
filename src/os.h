@@ -77,7 +77,12 @@ void jobserver_clear (void);
 unsigned int jobserver_acquire_all (void);
 
 /* Release a jobserver token.  If it fails and is_fatal is 1, fatal.  */
-void jobserver_release (int is_fatal);
+void jobserver_release (char token, int is_fatal);
+
+/* Release all jobserver tokens.
+   jobserver_release_all is only supposed to be called when make is about to
+   exit or about to exec another program.  */
+void jobserver_release_all (void);
 
 /* Notify the jobserver that a child exited.  */
 void jobserver_signal (void);
@@ -96,23 +101,24 @@ void jobserver_pre_acquire (void);
    in this case we won't wait forever, so we can check the load.
    Returns 1 if we got a token, or 0 if we stopped waiting due to a child
    exiting or a timeout.    */
-unsigned int jobserver_acquire (int timeout);
+unsigned int jobserver_acquire (char *token, int timeout);
 
 #else
 
-#define jobserver_enabled()             (0)
-#define jobserver_setup(_slots, _style) (0)
-#define jobserver_parse_auth(_auth)     (0)
-#define jobserver_get_auth()            (NULL)
-#define jobserver_get_invalid_auth()    (NULL)
-#define jobserver_clear()               (void)(0)
-#define jobserver_release(_fatal)       (void)(0)
-#define jobserver_acquire_all()         (0)
-#define jobserver_signal()              (void)(0)
-#define jobserver_pre_child(_r)         (void)(0)
-#define jobserver_post_child(_r)        (void)(0)
-#define jobserver_pre_acquire()         (void)(0)
-#define jobserver_acquire(_tmout)       (0)
+#define jobserver_enabled()               (0)
+#define jobserver_setup(_slots, _style)   (0)
+#define jobserver_parse_auth(_auth)       (0)
+#define jobserver_get_auth()              (NULL)
+#define jobserver_get_invalid_auth()      (NULL)
+#define jobserver_clear()                 (void)(0)
+#define jobserver_release(_token, _fatal) (void)(0)
+#define jobserver_release_all()           (void)(0)
+#define jobserver_acquire_all()           (0)
+#define jobserver_signal()                (void)(0)
+#define jobserver_pre_child(_r)           (void)(0)
+#define jobserver_post_child(_r)          (void)(0)
+#define jobserver_pre_acquire()           (void)(0)
+#define jobserver_acquire(_token, _tmout) (0)
 
 #endif  /* MAKE_JOBSERVER */
 

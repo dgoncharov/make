@@ -90,9 +90,6 @@ static int job_fds[2] = { -1, -1 };
  */
 static int job_rfd = -1;
 
-/* Token written to the pipe (could be any character...)  */
-static char token = '+';
-
 /* The type of jobserver we're using.  */
 enum js_type
   {
@@ -152,6 +149,7 @@ unsigned int
 jobserver_setup (int slots, const char *style)
 {
   int r, k;
+  static char token = '0';
 
   /* This function sets up the root jobserver.  */
   job_root = 1;
@@ -222,6 +220,8 @@ jobserver_setup (int slots, const char *style)
   force_blocking (job_fds[1], 0);
   for (k = 0; k < slots; ++k)
     {
+      /* Token written to the pipe (could be any character...)  */
+      ++token;
       EINTRLOOP (r, write (job_fds[1], &token, 1));
       if (r != 1)
         {
@@ -382,7 +382,7 @@ jobserver_clear ()
 }
 
 void
-jobserver_release (int is_fatal)
+jobserver_release (char token, int is_fatal)
 {
   int r;
   EINTRLOOP (r, write (job_fds[1], &token, 1));
@@ -392,6 +392,17 @@ jobserver_release (int is_fatal)
         pfatal_with_name (_("write jobserver"));
       perror_with_name ("write", "");
     }
+}
+
+void
+jobserver_release_all ()
+{
+    struct child *c;
+    for (c = children; c; c = c->next)
+      if (c->has_jobtoken)
+        jobserver_release (c->jobtoken, 0);
+    /* No need to reset c->has_jobtoken here, jobserver_release_all is only
+       called when make is about to exit or about to exec another program.  */
 }
 
 unsigned int
@@ -473,7 +484,7 @@ jobserver_pre_acquire ()
    never miss a SIGCHLD.
  */
 unsigned int
-jobserver_acquire (int timeout)
+jobserver_acquire (char *intake, int timeout)
 {
   struct timespec spec;
   struct timespec *specp = NULL;
@@ -493,7 +504,6 @@ jobserver_acquire (int timeout)
     {
       fd_set readfds;
       int r;
-      char intake;
 
       FD_ZERO (&readfds);
       FD_SET (job_fds[0], &readfds);
@@ -520,7 +530,7 @@ jobserver_acquire (int timeout)
         return 0;
 
       /* The read FD is ready: read it!  This is non-blocking.  */
-      EINTRLOOP (r, read (job_fds[0], &intake, 1));
+      EINTRLOOP (r, read (job_fds[0], intake, 1));
 
       if (r < 0)
         {
@@ -620,16 +630,15 @@ set_child_handler_action_flags (int set_handler, int set_alarm)
 }
 
 unsigned int
-jobserver_acquire (int timeout)
+jobserver_acquire (char *intake, int timeout)
 {
-  char intake;
   int got_token;
   int saved_errno;
 
   /* Set interruptible system calls, and read() for a job token.  */
   set_child_handler_action_flags (1, timeout);
 
-  EINTRLOOP (got_token, read (job_rfd, &intake, 1));
+  EINTRLOOP (got_token, read (job_rfd, intake, 1));
   saved_errno = errno;
 
   set_child_handler_action_flags (0, timeout);

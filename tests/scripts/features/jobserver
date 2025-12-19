@@ -222,4 +222,50 @@ all:; $(info hello, world)
     !, '-j688777 --jobserver-style=pipe', '/requested job count \(688777\) is larger than system limit/', 512);
 }
 
+# The child process writes two tokens with values 7 and 8.
+# Make keeps reading these tokens from the pipe and writing them back to the
+# pipe until all jobs are done.
+# After make exits, test that the pipe contains 7 and 8, written by make.
+if ($port_type eq 'UNIX') {
+    use POSIX qw(mkfifo);
+    unlink('a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'k');
+    my $fifo = "/tmp/gmtest_fifo.$$";
+    unlink($fifo);
+    mkfifo($fifo, 0600) || die "Cannot create fifo $fifo: $!";
+    my $pid = fork();
+    $pid < 0 && die "Cannot fork: $!";
+    if ($pid) {
+        # Parent.
+        run_make_test(q!
+all: a b c d e f g h k
+a b c d e f g h k:; touch $@
+!, "--jobserver-auth=fifo:$fifo",
+"touch a\ntouch b\ntouch c\ntouch d\ntouch e\ntouch f\ntouch g\ntouch h\ntouch k\n");
+
+        # Test that the pipe contains 7 and 8 (written by make).
+        open(my $rh, "<", $fifo) or die "Cannot open $fifo: $!";
+        # read blocks until the writer closes the fifo.
+        my $tkns = <$rh>;
+        $tkns == 78 || $tkns == 87
+            || die "Make failed to return tokens to jobserver, fifo contents = $tkns\n";
+        close($rh);
+    } else {
+        # Child.
+        # Open blocks until make opens the fifo.
+        open(my $fh, ">", $fifo) or die "Cannot open $fifo: $!";
+
+        foreach my $k (7..8) {
+            print $fh $k;
+        }
+        $fh->flush();
+        # Give make time to finish and the parent process to open the pipe.
+        sleep(4);
+        close($fh);
+        exit(0);
+    }
+    unlink($fifo);
+    unlink('a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'k');
+}
+
+
 1;

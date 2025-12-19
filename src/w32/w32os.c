@@ -298,7 +298,7 @@ jobserver_clear ()
 }
 
 void
-jobserver_release (int is_fatal)
+jobserver_release (char token UNUSED, int is_fatal)
 {
   if (! ReleaseSemaphore (
           jobserver_semaphore,    /* handle to semaphore */
@@ -314,6 +314,15 @@ jobserver_release (int is_fatal)
         }
       perror_with_name ("release_jobserver_semaphore", "");
     }
+}
+
+void
+jobserver_release_all (void)
+{
+    extern unsigned int jobserver_tokens;
+    /* Don't write back the "free" token */
+    while (--jobserver_tokens)
+      jobserver_release ('+', 0);
 }
 
 unsigned int
@@ -354,7 +363,7 @@ jobserver_pre_acquire ()
 /* Returns 1 if we got a token, or 0 if a child has completed.
    The Windows implementation doesn't support load detection.  */
 unsigned int
-jobserver_acquire (int timeout UNUSED)
+jobserver_acquire (char *token UNUSED, int timeout UNUSED)
 {
     HANDLE *handles;
     DWORD dwHandleCount;
