@@ -1834,6 +1834,9 @@ main (int argc, char **argv, char **envp)
   if (jobserver_auth)
     {
       /* We're a child in an existing jobserver group.  */
+      DB (DB_VERBOSE|DB_JOBS,
+          (_("We're a child in an existing jobserver group.\n")));
+
       if (argv_slots == INVALID_JOB_SLOTS)
         {
           /* There's no -j option on the command line: check authorization.  */
@@ -2187,6 +2190,24 @@ main (int argc, char **argv, char **envp)
       job_slots = 1;
     }
 #endif
+
+  switch (job_slots)
+    {
+      case 0:
+        if (jobserver_auth)
+          /* Jobserver client.  */
+          ;
+        else
+          /* Jobserver host.  */
+          DB (DB_VERBOSE|DB_JOBS, (_("Have infinite job slots.\n")));
+        break;
+      case 1:
+        DB (DB_VERBOSE|DB_JOBS, (_("Have one job slot (no parallel jobs).\n")));
+        break;
+      default:
+        DB (DB_VERBOSE|DB_JOBS, (_("Have %u job slots.\n"), job_slots));
+        break;
+    }
 
   /* If we have >1 slot at this point, then we're a top-level make.
      Set up the jobserver.
@@ -3809,6 +3830,7 @@ clean_jobserver (int status)
             "INTERNAL: exiting with %u jobserver tokens (should be 0)!",
             jobserver_tokens);
       else
+//TODO: call jobserver_release_all (0);
         /* Don't write back the "free" token */
         while (--jobserver_tokens)
           jobserver_release (0);

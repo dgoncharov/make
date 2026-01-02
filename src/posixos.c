@@ -17,6 +17,7 @@ this program.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "makeint.h"
 
 #include <stdio.h>
+#include <assert.h>
 
 #ifdef HAVE_FCNTL_H
 # include <fcntl.h>
@@ -42,6 +43,12 @@ this program.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "os.h"
 
 #define STREAM_OK(_s) ((fcntl (fileno (_s), F_GETFD) != -1) || (errno != EBADF))
+
+/* A token obtained from jobserver is an index in acquired_tokens.
+   The value of each element is the number of times that token was acquired
+   minus released.  */
+enum {ntokens = 256};
+static unsigned int acquired_tokens[ntokens];
 
 unsigned int
 check_io_state ()
@@ -89,9 +96,6 @@ static int job_fds[2] = { -1, -1 };
    If we use pselect() this will never be created and always -1.
  */
 static int job_rfd = -1;
-
-/* Token written to the pipe (could be any character...)  */
-static char token = '+';
 
 /* The type of jobserver we're using.  */
 enum js_type
@@ -152,6 +156,7 @@ unsigned int
 jobserver_setup (int slots, const char *style)
 {
   int r, k;
+  static char token = '0';
 
   /* This function sets up the root jobserver.  */
   job_root = 1;
@@ -222,6 +227,8 @@ jobserver_setup (int slots, const char *style)
   force_blocking (job_fds[1], 0);
   for (k = 0; k < slots; ++k)
     {
+      /* Token written to the pipe (could be any character...)  */
+      token++;
       EINTRLOOP (r, write (job_fds[1], &token, 1));
       if (r != 1)
         {
@@ -385,7 +392,18 @@ void
 jobserver_release (int is_fatal)
 {
   int r;
-  EINTRLOOP (r, write (job_fds[1], &token, 1));
+  unsigned int k;
+  int found = 0;
+
+  for (k = 0; k < ntokens; ++k)
+    if (acquired_tokens[k])
+      {
+        --acquired_tokens[k];
+        found = 1;
+        break;
+      }
+  assert (found);
+  EINTRLOOP (r, write (job_fds[1], (char*) &k, 1));
   if (r != 1)
     {
       if (is_fatal)
@@ -413,6 +431,7 @@ jobserver_acquire_all ()
       EINTRLOOP (r, read (job_fds[0], &intake, 1));
       if (r != 1)
         break;
+      ++acquired_tokens[(unsigned char) intake];
       ++tokens;
     }
 
@@ -533,6 +552,7 @@ jobserver_acquire (int timeout)
 
       /* read() should never return 0: only the parent make can reap all the
          tokens and close the write side...??  */
+      acquired_tokens[(unsigned char) intake] += r > 0;
       return r > 0;
     }
 }
@@ -635,7 +655,10 @@ jobserver_acquire (int timeout)
   set_child_handler_action_flags (0, timeout);
 
   if (got_token == 1)
-    return 1;
+    {
+      ++acquired_tokens[(unsigned char) intake];
+      return 1;
+    }
 
   /* If the error _wasn't_ expected (EINTR or EBADF), fatal.  Otherwise,
      go back and reap_children(), and try again.  */
