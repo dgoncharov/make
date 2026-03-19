@@ -1822,7 +1822,10 @@ new_job (struct file *file)
 
         /* If we don't already have a job started, use our "free" token.  */
         if (!jobserver_tokens)
-          break;
+          {
+            DB (DB_JOBS, (_("Using the free job slot.\n")));
+            break;
+          }
 
         /* Prepare for jobserver token acquisition.  */
         jobserver_pre_acquire ();
@@ -1836,7 +1839,10 @@ new_job (struct file *file)
 
         /* If our "free" slot is available, use it; we don't need a token.  */
         if (!jobserver_tokens)
-          break;
+          {
+            DB (DB_JOBS, (_("Using the free job slot.\n")));
+            break;
+          }
 
         /* There must be at least one child already, or we have no business
            waiting for a token. */

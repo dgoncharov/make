@@ -222,4 +222,207 @@ all:; $(info hello, world)
     !, '-j688777 --jobserver-style=pipe', '/requested job count \(688777\) is larger than system limit/', 512);
 }
 
+sub test_releasing_tokens_to_fifo
+{
+    # Jobserver uses a fifo.
+    # The tokens and the number of targets are specified by the caller.
+
+    my ($tkn, $ntargets, $dup) = @_;
+    use POSIX qw(mkfifo);
+    use IPC::SysV qw(IPC_PRIVATE SETVAL IPC_RMID S_IRUSR S_IWUSR IPC_CREAT);
+
+    my $sem = semget(IPC_PRIVATE, 1, S_IRUSR|S_IWUSR|IPC_CREAT);
+    semctl($sem, 0, SETVAL, 0) || die "Cannot set a semaphore value: $!";
+
+    my %tokens = ();
+    my $fifo = "/tmp/gmtest_fifo.$$";
+    unlink($fifo);
+    mkfifo($fifo, 0600) || die "Cannot create fifo $fifo: $!";
+    my $pid = fork();
+    $pid >= 0 || die "Cannot fork: $!";
+    if ($pid) {
+        # Parent.
+        my $targets = "";
+        foreach my $k (1..$ntargets) {
+            $targets = "$targets $k.x";
+        }
+        $debug && print "\nparent is running make\n";
+
+        run_make_test("
+all: $targets; \$(info hello)
+\%.x:; \@:;
+",
+        "--jobserver-auth=fifo:$fifo", "hello\n");
+
+        my $nexpected = 0;
+        foreach my $d (1..$dup) {
+            foreach my $k (@$tkn) {
+                ++$tokens{chr($k)};
+                ++$nexpected;
+            }
+        }
+        my $nreturned = 0;
+        my $byte = 0;
+        $debug && print "parent is opening $fifo\n";
+        open(my $rd, "<", $fifo) || die "Cannot open $fifo: $!";
+
+        $debug && print "parent is posting sem\n";
+        my $post = pack("sss", 0, 1, 0);
+        semop($sem, $post) || die "Cannot post semaphore: $!";
+
+        # read blocks until the writer closes the fifo.
+        $debug && print "parent is reading\n";
+        while (read($rd, $byte, 1)) {
+            exists $tokens{$byte} ||
+                die sprintf("Make returned a wrong token to jobserver, "
+                            . "wrong token = 0x%x\n", ord($byte));
+            if (--$tokens{$byte} == 0) {
+                delete $tokens{$byte};
+            }
+            ++$nreturned;
+        }
+        $nreturned < $nexpected &&
+            die "Make failed to return tokens to jobserver, "
+                . " expected $nexpected tokens, returned $nreturned tokens\n";
+        $nreturned > $nexpected &&
+            die "Make returned extra tokens to jobserver, "
+                . " expected $nexpected tokens, returned $nreturned tokens\n";
+        close($rd);
+        $debug && print "parent is exiting\n";
+    } else {
+        # Child.
+        # Open blocks until make opens the fifo.
+        $debug && print "\nchild is opening $fifo\n";
+        open(my $wr, ">", $fifo) || die "Cannot open $fifo: $!";
+        foreach my $d (1..$dup) {
+            foreach my $k (@$tkn) {
+                print $wr chr($k);
+            }
+        }
+        $wr->flush();
+
+        # This sem ensures the child keeps its side of the fifo open until the
+        # parent opens its side for reading.
+        $debug && print "child is waiting for sem\n";
+        my $wait = pack("sss", 0, -1, 0);
+        semop($sem, $wait) || die "Cannot wait on semaphore: $!";
+
+        close($wr);
+        $debug && print "child is exiting\n";
+        exit(0);
+    }
+    unlink($fifo);
+    semctl($sem, 0, IPC_RMID, 0);
+}
+
+# The child process creates the pipe and writes tokens.
+# Make keeps reading these tokens from the pipe and writing them back to the
+# pipe until all jobs are done.
+# After make exits, test that the pipe expected tokens, returned by make to
+# the pipe.
+sub test_releasing_tokens_to_pipe
+{
+    # Jobserver uses a pipe.
+    # The tokens and the number of targets are specified by the caller.
+    my ($tkn, $ntargets, $dup) = @_;
+    use Fcntl;
+    my %tokens = ();
+    my $targets = "";
+    pipe (my $rd, my $wr) || die "Cannot open a pipe: $!";
+
+    my $nexpected = 0;
+    foreach my $d (1..$dup) {
+        foreach my $k (@$tkn) {
+            print $wr chr($k);
+            ++$tokens{chr($k)};
+            ++$nexpected;
+        }
+    }
+    foreach my $k (1..$ntargets) {
+        $targets = "$targets $k.x";
+    }
+    $wr->flush();
+    my $flags = fcntl($rd, F_GETFD, 0) || die "cannot get fd flags: $!";
+    fcntl($rd, F_SETFD, $flags & ~FD_CLOEXEC) || die "cannot set fd flags: $!";
+    $flags = fcntl($wr, F_GETFD, 0) || die "cannot get fd flags: $!";
+    fcntl($wr, F_SETFD, $flags & ~FD_CLOEXEC) || die "cannot set fd flags: $!";
+    my $rfd = fileno($rd);
+    my $wfd = fileno($wr);
+
+    run_make_test("
+all: $targets; \$(info hello)
+\%.x:; \@:;
+",
+        "--jobserver-auth=$rfd,$wfd", "hello\n");
+
+    close($wr);
+    my $nreturned = 0;
+    my $byte = 0;
+    while (read($rd, $byte, 1)) {
+        ++$nreturned;
+        exists $tokens{$byte} ||
+            die sprintf("Make returned a wrong token to jobserver, "
+                        . "wrong token = 0x%x\n", ord($byte));
+        if (--$tokens{$byte} == 0) {
+            delete $tokens{$byte};
+        }
+    }
+    $nreturned < $nexpected &&
+        die "Make failed to return tokens to jobserver, "
+            . " expected $nexpected tokens, returned $nreturned tokens\n";
+    $nreturned > $nexpected &&
+        die "Make returned extra tokens to jobserver, "
+            . " expected $nexpected tokens, returned $nreturned tokens\n";
+    close($rd);
+}
+
+if ($port_type eq 'UNIX') {
+    # sv 67822. Release the tokens acquired from the jobserver.
+    # Jobserver uses a fifo.
+    # These tests test the jobserver impl in src/posixos.c.
+
+    my @tokens;
+
+    foreach my $dup (1, 2, 3) {
+        # 1 random token, 4 targets.
+        @tokens = (47);
+        test_releasing_tokens_to_fifo(\@tokens, 4, $dup);
+        # 1 random token, 512 targets.
+        test_releasing_tokens_to_fifo(\@tokens, 512, $dup);
+
+        # 5 random tokens, 4 targets.
+        @tokens = (31, 12, 180, 201, $dup);
+        test_releasing_tokens_to_fifo(\@tokens, 4, $dup);
+        # 5 random tokens, 512 targets.
+        test_releasing_tokens_to_fifo(\@tokens, 512, $dup);
+
+        @tokens = (0..255);
+        # All possible tokens, 4 targets.
+        test_releasing_tokens_to_fifo(\@tokens, 4, $dup);
+        # All possible tokens, 1024 targets.
+        test_releasing_tokens_to_fifo(\@tokens, 1024, $dup);
+
+
+        # Jobserver uses a pipe.
+        # 1 random token, 4 targets.
+        @tokens = (40);
+        test_releasing_tokens_to_pipe(\@tokens, 4, $dup);
+        # 1 random token, 512 targets.
+        test_releasing_tokens_to_pipe(\@tokens, 512, $dup);
+
+        # 5 random tokens, 4 targets.
+        @tokens = (7, 212, 118, 0, 200);
+        test_releasing_tokens_to_pipe(\@tokens, 4, $dup);
+        # 5 random tokens, 512 targets.
+        test_releasing_tokens_to_pipe(\@tokens, 512, $dup);
+
+        @tokens = (0..255);
+        # All possible tokens, 4 targets.
+        test_releasing_tokens_to_pipe(\@tokens, 4, $dup);
+        # All possible tokens, 1024 targets.
+        test_releasing_tokens_to_pipe(\@tokens, 1024, $dup);
+    }
+}
+
+
 1;

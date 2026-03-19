@@ -79,6 +79,9 @@ unsigned int jobserver_acquire_all (void);
 /* Release a jobserver token.  If it fails and is_fatal is 1, fatal.  */
 void jobserver_release (int is_fatal);
 
+/* Release all jobserver tokens.  */
+void jobserver_release_all (void);
+
 /* Notify the jobserver that a child exited.  */
 void jobserver_signal (void);
 
@@ -107,6 +110,7 @@ unsigned int jobserver_acquire (int timeout);
 #define jobserver_get_invalid_auth()    (NULL)
 #define jobserver_clear()               (void)(0)
 #define jobserver_release(_fatal)       (void)(0)
+#define jobserver_release_all()         (void)(0)
 #define jobserver_acquire_all()         (0)
 #define jobserver_signal()              (void)(0)
 #define jobserver_pre_child(_r)         (void)(0)

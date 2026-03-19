@@ -17,6 +17,7 @@ this program.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "makeint.h"
 
 #include <stdio.h>
+#include <assert.h>
 
 #ifdef HAVE_FCNTL_H
 # include <fcntl.h>
@@ -77,6 +78,19 @@ check_io_state ()
 
 #define FIFO_PREFIX    "fifo:"
 
+/* Array tokens is needed to return the tokens that make acquired.
+   A token obtained from jobserver is an index in array tokens.
+   The array lets jobserver_acquire store a token in constant time.  The linked
+   list lets jobserver_release find a token to release in constant time.
+   */
+struct token {
+    unsigned int count; /* How many times the token was acquired minus
+                           released. */
+    unsigned char next; /* The index of the next link in the linked list.  */
+};
+static unsigned char tokens_head;
+static struct token tokens[256];
+
 /* This section provides OS-specific functions to support the jobserver.  */
 
 /* True if this is the root make instance.  */
@@ -89,9 +103,6 @@ static int job_fds[2] = { -1, -1 };
    If we use pselect() this will never be created and always -1.
  */
 static int job_rfd = -1;
-
-/* Token written to the pipe (could be any character...)  */
-static char token = '+';
 
 /* The type of jobserver we're using.  */
 enum js_type
@@ -222,7 +233,11 @@ jobserver_setup (int slots, const char *style)
   force_blocking (job_fds[1], 0);
   for (k = 0; k < slots; ++k)
     {
-      EINTRLOOP (r, write (job_fds[1], &token, 1));
+      /* Token written to the pipe (could be any character...).
+         Use values 33 to 126, because these are printable and allow for
+         troubleshooting.  */
+      static unsigned char tk = 33;
+      EINTRLOOP (r, write (job_fds[1], &tk, 1));
       if (r != 1)
         {
           if (errno != EAGAIN)
@@ -230,6 +245,8 @@ jobserver_setup (int slots, const char *style)
 
           ONN (fatal, NILF, _("requested job count (%d) is larger than system limit (%d)"), slots+1, k);
         }
+      if (++tk > 126)
+        tk = 33;
     }
   force_blocking (job_fds[1], 1);
 
@@ -385,7 +402,13 @@ void
 jobserver_release (int is_fatal)
 {
   int r;
-  EINTRLOOP (r, write (job_fds[1], &token, 1));
+  unsigned char intake = tokens_head;
+  assert (tokens[intake].count > 0);
+  --tokens[intake].count;
+  if (tokens[intake].count == 0)
+    tokens_head = tokens[intake].next;
+  DB (DB_JOBS, (_("Releasing token 0x%x.\n"), intake));
+  EINTRLOOP (r, write (job_fds[1], &intake, 1));
   if (r != 1)
     {
       if (is_fatal)
@@ -394,11 +417,32 @@ jobserver_release (int is_fatal)
     }
 }
 
+void
+jobserver_release_all ()
+{
+  int r;
+
+  while (tokens[tokens_head].count > 0)
+    {
+      unsigned char intake = tokens_head;
+      while (tokens[intake].count > 0)
+        {
+          --tokens[intake].count;
+          DB (DB_JOBS, (_("Releasing token 0x%x.\n"), intake));
+          EINTRLOOP (r, write (job_fds[1], &intake, 1));
+          if (r != 1)
+            perror_with_name ("write", "");
+        }
+      assert (tokens[intake].count == 0);
+      tokens_head = tokens[intake].next;
+    }
+}
+
 unsigned int
 jobserver_acquire_all ()
 {
   int r;
-  unsigned int tokens = 0;
+  unsigned int n = 0;
 
   /* Use blocking reads to wait for all outstanding jobs.  */
   set_blocking (job_fds[0], 1);
@@ -409,18 +453,26 @@ jobserver_acquire_all ()
 
   while (1)
     {
-      char intake;
+      unsigned char intake;
       EINTRLOOP (r, read (job_fds[0], &intake, 1));
       if (r != 1)
         break;
-      ++tokens;
+      ++tokens[intake].count;
+      if (tokens[intake].count == 1)
+        {
+          tokens[intake].next = tokens_head;
+          tokens_head = intake;
+        }
+      ++n;
+      DB (DB_JOBS, (_("Acquired token 0x%x.\n"), intake));
+      assert (tokens[tokens_head].count > 0);
     }
 
-  DB (DB_JOBS, ("Acquired all %u jobserver tokens.\n", tokens));
+  DB (DB_JOBS, ("Acquired all %u jobserver tokens.\n", n));
 
   jobserver_clear ();
 
-  return tokens;
+  return n;
 }
 
 /* Prepare the jobserver to start a child process.  */
@@ -493,7 +545,7 @@ jobserver_acquire (int timeout)
     {
       fd_set readfds;
       int r;
-      char intake;
+      unsigned char intake;
 
       FD_ZERO (&readfds);
       FD_SET (job_fds[0], &readfds);
@@ -533,7 +585,18 @@ jobserver_acquire (int timeout)
 
       /* read() should never return 0: only the parent make can reap all the
          tokens and close the write side...??  */
-      return r > 0;
+      if (r == 0)
+        return 0;
+
+      ++tokens[intake].count;
+      if (tokens[intake].count == 1)
+        {
+          tokens[intake].next = tokens_head;
+          tokens_head = intake;
+        }
+      DB (DB_JOBS, (_("Acquired token 0x%x.\n"), intake));
+      assert (tokens[tokens_head].count > 0);
+      return 1;
     }
 }
 
@@ -622,7 +685,7 @@ set_child_handler_action_flags (int set_handler, int set_alarm)
 unsigned int
 jobserver_acquire (int timeout)
 {
-  char intake;
+  unsigned char intake;
   int got_token;
   int saved_errno;
 
@@ -635,7 +698,17 @@ jobserver_acquire (int timeout)
   set_child_handler_action_flags (0, timeout);
 
   if (got_token == 1)
-    return 1;
+    {
+      ++tokens[intake].count;
+      if (tokens[intake].count == 1)
+        {
+          tokens[intake].next = tokens_head;
+          tokens_head = intake;
+        }
+      assert (tokens[tokens_head].count > 0);
+      DB (DB_JOBS, (_("Acquired token 0x%x.\n"), intake));
+      return 1;
+    }
 
   /* If the error _wasn't_ expected (EINTR or EBADF), fatal.  Otherwise,
      go back and reap_children(), and try again.  */

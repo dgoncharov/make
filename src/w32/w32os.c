@@ -316,6 +316,15 @@ jobserver_release (int is_fatal)
     }
 }
 
+void
+jobserver_release_all ()
+{
+    extern unsigned int jobserver_tokens;
+    /* Don't write back the "free" token */
+    while (--jobserver_tokens)
+      jobserver_release (0);
+}
+
 unsigned int
 jobserver_acquire_all ()
 {
