@@ -5294,6 +5294,10 @@ require GNU Make anyway then simply use @code{MAKEFLAGS}.  Flags such
 as @samp{--no-print-directory} or @samp{--output-sync} may be
 appropriate for @code{GNUMAKEFLAGS}.
 
+@code{MAKEFLAGS} and @code{GNUMAKEFLAGS} contain flags which control the
+behavior of make as a whole.  This means that @code{MAKEFLAGS} and
+@code{GNUMAKEFLAGS} cannot have target of pattern specific values.
+
 @node -w Option
 @subsection The @samp{--print-directory} Option
 @cindex directories, printing them
